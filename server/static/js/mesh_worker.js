@@ -1,3 +1,4 @@
+// static/js/mesh_worker.js
 self.onmessage = function (e) {
     const { type, icosphereData, voronoiData, voronoiEnabled } = e.data;
 
@@ -28,17 +29,24 @@ function processIcosphereRawData(meshData) {
         console.error("Worker: Invalid icosphere data for processing.", meshData);
         return null;
     }
-    if (meshData.faces.length === 0) {
-        console.error("Worker: meshData.faces is empty for icosphere.");
+    // It's possible for an icosphere (e.g., 0 subdivisions) to have vertices but no faces
+    // if it's just the base icosahedron points before triangulation for Voronoi sites.
+    // However, for display as a mesh, faces are needed.
+    // The icosphere_handler.js should handle cases where faces might be empty if that's valid.
+    // For now, we'll proceed, assuming the calling code expects this structure.
+    if (meshData.faces.length === 0 && meshData.vertices.length > 0) {
+        console.warn("Worker: Icosphere data has vertices but no faces. This might be intended for site generation.");
+        // Still return the vertices for site usage if needed
         return {
             vertices: new Float32Array(meshData.vertices),
-            faces: new Uint32Array(meshData.faces) // Or Int32Array
+            faces: new Uint32Array(meshData.faces)
         };
     }
-    if (!Array.isArray(meshData.faces) || !meshData.faces.every(num => typeof num === 'number')) {
+    if (meshData.faces.length > 0 && (!Array.isArray(meshData.faces) || !meshData.faces.every(num => typeof num === 'number'))) {
         console.error("Worker: meshData.faces is not a valid array of numbers for icosphere.");
         return null;
     }
+
 
     return {
         vertices: new Float32Array(meshData.vertices),
@@ -53,7 +61,7 @@ function processVoronoiRawData(voronoiRawData) {
     }
 
     const allVoronoiVerticesArray = new Float32Array(voronoiRawData.vertices);
-    const cells = voronoiRawData.cells;
+    const cells = voronoiRawData.cells; // This is an array of objects like { siteIndex: S, vertexIndices: [...] }
 
     // --- Process Solid Mesh Data ---
     let totalTrianglesSolid = 0;
@@ -70,7 +78,7 @@ function processVoronoiRawData(voronoiRawData) {
         const finalSolidBarycentrics = new Float32Array(totalTrianglesSolid * 9); // 3 vertices per triangle, 3 barycentric coords per vertex
         let currentSolidVertexIndex = 0;
 
-        cells.forEach((cell, cellIdx) => {
+        cells.forEach((cell) => { // cell is an object: { siteIndex: number, vertexIndices: number[] }
             const polyIndices = cell.vertexIndices;
             if (!polyIndices || polyIndices.length < 3) return;
 
@@ -81,8 +89,10 @@ function processVoronoiRawData(voronoiRawData) {
 
                 [v0Idx, v1Idx, v2Idx].forEach((pvIdx, triVertIdx) => {
                     if ((pvIdx * 3 + 2) >= allVoronoiVerticesArray.length) {
-                        console.error(`Worker Voronoi Solid: Vertex index out of bounds: ${pvIdx}`);
-                        // Potentially skip this vertex or triangle
+                        console.error(`Worker Voronoi Solid: Vertex index ${pvIdx} out of bounds for allVoronoiVerticesArray (length ${allVoronoiVerticesArray.length}). Skipping vertex.`);
+                        // To prevent further errors, we might need to skip this entire triangle or cell,
+                        // or fill with placeholder data. For now, just log and the array might get zeros.
+                        // A robust solution would be to ensure pvIdx is always valid before accessing.
                         return;
                     }
                     // Positions
@@ -90,8 +100,17 @@ function processVoronoiRawData(voronoiRawData) {
                     finalSolidPositions[currentSolidVertexIndex * 3 + 1] = allVoronoiVerticesArray[pvIdx * 3 + 1];
                     finalSolidPositions[currentSolidVertexIndex * 3 + 2] = allVoronoiVerticesArray[pvIdx * 3 + 2];
 
-                    // Cell IDs
-                    finalSolidCellIds[currentSolidVertexIndex] = cellIdx;
+                    // Cell IDs - CRITICAL FIX: Use cell.siteIndex
+                    // The `cell` object here comes from `voronoiRawData.cells`.
+                    // Each element in `voronoiRawData.cells` should have a `siteIndex` property
+                    // that corresponds to the original icosphere generator point.
+                    if (typeof cell.siteIndex !== 'number') {
+                        console.error(`Worker Voronoi Solid: cell.siteIndex is undefined or not a number for cell. Original cellIdx was not used. Cell data:`, cell);
+                        finalSolidCellIds[currentSolidVertexIndex] = -1; // Or some other indicator of an error
+                    } else {
+                        finalSolidCellIds[currentSolidVertexIndex] = cell.siteIndex;
+                    }
+
 
                     // Barycentric coordinates
                     finalSolidBarycentrics[currentSolidVertexIndex * 3 + 0] = (triVertIdx === 0) ? 1 : 0;
@@ -118,7 +137,7 @@ function processVoronoiRawData(voronoiRawData) {
         const polyIndices = cell.vertexIndices;
         for (let i = 0; i < polyIndices.length; i++) {
             const idx1 = polyIndices[i];
-            const idx2 = polyIndices[(i + 1) % polyIndices.length];
+            const idx2 = polyIndices[(i + 1) % polyIndices.length]; // Loop back to the first vertex
 
             if ((idx1 * 3 + 2) < allVoronoiVerticesArray.length && (idx2 * 3 + 2) < allVoronoiVerticesArray.length) {
                 outlinePointsList.push(allVoronoiVerticesArray[idx1 * 3 + 0]);
@@ -146,4 +165,4 @@ function processVoronoiRawData(voronoiRawData) {
         solid: solidData,
         outline: outlineData
     };
-} 
+}

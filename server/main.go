@@ -479,7 +479,7 @@ func apiGenerateLandHandler(w http.ResponseWriter, r *http.Request) {
 		NoiseLacunarity:     reqPayload.NoiseLacunarity,
 		ElevationMultiplier: reqPayload.ElevationMultiplier,
 		OutputName:          reqPayload.OutputName,
-		IcoSiteVertices:     reqPayload.BaseIcosphereData.Vertices, // Pass flattened sites
+		// IcoSiteVertices:     reqPayload.BaseIcosphereData.Vertices, // Pass flattened sites
 		// IcosphereSubdivisions can be derived if needed, or passed if landgen lib uses it for more than logging
 		// For example, to find the original subdivision count:
 		// derivedSubdivisions := 0 // ... logic to determine from len(icoSites) or len(reqPayload.BaseIcosphereData.Faces)
@@ -498,7 +498,7 @@ func apiGenerateLandHandler(w http.ResponseWriter, r *http.Request) {
 	// --- Step 4: Call the land generation library function ---
 	log.Println("API (LandGen): Calling landgen.GenerateLandData...")
 	// Call now matches the revised landgen.GenerateLandData signature (4 args)
-	elevationData, savedImagePath, err := landgen.GenerateLandData(landLibParams, voroVerticesForLandgen, voroCellsForLandgen, fullOutputFilePath)
+	elevationData, savedImagePath, err := landgen.GenerateLandData(landLibParams, icoSites, voroVerticesForLandgen, voroCellsForLandgen, fullOutputFilePath)
 	if err != nil {
 		log.Printf("Error generating land data: %v", err)
 		http.Error(w, fmt.Sprintf("Failed to generate land data: %v", err), http.StatusInternalServerError)

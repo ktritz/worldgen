@@ -46,7 +46,7 @@ function updateBaseMeshInfoDisplay(icosphereData, voronoiData, subdivisionLevel)
 
 
 function initializeLandgenTab(commonViewerAPI) {
-    console.log("Initializing Land Generation Tab specific JavaScript (v1.4 - 2D Texture & Subdiv Logic)...");
+    console.log("Initializing Land Generation Tab specific JavaScript (v1.5 - Texture Mapping Fix)...");
     commonViewerAPIInstance = commonViewerAPI;
 
     landGenerationFormRef = document.getElementById('landGenerationForm');
@@ -93,7 +93,7 @@ function initializeLandgenTab(commonViewerAPI) {
         const activeMeshData = commonViewerAPIInstance.getActiveMeshData();
         if (!activeMeshData || !activeMeshData.icosphereData || !activeMeshData.voronoiData ||
             !activeMeshData.icosphereData.vertices || !activeMeshData.voronoiData.cells ||
-            activeMeshData.subdivisionLevel === undefined || activeMeshData.subdivisionLevel < 0) { // Check for valid subdivision level
+            activeMeshData.subdivisionLevel === undefined || activeMeshData.subdivisionLevel < 0) {
             commonViewerAPIInstance.showStatus("Error: No complete active Icosphere/Voronoi mesh data with subdivision level. Generate/load one first.", "error");
             updateBaseMeshInfoDisplay(null, null, -1);
             if (mainGenerateBtnRef) mainGenerateBtnRef.disabled = true;
@@ -112,9 +112,6 @@ function initializeLandgenTab(commonViewerAPI) {
             ...landParams,
             baseIcosphereData: activeMeshData.icosphereData,
             baseVoronoiData: activeMeshData.voronoiData,
-            // No need to send subdivision separately if backend doesn't strictly need it for landgen logic itself,
-            // but it's good for context if landgen.LandGenerationParams has it.
-            // For now, assuming backend's landgen.LandGenerationParams still has IcosphereSubdivisions for reference.
             icosphereSubdivisions: activeMeshData.subdivisionLevel
         };
 
@@ -151,34 +148,33 @@ function initializeLandgenTab(commonViewerAPI) {
                             if (elevation > maxElev) maxElev = elevation;
                         });
 
-                        if (minElev === maxElev) {
-                            maxElev = minElev + 0.1;
-                            if (minElev === 0 && maxElev === 0.1) { /* Correct */ }
-                            else if (minElev === 0) { maxElev = 0.1; }
-                            else if (maxElev === minElev) { maxElev = minElev + Math.abs(minElev * 0.1) + 0.01; }
-                            if (minElev === (maxElev - 0.1) && minElev < 0) {
-                                minElev = maxElev - 0.2;
-                            }
+                        if (minElev === Infinity || maxElev === -Infinity) { // Handle case where map might be empty or all values are non-numeric
+                            minElev = 0;
+                            maxElev = 0.1;
+                            console.warn("LandgenHandler: minElev or maxElev was not updated, defaulting to 0 and 0.1. Check elevation data content.");
+                        } else if (minElev === maxElev) { // Ensure a range if all elevations are the same
+                            maxElev = minElev + Math.abs(minElev * 0.1) + 0.01; // Add a small delta
+                            if (minElev === maxElev) maxElev = minElev + 0.1; // If minElev was 0
                         }
                         console.log(`LandgenHandler: Calculated minElev: ${minElev}, maxElev: ${maxElev}`);
 
-                        const totalCellCount = activeMeshData.icosphereData.vertices.length / 3; // Number of sites
+                        const numIcosphereSites = activeMeshData.icosphereData.vertices.length / 3;
 
-                        // --- MODIFIED: Calculate 2D texture dimensions ---
-                        let texWidth = Math.ceil(Math.sqrt(totalCellCount));
-                        const MAX_TEXTURE_DIM = 4096;
+                        let texWidth = Math.ceil(Math.sqrt(numIcosphereSites));
+                        const MAX_TEXTURE_DIM = 4096; // Or a value from capabilities if available
                         texWidth = Math.min(texWidth, MAX_TEXTURE_DIM);
-                        let texHeight = Math.ceil(totalCellCount / texWidth);
+                        let texHeight = Math.ceil(numIcosphereSites / texWidth);
                         texHeight = Math.min(texHeight, MAX_TEXTURE_DIM);
 
-                        if (texWidth * texHeight < totalCellCount) {
-                            texHeight = Math.ceil(totalCellCount / texWidth);
+                        // Ensure texHeight is sufficient if texWidth was clamped
+                        if (texWidth * texHeight < numIcosphereSites) {
+                            texHeight = Math.ceil(numIcosphereSites / texWidth);
                         }
-                        console.log(`LandgenHandler: totalCellCount: ${totalCellCount}, Calculated TexWidth: ${texWidth}, TexHeight: ${texHeight}`);
-                        // --- END MODIFICATION ---
 
-                        if (totalCellCount > 0 && texWidth > 0 && texHeight > 0) {
-                            // Pass the subdivision level of the base mesh for which this elevation data is valid
+
+                        console.log(`LandgenHandler: numIcosphereSites: ${numIcosphereSites}, Calculated TexWidth: ${texWidth}, TexHeight: ${texHeight}`);
+
+                        if (numIcosphereSites > 0 && texWidth > 0 && texHeight > 0) {
                             commonViewerAPIInstance.updateVoronoiElevationVisuals(
                                 cellElevationsMap,
                                 minElev,
@@ -188,13 +184,13 @@ function initializeLandgenTab(commonViewerAPI) {
                                 activeMeshData.subdivisionLevel // Pass the base mesh's subdivision level
                             );
                         } else {
-                            console.error("LandgenHandler: Invalid dimensions for elevation texture.", { totalCellCount, texWidth, texHeight });
+                            console.error("LandgenHandler: Invalid dimensions for elevation texture.", { numIcosphereSites, texWidth, texHeight });
                             commonViewerAPIInstance.showStatus("Error preparing elevation visualization: invalid texture dimensions.", "error");
                         }
                     } else {
                         commonViewerAPIInstance.showStatus("No elevation data found in response to visualize.", "info");
                         if (commonViewerAPIInstance.updateVoronoiElevationVisuals) {
-                            commonViewerAPIInstance.updateVoronoiElevationVisuals(new Map(), 0, 0, 1, 1, -1); // Reset with dummy, invalid subdivision
+                            commonViewerAPIInstance.updateVoronoiElevationVisuals(new Map(), 0, 0.1, 1, 1, -1); // Reset with dummy, invalid subdivision
                         }
                     }
                 } else if (result.heightmapUrl) {
