@@ -3,12 +3,7 @@ package landgen
 
 import (
 	"fmt"
-	"image"
-	"image/color"
-	"image/png"
-	"log"
-	"math" // For math.Sin and math.Abs
-	"os"
+	"math"               // For math.Sin and math.Abs
 	"worldgen/icosphere" // Import to use Vector3D and VoronoiCell
 )
 
@@ -22,10 +17,6 @@ type LandGenerationParams struct {
 	ElevationMultiplier float64 `json:"elevationMultiplier"` // Amplitude of the sinusoidal pattern
 	OutputName          string  `json:"landOutputName"`      // Filename for auxiliary output
 
-	// Icosphere site vertices (original generator points for Voronoi)
-	// Passed as flattened array from main.go
-	// IcoSiteVertices []float32 `json:"-"` // Exclude from direct JSON if it's always derived/passed internally
-
 	// IcosphereSubdivisions is kept for reference/logging if needed.
 	IcosphereSubdivisions int `json:"icosphereSubdivisions"`
 }
@@ -33,24 +24,6 @@ type LandGenerationParams struct {
 // ElevationData represents the output of land generation.
 type ElevationData struct {
 	CellElevations map[int32]float64 `json:"cellElevations"`
-}
-
-// Helper to unflatten []float32 to []icosphere.Vector3D (local to this package if needed)
-func unflattenToVector3DLandgen(flatVertices []float32) []icosphere.Vector3D {
-	if len(flatVertices)%3 != 0 {
-		log.Printf("Warning (landgen): unflattenToVector3D received flatVertices length not divisible by 3: %d", len(flatVertices))
-		return []icosphere.Vector3D{}
-	}
-	numVectors := len(flatVertices) / 3
-	vectors := make([]icosphere.Vector3D, numVectors)
-	for i := 0; i < numVectors; i++ {
-		vectors[i] = icosphere.Vector3D{
-			X: float64(flatVertices[i*3+0]),
-			Y: float64(flatVertices[i*3+1]),
-			Z: float64(flatVertices[i*3+2]),
-		}
-	}
-	return vectors
 }
 
 // GenerateLandData now takes fewer direct arguments for mesh data,
@@ -62,13 +35,7 @@ func GenerateLandData(
 	voroVertices []icosphere.Vector3D, // These are the vertices of the Voronoi cells themselves
 	voroCells []icosphere.VoronoiCell, // These link Voronoi cells to original icosphere sites
 	outputPath string,
-) (*ElevationData, string, error) {
-
-	// Unflatten icosphere sites from params. These are the generator points for the Voronoi cells.
-	// icoSites := unflattenToVector3DLandgen(params.IcoSiteVertices)
-	// if len(params.IcoSiteVertices) > 0 && len(icoSites) == 0 {
-	// 	return nil, "", fmt.Errorf("failed to unflatten icosphere site vertices from params")
-	//}
+) (*ElevationData, error) {
 
 	fmt.Printf("Land Generation (Sinusoidal Test): Received %d Voronoi cells, %d Voronoi vertices. Using %d Icosphere sites from params.\n", len(voroCells), len(voroVertices), len(icoSites))
 	fmt.Printf("Base Icosphere Subdivisions (ref): %d\n", params.IcosphereSubdivisions)
@@ -104,36 +71,5 @@ func GenerateLandData(
 	}
 	fmt.Printf("Generated sinusoidal elevations for %d cells.\n", len(generatedElevationData.CellElevations))
 
-	var imagePathSaved string
-	// The placeholder image generation logic can remain as is, or be removed if not needed for this specific test.
-	// For this test, the primary output is the ElevationData.
-	if params.OutputName != "" && (len(params.OutputName) > 4 && params.OutputName[len(params.OutputName)-4:] == ".png") {
-		imgWidth, imgHeight := 256, 256
-		img := image.NewGray(image.Rect(0, 0, imgWidth, imgHeight))
-		// Create a simple gradient or pattern for the placeholder image,
-		// as it's not directly representing the sinusoidal elevation here.
-		for y := 0; y < imgHeight; y++ {
-			for x := 0; x < imgWidth; x++ {
-				// Simple gradient based on X for the placeholder image
-				val := uint8((float64(x) / float64(imgWidth)) * 255)
-				img.SetGray(x, y, color.Gray{Y: val})
-			}
-		}
-		file, err := os.Create(outputPath)
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to create placeholder heightmap file %s: %w", outputPath, err)
-		}
-		defer file.Close() // Ensure file is closed
-		if err := png.Encode(file, img); err != nil {
-			// file.Close() // Already handled by defer
-			return nil, "", fmt.Errorf("failed to encode placeholder heightmap to PNG %s: %w", outputPath, err)
-		}
-		// file.Close() // Already handled by defer
-		imagePathSaved = outputPath
-		fmt.Printf("Placeholder diagnostic image generated and saved to: %s\n", imagePathSaved)
-	} else {
-		fmt.Println("No PNG output name specified, or filename is not a .png; skipping dummy image generation.")
-	}
-
-	return generatedElevationData, imagePathSaved, nil
+	return generatedElevationData, nil
 }

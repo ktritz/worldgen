@@ -479,11 +479,6 @@ func apiGenerateLandHandler(w http.ResponseWriter, r *http.Request) {
 		NoiseLacunarity:     reqPayload.NoiseLacunarity,
 		ElevationMultiplier: reqPayload.ElevationMultiplier,
 		OutputName:          reqPayload.OutputName,
-		// IcoSiteVertices:     reqPayload.BaseIcosphereData.Vertices, // Pass flattened sites
-		// IcosphereSubdivisions can be derived if needed, or passed if landgen lib uses it for more than logging
-		// For example, to find the original subdivision count:
-		// derivedSubdivisions := 0 // ... logic to determine from len(icoSites) or len(reqPayload.BaseIcosphereData.Faces)
-		// landLibParams.IcosphereSubdivisions = derivedSubdivisions
 	}
 
 	// --- Step 3: Define output path for any auxiliary generated files ---
@@ -498,7 +493,7 @@ func apiGenerateLandHandler(w http.ResponseWriter, r *http.Request) {
 	// --- Step 4: Call the land generation library function ---
 	log.Println("API (LandGen): Calling landgen.GenerateLandData...")
 	// Call now matches the revised landgen.GenerateLandData signature (4 args)
-	elevationData, savedImagePath, err := landgen.GenerateLandData(landLibParams, icoSites, voroVerticesForLandgen, voroCellsForLandgen, fullOutputFilePath)
+	elevationData, err := landgen.GenerateLandData(landLibParams, icoSites, voroVerticesForLandgen, voroCellsForLandgen, fullOutputFilePath)
 	if err != nil {
 		log.Printf("Error generating land data: %v", err)
 		http.Error(w, fmt.Sprintf("Failed to generate land data: %v", err), http.StatusInternalServerError)
@@ -510,17 +505,6 @@ func apiGenerateLandHandler(w http.ResponseWriter, r *http.Request) {
 		Status:        "success",
 		Message:       "Land data generated successfully.",
 		ElevationData: elevationData,
-	}
-
-	if savedImagePath != "" {
-		relImageUrl, errRel := filepath.Rel("./output_from_server", savedImagePath)
-		if errRel != nil {
-			log.Printf("Error creating relative path for land output image: %v", errRel)
-			apiResponse.HeightmapUrl = filepath.ToSlash(filepath.Join("/output", "land", filepath.Base(savedImagePath)))
-		} else {
-			apiResponse.HeightmapUrl = filepath.ToSlash(filepath.Join("/output", relImageUrl))
-		}
-		log.Printf("API (LandGen): Auxiliary image available at %s", apiResponse.HeightmapUrl)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
