@@ -1,0 +1,123 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"os"
+	"time"
+)
+
+func main() {
+	// Icosphere generation flags
+	subdivisionsPtr := flag.Int("subdivisions", 3, "Number of subdivisions for the icosphere.")
+	flag.IntVar(subdivisionsPtr, "s", 3, "Number of subdivisions (shorthand).")
+	icosphereOutPtr := flag.String("out", "icosphere.obj", "Output filename for the icosphere OBJ.")
+
+	// Relaxation flags
+	relaxParams := RelaxMeshParameters{}
+	flag.BoolVar(&relaxParams.FixedInitial, "fixinitial", true, "Fix initial 12 icosahedron vertices.")
+	flag.Float64Var(&relaxParams.K, "relax_k", 10.0, "Spring constant.")
+	flag.Float64Var(&relaxParams.Damping, "relax_damping", 2.0, "Damping factor.")
+	flag.Float64Var(&relaxParams.DtInitial, "relax_dt", 0.01, "Initial time step.")
+	flag.IntVar(&relaxParams.MaxIterations, "relax_iter", 1000, "Max relaxation iterations.")
+	flag.Float64Var(&relaxParams.Tolerance, "relax_tol", 1e-6, "Relaxation convergence tolerance.")
+	flag.BoolVar(&relaxParams.AdaptiveDt, "adaptive_dt", true, "Enable adaptive time step.")
+	flag.Float64Var(&relaxParams.DtMin, "dt_min", 1e-4, "Min adaptive dt.")
+	flag.Float64Var(&relaxParams.DtMax, "dt_max", 0.1, "Max adaptive dt.")
+	flag.Float64Var(&relaxParams.DtIncreaseFactor, "dt_increase", 1.05, "dt increase factor.")
+	flag.Float64Var(&relaxParams.DtDecreaseFactor, "dt_decrease", 0.8, "dt decrease factor.")
+	flag.Float64Var(&relaxParams.MovementThresholdLow, "mov_thresh_low", 1e-7, "Movement^2 below which dt may increase.")
+	flag.Float64Var(&relaxParams.MovementThresholdHigh, "mov_thresh_high", 1e-3, "Movement^2 above which dt may decrease.")
+	relaxEnablePtr := flag.Bool("relax", true, "Enable mesh relaxation.")
+
+	// Voronoi flags
+	voronoiEnablePtr := flag.Bool("voronoi", true, "Enable spherical Voronoi diagram generation.")
+	voronoiOutPtr := flag.String("voronoi_out", "voronoi.obj", "Output filename for the Voronoi OBJ.")
+	voronoiNgonSavePtr := flag.Bool("voronoi_ngon_save", true, "Save Voronoi mesh with N-gon faces (instead of triangulated).")
+	htmlViewerOutPtr := flag.String("html_viewer_out", "viewer.html", "Output filename for the HTML Voronoi viewer. If empty, not generated.")
+
+	htmlViewerWireframePtr := flag.Bool("html_wireframe", true, "Enable wireframe by default in HTML viewer.")
+	htmlViewerAutoRotatePtr := flag.Bool("html_autorotate", false, "Enable auto-rotate by default in HTML viewer.")
+
+	flag.Parse()
+
+	subdivisions := *subdivisionsPtr
+	if subdivisions < 0 {
+		fmt.Fprintf(os.Stderr, "Error: Subdivisions must be non-negative.\n")
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	fmt.Printf("Generating icosphere with %d subdivision(s)...\n", subdivisions)
+	startTimeGen := time.Now()
+	icosphereVertices, icosphereFaces := CreateIcosphere(subdivisions)
+	durationGen := time.Since(startTimeGen)
+	fmt.Printf("Generated %d vertices and %d faces.\n", len(icosphereVertices), len(icosphereFaces))
+	fmt.Printf("Icosphere generation took: %s\n", durationGen)
+
+	// currentVertices and currentFaces will be used for subsequent operations
+	currentVertices := icosphereVertices
+	currentFaces := icosphereFaces // Delaunay faces
+
+	if *relaxEnablePtr {
+		fmt.Println("\nStarting mesh relaxation...")
+		// You can print more detailed relaxParams here if needed for debugging
+		// fmt.Printf("Relaxation Parameters: %+v\n", relaxParams)
+		startTimeRelax := time.Now()
+		RelaxMesh(currentVertices, currentFaces, relaxParams) // currentVertices is modified in place
+		durationRelax := time.Since(startTimeRelax)
+		fmt.Printf("Mesh relaxation took: %s\n", durationRelax)
+	}
+
+	// Save the (potentially relaxed) icosphere which serves as the Delaunay triangulation for Voronoi
+	err := SaveOBJTriangulated(*icosphereOutPtr, currentVertices, currentFaces, "Icosphere mesh (Delaunay approximation)")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error saving icosphere OBJ: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("\nIcosphere mesh saved to %s\n", *icosphereOutPtr)
+
+	if *voronoiEnablePtr {
+		fmt.Println("\nGenerating spherical Voronoi diagram...")
+		startTimeVoronoi := time.Now()
+		// GenerateSphericalVoronoi now returns []Vector3D (voronoi vertices) and []VoronoiCell
+		voronoiMeshVertices, voronoiCells := GenerateSphericalVoronoi(currentVertices, currentFaces)
+		durationVoronoi := time.Since(startTimeVoronoi)
+
+		if len(voronoiMeshVertices) > 0 && len(voronoiCells) > 0 {
+			fmt.Printf("Generated Voronoi diagram with %d vertices and %d cells.\n", len(voronoiMeshVertices), len(voronoiCells))
+			fmt.Printf("Voronoi diagram generation took: %s\n", durationVoronoi)
+
+			// Save Voronoi mesh (either N-gon or triangulated)
+			if *voronoiNgonSavePtr {
+				err = SaveVoronoiOBJ_NGon(*voronoiOutPtr, voronoiMeshVertices, voronoiCells, "N-gon Spherical Voronoi mesh")
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error saving N-gon Voronoi OBJ: %v\n", err)
+					os.Exit(1)
+				}
+				fmt.Printf("N-gon Spherical Voronoi mesh saved to %s\n", *voronoiOutPtr)
+			} else {
+				err = SaveVoronoiOBJTriangulated(*voronoiOutPtr, voronoiMeshVertices, voronoiCells, "Triangulated Spherical Voronoi mesh")
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error saving Triangulated Voronoi OBJ: %v\n", err)
+					os.Exit(1)
+				}
+				fmt.Printf("Triangulated Spherical Voronoi mesh saved to %s\n", *voronoiOutPtr)
+			}
+
+			// Generate HTML viewer if requested
+			if *htmlViewerOutPtr != "" {
+				fmt.Printf("Generating HTML viewer for %s -> %s\n", *voronoiOutPtr, *htmlViewerOutPtr)
+				err = GenerateVoronoiViewerHTML(*htmlViewerOutPtr, *voronoiOutPtr, *htmlViewerWireframePtr, *htmlViewerAutoRotatePtr)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error generating HTML viewer: %v\n", err)
+					os.Exit(1)
+				}
+				fmt.Printf("HTML viewer saved to %s\n", *htmlViewerOutPtr)
+			}
+
+		} else {
+			fmt.Println("Voronoi diagram generation resulted in an empty or degenerate mesh.")
+		}
+	}
+}

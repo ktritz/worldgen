@@ -1,0 +1,52 @@
+<form id="landGenerationForm" class="space-y-3">
+    <div class="param-group">
+        <h3>Base Mesh Information</h3>
+        <div id="baseMeshInfo" class="text-sm text-gray-600 p-2 bg-gray-100 rounded-md">
+            Please generate or load an Icosphere & Voronoi mesh first.
+        </div>
+    </div>
+
+    <div class="param-group">
+        <h3>Land Generation Parameters</h3>
+        <div>
+            <label for="landSeed">Seed:</label>
+            <input type="number" id="landSeed" name="landSeed" value="12345" class="form-input">
+        </div>
+    </div>
+
+    <div class="param-group">
+        <h3>Elevation Noise Parameters</h3>
+        <div>
+            <label for="noiseScale">Noise Scale (for elevation):</label>
+            <input type="number" id="noiseScale" name="noiseScale" value="1.0" step="0.05" class="form-input">
+        </div>
+        <div>
+            <label for="noiseOctaves">Octaves:</label>
+            <input type="number" id="noiseOctaves" name="noiseOctaves" value="4" min="1" class="form-input">
+        </div>
+        <div>
+            <label for="noisePersistence">Persistence:</label>
+            <input type="number" id="noisePersistence" name="noisePersistence" value="0.5" step="0.01" min="0" max="1"
+                class="form-input">
+        </div>
+        <div>
+            <label for="noiseLacunarity">Lacunarity:</label>
+            <input type="number" id="noiseLacunarity" name="noiseLacunarity" value="2.0" step="0.1" min="1"
+                class="form-input">
+        </div>
+        <div>
+            <label for="elevationMultiplier">Elevation Multiplier:</label>
+            <input type="number" id="elevationMultiplier" name="elevationMultiplier" value="0.1" step="0.01"
+                class="form-input">
+        </div>
+    </div>
+
+    <div class="param-group">
+        <h3>Output</h3>
+        <div>
+            <label for="landOutputName">Auxiliary Output Filename (e.g., debug_heightmap.png):</label>
+            <input type="text" id="landOutputName" name="landOutputName" value="land_debug_output.png"
+                class="form-input" title="Optional: filename for a debug image if the landgen library produces one.">
+        </div>
+    </div>
+</form>
