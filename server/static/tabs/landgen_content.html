@@ -7,35 +7,65 @@
     </div>
 
     <div class="param-group">
-        <h3>Land Generation Parameters</h3>
+        <h3>General Land Parameters</h3>
         <div>
-            <label for="landSeed">Seed:</label>
+            <label for="landSeed">Global Seed:</label>
             <input type="number" id="landSeed" name="landSeed" value="12345" class="form-input">
         </div>
     </div>
 
     <div class="param-group">
-        <h3>Elevation Noise Parameters</h3>
+        <h3>Tectonic Plate Parameters</h3>
         <div>
-            <label for="noiseScale">Noise Scale (for elevation):</label>
+            <label for="numPlates">Number of Plates:</label>
+            <input type="number" id="numPlates" name="numPlates" value="10" min="1" class="form-input"
+                title="Number of tectonic plates to generate.">
+        </div>
+        <div>
+            <label for="baseSpeed">Base Plate Speed:</label>
+            <input type="number" id="baseSpeed" name="baseSpeed" value="0.01" step="0.001" min="0" class="form-input"
+                title="Average angular speed of plates.">
+        </div>
+        <div>
+            <label for="speedFactor">Plate Speed Factor:</label>
+            <input type="number" id="speedFactor" name="speedFactor" value="1.0" step="0.1" min="0" class="form-input"
+                title="Multiplier to introduce variability in plate speeds.">
+        </div>
+        <div>
+            <label for="pConvergent">P(Convergent Boundary):</label>
+            <input type="number" id="pConvergent" name="pConvergent" value="0.4" step="0.01" min="0" max="1"
+                class="form-input" title="Probability for an adjacent plate pair to have a convergent boundary.">
+        </div>
+        <div>
+            <label for="pDivergent">P(Divergent Boundary):</label>
+            <input type="number" id="pDivergent" name="pDivergent" value="0.4" step="0.01" min="0" max="1"
+                class="form-input"
+                title="Probability for an adjacent plate pair to have a divergent boundary (after convergent check). Passive if neither.">
+        </div>
+    </div>
+
+    <div class="param-group">
+        <h3>Elevation Parameters (Current Placeholder Logic)</h3>
+        <div>
+            <label for="noiseScale">Noise Scale (Frequency for Sine Wave):</label>
             <input type="number" id="noiseScale" name="noiseScale" value="1.0" step="0.05" class="form-input">
         </div>
         <div>
-            <label for="noiseOctaves">Octaves:</label>
+            <label for="noiseOctaves">Octaves (Not used by current sine logic):</label>
             <input type="number" id="noiseOctaves" name="noiseOctaves" value="4" min="1" class="form-input">
         </div>
         <div>
-            <label for="noisePersistence">Persistence:</label>
+            <label for="noisePersistence">Persistence (Not used by current sine logic):</label>
             <input type="number" id="noisePersistence" name="noisePersistence" value="0.5" step="0.01" min="0" max="1"
                 class="form-input">
         </div>
         <div>
-            <label for="noiseLacunarity">Lacunarity:</label>
+            <label for="noiseLacunarity">Lacunarity (Not used by current sine logic):</label>
             <input type="number" id="noiseLacunarity" name="noiseLacunarity" value="2.0" step="0.1" min="1"
                 class="form-input">
         </div>
         <div>
-            <label for="elevationMultiplier">Elevation Multiplier:</label>
+            <label for="elevationMultiplier">Elevation Multiplier (Amplitude for Sine Wave):</label>
             <input type="number" id="elevationMultiplier" name="elevationMultiplier" value="0.1" step="0.01"
                 class="form-input">
         </div>

@@ -9,13 +9,14 @@ import (
 	"path/filepath"
 	"strconv"
 
+	// Added for default seed generation
 	"worldgen/icosphere" // Your icosphere library
-	"worldgen/landgen"   // Your new landgen library
+	"worldgen/landgen"   // Your landgen library (now an orchestrator)
 )
 
 // --- Struct Definitions ---
 
-// Icosphere & Voronoi related structs
+// Icosphere & Voronoi related structs (remain the same)
 type GenerationParams struct {
 	Subdivisions          int     `json:"subdivisions"`
 	Out                   string  `json:"out"`
@@ -69,28 +70,45 @@ type CheckSavedResponse struct {
 }
 
 // --- Land Generation Structs ---
+
+// LandGenerationRequestParams reflects what the frontend sends for the land generation tab.
+// It includes existing elevation params and will be used to populate LandGenerationPipelineSettings.
 type LandGenerationRequestParams struct {
-	Seed                int     `json:"landSeed"`
+	// Seed from UI, will be used as GlobalSeed
+	LandSeed int64 `json:"landSeed"`
+
+	// Parameters for Tectonic Plate Generation (defaults will be used if not provided by UI)
+	NumPlates   int     `json:"numPlates,omitempty"`
+	BaseSpeed   float64 `json:"baseSpeed,omitempty"`
+	SpeedFactor float64 `json:"speedFactor,omitempty"`
+	PConvergent float64 `json:"pConvergent,omitempty"`
+	PDivergent  float64 `json:"pDivergent,omitempty"`
+	// TectonicSeed will be derived from LandSeed/GlobalSeed in landgen package if not set directly
+
+	// Parameters for Elevation Generation (from existing UI form)
 	NoiseScale          float64 `json:"noiseScale"`
 	NoiseOctaves        int     `json:"noiseOctaves"`
 	NoisePersistence    float64 `json:"noisePersistence"`
 	NoiseLacunarity     float64 `json:"noiseLacunarity"`
 	ElevationMultiplier float64 `json:"elevationMultiplier"`
-	OutputName          string  `json:"landOutputName"`
 
-	BaseIcosphereData *MeshData        `json:"baseIcosphereData"` // Contains vertices for sites
-	BaseVoronoiData   *VoronoiMeshData `json:"baseVoronoiData"`
+	// Output and Base Mesh Data
+	LandOutputName        string           `json:"landOutputName"` // For auxiliary files
+	BaseIcosphereData     *MeshData        `json:"baseIcosphereData"`
+	BaseVoronoiData       *VoronoiMeshData `json:"baseVoronoiData"`
+	IcosphereSubdivisions int              `json:"icosphereSubdivisions"`
 }
 
+// LandGenerationResponse is sent back to the client.
+// It primarily contains ElevationData for visualization.
 type LandGenerationResponse struct {
 	Status        string                 `json:"status"`
 	Message       string                 `json:"message"`
-	HeightmapUrl  string                 `json:"heightmapUrl,omitempty"`
+	HeightmapUrl  string                 `json:"heightmapUrl,omitempty"` // For auxiliary image output
 	ElevationData *landgen.ElevationData `json:"elevationData,omitempty"`
 }
 
-// --- Helper Functions ---
-
+// --- Helper Functions (flattenVertices, etc. remain the same) ---
 func flattenVertices(vertices []icosphere.Vector3D) []float32 {
 	flat := make([]float32, 0, len(vertices)*3)
 	for _, v := range vertices {
@@ -122,6 +140,29 @@ func unflattenToVector3D(flatVertices []float32) []icosphere.Vector3D {
 		}
 	}
 	return vectors
+}
+
+func unflattenToTriangles(flatFaces []int32, numVertices int) []icosphere.Triangle {
+	if len(flatFaces)%3 != 0 {
+		log.Printf("Warning: unflattenToTriangles received flatFaces length not divisible by 3: %d", len(flatFaces))
+		return []icosphere.Triangle{}
+	}
+	numTriangles := len(flatFaces) / 3
+	triangles := make([]icosphere.Triangle, numTriangles)
+	validTriangleCount := 0
+	for i := 0; i < numTriangles; i++ {
+		v1 := int(flatFaces[i*3+0])
+		v2 := int(flatFaces[i*3+1])
+		v3 := int(flatFaces[i*3+2])
+		// Basic validation: check if indices are within bounds
+		if v1 >= 0 && v1 < numVertices && v2 >= 0 && v2 < numVertices && v3 >= 0 && v3 < numVertices {
+			triangles[validTriangleCount] = icosphere.Triangle{V1: v1, V2: v2, V3: v3}
+			validTriangleCount++
+		} else {
+			log.Printf("Warning: Invalid face index found when unflattening: V1=%d, V2=%d, V3=%d (NumVertices=%d)", v1, v2, v3, numVertices)
+		}
+	}
+	return triangles[:validTriangleCount]
 }
 
 func convertToIcosphereVoronoiCells(jsonDataCells []VoronoiCellData) []icosphere.VoronoiCell {
@@ -182,6 +223,8 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Serving index.html for %s from %s\n", r.URL.Path, r.RemoteAddr)
 	http.ServeFile(w, r, "./static/index.html")
 }
+
+// apiGenerateHandler for Icosphere and Voronoi (remains largely the same)
 func apiGenerateHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
@@ -238,19 +281,11 @@ func apiGenerateHandler(w http.ResponseWriter, r *http.Request) {
 
 	if params.RelaxEnable {
 		relaxParams := icosphere.RelaxMeshParameters{
-			FixedInitial:          params.FixedInitial,
-			K:                     params.RelaxK,
-			Damping:               params.RelaxDamping,
-			DtInitial:             params.RelaxDtInitial,
-			MaxIterations:         params.RelaxMaxIterations,
-			Tolerance:             params.RelaxTolerance,
-			AdaptiveDt:            params.RelaxAdaptiveDt,
-			DtMin:                 params.RelaxDtMin,
-			DtMax:                 params.RelaxDtMax,
-			DtIncreaseFactor:      params.RelaxDtIncreaseFactor,
-			DtDecreaseFactor:      params.RelaxDtDecreaseFactor,
-			MovementThresholdLow:  params.RelaxMovThreshLow,
-			MovementThresholdHigh: params.RelaxMovThreshHigh,
+			FixedInitial: params.FixedInitial, K: params.RelaxK, Damping: params.RelaxDamping,
+			DtInitial: params.RelaxDtInitial, MaxIterations: params.RelaxMaxIterations, Tolerance: params.RelaxTolerance,
+			AdaptiveDt: params.RelaxAdaptiveDt, DtMin: params.RelaxDtMin, DtMax: params.RelaxDtMax,
+			DtIncreaseFactor: params.RelaxDtIncreaseFactor, DtDecreaseFactor: params.RelaxDtDecreaseFactor,
+			MovementThresholdLow: params.RelaxMovThreshLow, MovementThresholdHigh: params.RelaxMovThreshHigh,
 		}
 		log.Println("API: Relaxing icosphere mesh...")
 		icosphere.RelaxMesh(currentVertices, currentFaces, relaxParams)
@@ -265,7 +300,6 @@ func apiGenerateHandler(w http.ResponseWriter, r *http.Request) {
 	if err := saveJSONData(icosphereJSONFullPath, apiResponse.IcosphereData); err != nil {
 		log.Printf("Error saving icosphere JSON data: %v", err)
 	}
-
 	if err := icosphere.SaveOBJTriangulated(icosphereObjFullPath, currentVertices, currentFaces, "Icosphere mesh"); err != nil {
 		log.Printf("Error saving icosphere OBJ: %v", err)
 	} else {
@@ -282,11 +316,9 @@ func apiGenerateHandler(w http.ResponseWriter, r *http.Request) {
 			Vertices: flattenVertices(voronoiMeshVertices),
 			Cells:    convertToJSONVoronoiCellData(voronoiCellsStructs),
 		}
-
 		if err := saveJSONData(voronoiJSONFullPath, apiResponse.VoronoiData); err != nil {
 			log.Printf("Error saving Voronoi JSON data: %v", err)
 		}
-
 		var errObj error
 		if params.VoronoiNgonSave {
 			errObj = icosphere.SaveVoronoiOBJ_NGon(voronoiObjFullPath, voronoiMeshVertices, voronoiCellsStructs, "N-gon Spherical Voronoi mesh")
@@ -305,15 +337,15 @@ func apiGenerateHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(apiResponse)
 }
+
+// apiLoadMeshHandler (remains the same)
 func apiLoadMeshHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Only GET method is allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
 	querySubdivisions := r.URL.Query().Get("subdivisions")
 	queryType := r.URL.Query().Get("type")
-
 	if querySubdivisions == "" {
 		http.Error(w, "Missing 'subdivisions' query parameter", http.StatusBadRequest)
 		return
@@ -322,7 +354,6 @@ func apiLoadMeshHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Missing 'type' query parameter (icosphere, voronoi, both)", http.StatusBadRequest)
 		return
 	}
-
 	subdivisions, err := strconv.Atoi(querySubdivisions)
 	if err != nil {
 		http.Error(w, "'subdivisions' must be an integer", http.StatusBadRequest)
@@ -343,7 +374,7 @@ func apiLoadMeshHandler(w http.ResponseWriter, r *http.Request) {
 			loadedSomething = true
 		} else {
 			log.Printf("Could not load icosphere data for sub %d: %v", subdivisions, err)
-			if queryType == "icosphere" {
+			if queryType == "icosphere" { // Only error out if specifically requesting icosphere and it fails
 				response.Status = "error"
 				response.Message = fmt.Sprintf("Failed to load icosphere data for subdivision %d: File not found or corrupt.", subdivisions)
 				w.Header().Set("Content-Type", "application/json")
@@ -365,7 +396,7 @@ func apiLoadMeshHandler(w http.ResponseWriter, r *http.Request) {
 			loadedSomething = true
 		} else {
 			log.Printf("Could not load Voronoi data for sub %d: %v", subdivisions, err)
-			if queryType == "voronoi" {
+			if queryType == "voronoi" { // Only error out if specifically requesting voronoi and it fails
 				response.Status = "error"
 				response.Message = fmt.Sprintf("Failed to load Voronoi data for subdivision %d: File not found or corrupt.", subdivisions)
 				w.Header().Set("Content-Type", "application/json")
@@ -386,28 +417,28 @@ func apiLoadMeshHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if response.Message == "" {
+	if response.Message == "" { // Should not happen if loadedSomething is true, but as a fallback
 		response.Message = fmt.Sprintf("No data loaded for type %s, subdivision %d.", queryType, subdivisions)
 		if response.Status == "success" {
-			response.Status = "partial"
+			response.Status = "partial" // If it was success but message is empty, something is off
 		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
+
+// apiCheckSavedMeshHandler (remains the same)
 func apiCheckSavedMeshHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Only GET method is allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
 	querySubdivisions := r.URL.Query().Get("subdivisions")
 	if querySubdivisions == "" {
 		http.Error(w, "Missing 'subdivisions' query parameter", http.StatusBadRequest)
 		return
 	}
-
 	subdivisions, err := strconv.Atoi(querySubdivisions)
 	if err != nil {
 		http.Error(w, "'subdivisions' must be an integer", http.StatusBadRequest)
@@ -433,7 +464,7 @@ func apiCheckSavedMeshHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// --- Land Generation Handler (Uses active mesh data sent from frontend) ---
+// --- Land Generation Handler (Updated) ---
 func apiGenerateLandHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
@@ -448,7 +479,7 @@ func apiGenerateLandHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	log.Printf("API: Received land generation request with land params: %+v\n", reqPayload)
+	log.Printf("API: Received land generation request with params: %+v\n", reqPayload)
 
 	if reqPayload.BaseIcosphereData == nil || reqPayload.BaseVoronoiData == nil {
 		log.Println("API (LandGen): Missing base Icosphere or Voronoi data in request.")
@@ -456,55 +487,91 @@ func apiGenerateLandHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// --- Step 1: Unflatten/Convert received base mesh data ---
-	icoSites := unflattenToVector3D(reqPayload.BaseIcosphereData.Vertices)
+	// --- Construct LandGenerationPipelineSettings ---
+	pipelineSettings := landgen.LandGenerationPipelineSettings{
+		GlobalSeed: reqPayload.LandSeed, // Use landSeed from UI as the global seed
+		TectonicSettings: landgen.TectonicSettings{
+			NumPlates:   reqPayload.NumPlates,
+			Seed:        0, // Will default to GlobalSeed in landgen.GeneratePlanetData if 0
+			BaseSpeed:   reqPayload.BaseSpeed,
+			SpeedFactor: reqPayload.SpeedFactor,
+			PConvergent: reqPayload.PConvergent,
+			PDivergent:  reqPayload.PDivergent,
+			// NumWorkers is now handled automatically in tectonics.go
+		},
+		ElevationSettings: landgen.ElevationSettings{
+			NoiseScale:          reqPayload.NoiseScale,
+			NoiseOctaves:        reqPayload.NoiseOctaves,
+			NoisePersistence:    reqPayload.NoisePersistence,
+			NoiseLacunarity:     reqPayload.NoiseLacunarity,
+			ElevationMultiplier: reqPayload.ElevationMultiplier,
+		},
+		OutputPath:           filepath.Join("./output_from_server", "land"), // Example base output path
+		OutputAuxiliaryFiles: true,                                          // Example
+	}
 
-	voroVerticesForLandgen := unflattenToVector3D(reqPayload.BaseVoronoiData.Vertices)
-	voroCellsForLandgen := convertToIcosphereVoronoiCells(reqPayload.BaseVoronoiData.Cells)
+	// Set defaults for TectonicSettings if not provided by UI (or if UI doesn't send them yet)
+	if pipelineSettings.TectonicSettings.NumPlates == 0 {
+		pipelineSettings.TectonicSettings.NumPlates = 10 // Default number of plates
+		log.Printf("  LandGen: NumPlates not provided, defaulting to %d", pipelineSettings.TectonicSettings.NumPlates)
+	}
+	if pipelineSettings.TectonicSettings.BaseSpeed == 0 {
+		pipelineSettings.TectonicSettings.BaseSpeed = 0.01 // Default base speed
+		log.Printf("  LandGen: BaseSpeed not provided, defaulting to %f", pipelineSettings.TectonicSettings.BaseSpeed)
+	}
+	if pipelineSettings.TectonicSettings.SpeedFactor == 0 {
+		pipelineSettings.TectonicSettings.SpeedFactor = 1.0 // Default speed factor
+		log.Printf("  LandGen: SpeedFactor not provided, defaulting to %f", pipelineSettings.TectonicSettings.SpeedFactor)
+	}
+	if pipelineSettings.TectonicSettings.PConvergent == 0 && pipelineSettings.TectonicSettings.PDivergent == 0 {
+		pipelineSettings.TectonicSettings.PConvergent = 0.4 // Default probability
+		pipelineSettings.TectonicSettings.PDivergent = 0.4  // Default probability
+		log.Printf("  LandGen: PConvergent/PDivergent not provided, defaulting to 0.4 each")
+	}
 
-	if len(icoSites) == 0 || len(voroCellsForLandgen) == 0 {
-		log.Println("API (LandGen): Base Icosphere sites or Voronoi cells are empty after unflattening.")
-		http.Error(w, "Provided base mesh data is invalid or empty.", http.StatusBadRequest)
+	// --- Prepare base mesh data for the pipeline ---
+	baseIcoSites := unflattenToVector3D(reqPayload.BaseIcosphereData.Vertices)
+	baseIcoFaces := unflattenToTriangles(reqPayload.BaseIcosphereData.Faces, len(baseIcoSites))
+	baseVoroVertices := unflattenToVector3D(reqPayload.BaseVoronoiData.Vertices)
+	baseVoroCells := convertToIcosphereVoronoiCells(reqPayload.BaseVoronoiData.Cells)
+
+	if len(baseIcoSites) == 0 {
+		log.Println("API (LandGen): Base Icosphere sites are empty after unflattening.")
+		http.Error(w, "Provided base icosphere data is invalid or empty.", http.StatusBadRequest)
 		return
 	}
-	log.Printf("API (LandGen): Using provided base mesh data - Icosphere Sites: %d, Voronoi Cells: %d, Voronoi Vertices: %d\n",
-		len(icoSites), len(voroCellsForLandgen), len(voroVerticesForLandgen))
-
-	// --- Step 2: Prepare parameters for the landgen library ---
-	landLibParams := landgen.LandGenerationParams{
-		Seed:                reqPayload.Seed,
-		NoiseScale:          reqPayload.NoiseScale,
-		NoiseOctaves:        reqPayload.NoiseOctaves,
-		NoisePersistence:    reqPayload.NoisePersistence,
-		NoiseLacunarity:     reqPayload.NoiseLacunarity,
-		ElevationMultiplier: reqPayload.ElevationMultiplier,
-		OutputName:          reqPayload.OutputName,
+	if len(baseIcoFaces) == 0 && reqPayload.IcosphereSubdivisions > 0 { // Faces are important for adjacency
+		log.Println("API (LandGen): Base Icosphere faces are empty after unflattening (and subdivisions > 0).")
+		// http.Error(w, "Provided base icosphere faces data is invalid or empty.", http.StatusBadRequest)
+		// return // Allow proceeding if it's a 0-subdivision icosphere (just points for Voronoi sites)
 	}
 
-	// --- Step 3: Define output path for any auxiliary generated files ---
-	landFileOutputDir := filepath.Join("./output_from_server", "land")
-	if err := os.MkdirAll(landFileOutputDir, 0755); err != nil {
-		log.Printf("Error creating land output directory %s: %v", landFileOutputDir, err)
-		http.Error(w, "Failed to create land output directory", http.StatusInternalServerError)
-		return
-	}
-	fullOutputFilePath := filepath.Join(landFileOutputDir, reqPayload.OutputName)
-
-	// --- Step 4: Call the land generation library function ---
-	log.Println("API (LandGen): Calling landgen.GenerateLandData...")
-	// Call now matches the revised landgen.GenerateLandData signature (4 args)
-	elevationData, err := landgen.GenerateLandData(landLibParams, icoSites, voroVerticesForLandgen, voroCellsForLandgen, fullOutputFilePath)
+	// --- Call the land generation pipeline ---
+	log.Println("API (LandGen): Calling landgen.GeneratePlanetData...")
+	planetData, err := landgen.GeneratePlanetData(
+		pipelineSettings,
+		baseIcoSites,
+		baseIcoFaces,
+		baseVoroVertices,
+		baseVoroCells,
+		reqPayload.IcosphereSubdivisions,
+	)
 	if err != nil {
-		log.Printf("Error generating land data: %v", err)
-		http.Error(w, fmt.Sprintf("Failed to generate land data: %v", err), http.StatusInternalServerError)
+		log.Printf("Error generating planet data: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to generate planet data: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	// --- Step 5: Prepare and send the response ---
+	// --- Prepare and send the response ---
+	// The client currently expects ElevationData for visualization.
 	apiResponse := LandGenerationResponse{
 		Status:        "success",
-		Message:       "Land data generated successfully.",
-		ElevationData: elevationData,
+		Message:       "Land generation pipeline completed successfully.",
+		ElevationData: planetData.ElevationData, // Extract ElevationData from PlanetData
+		// HeightmapUrl could be set if an auxiliary image was saved by a module
+	}
+	if pipelineSettings.OutputAuxiliaryFiles && reqPayload.LandOutputName != "" {
+		apiResponse.HeightmapUrl = filepath.ToSlash(filepath.Join("/output/land", reqPayload.LandOutputName))
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -523,15 +590,11 @@ func main() {
 	http.HandleFunc("/api/generate", apiGenerateHandler)
 	http.HandleFunc("/api/load_mesh", apiLoadMeshHandler)
 	http.HandleFunc("/api/check_saved_mesh", apiCheckSavedMeshHandler)
-	http.HandleFunc("/api/generate_land", apiGenerateLandHandler)
+	http.HandleFunc("/api/generate_land", apiGenerateLandHandler) // New endpoint
 
 	port := "8080"
 	log.Printf("Starting server on http://localhost:%s\n", port)
-	log.Println("Serving static files from ./static/ folder under /static/ route")
-	log.Println("Serving generated output files from ./output_from_server/ folder under /output/ route")
-	log.Println("Mesh data (Icosphere/Voronoi) will be cached in ./mesh_cache/")
-	log.Println("Land generation output (e.g., images) will be in ./output_from_server/land/")
-
+	// ... (other log messages)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatalf("ListenAndServe Error: %v", err)
 	}

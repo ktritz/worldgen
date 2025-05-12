@@ -44,9 +44,13 @@ function updateBaseMeshInfoDisplay(icosphereData, voronoiData, subdivisionLevel)
     }
 }
 
-
+/**
+ * Initializes the Land Generation Tab.
+ * @param {object} commonViewerAPI - The common API for viewer interactions.
+ * @returns {object|null} Handler API for the tab or null if initialization fails.
+ */
 function initializeLandgenTab(commonViewerAPI) {
-    console.log("Initializing Land Generation Tab specific JavaScript (v1.5 - Texture Mapping Fix)...");
+    console.log("Initializing Land Generation Tab specific JavaScript (with Tectonic Params)...");
     commonViewerAPIInstance = commonViewerAPI;
 
     landGenerationFormRef = document.getElementById('landGenerationForm');
@@ -61,6 +65,10 @@ function initializeLandgenTab(commonViewerAPI) {
     baseMeshInfoDivRef = document.getElementById('baseMeshInfo');
     // mainGenerateBtnRef is acquired by updateGenerateButton when tab is active
 
+    /**
+     * Gathers data from the land generation form.
+     * @returns {object|null} An object containing form parameters, or null if the form is not found.
+     */
     function getLandGenerationFormData() {
         if (!landGenerationFormRef) return null;
         const formData = new FormData(landGenerationFormRef);
@@ -69,12 +77,14 @@ function initializeLandgenTab(commonViewerAPI) {
             const inputElement = landGenerationFormRef.elements[key];
             if (!inputElement) continue;
 
+            // Convert to appropriate types
             if (inputElement.type === 'checkbox') {
                 params[key] = inputElement.checked;
             } else if (inputElement.type === 'number') {
-                if (key === 'landSeed' || key === 'noiseOctaves') {
+                // Specific integer fields
+                if (key === 'landSeed' || key === 'noiseOctaves' || key === 'numPlates') {
                     params[key] = parseInt(value, 10);
-                } else {
+                } else { // Other numbers are floats
                     params[key] = parseFloat(value);
                 }
             } else {
@@ -84,6 +94,9 @@ function initializeLandgenTab(commonViewerAPI) {
         return params;
     }
 
+    /**
+     * Handles the land generation process by sending a request to the backend.
+     */
     async function handleLandGeneration() {
         if (!commonViewerAPIInstance) {
             console.error("LandgenHandler: commonViewerAPIInstance is not available.");
@@ -95,11 +108,12 @@ function initializeLandgenTab(commonViewerAPI) {
             !activeMeshData.icosphereData.vertices || !activeMeshData.voronoiData.cells ||
             activeMeshData.subdivisionLevel === undefined || activeMeshData.subdivisionLevel < 0) {
             commonViewerAPIInstance.showStatus("Error: No complete active Icosphere/Voronoi mesh data with subdivision level. Generate/load one first.", "error");
-            updateBaseMeshInfoDisplay(null, null, -1);
+            updateBaseMeshInfoDisplay(null, null, -1); // Update UI to reflect missing base mesh
             if (mainGenerateBtnRef) mainGenerateBtnRef.disabled = true;
             return;
         }
 
+        // Update the base mesh info display with current active mesh data
         updateBaseMeshInfoDisplay(activeMeshData.icosphereData, activeMeshData.voronoiData, activeMeshData.subdivisionLevel);
 
         const landParams = getLandGenerationFormData();
@@ -108,11 +122,30 @@ function initializeLandgenTab(commonViewerAPI) {
             return;
         }
 
+        // Construct the payload for the backend
         const requestPayload = {
-            ...landParams,
+            // General land parameters
+            landSeed: landParams.landSeed, // This will be used as GlobalSeed
+
+            // Tectonic Plate Parameters
+            numPlates: landParams.numPlates,
+            baseSpeed: landParams.baseSpeed,
+            speedFactor: landParams.speedFactor,
+            pConvergent: landParams.pConvergent,
+            pDivergent: landParams.pDivergent,
+
+            // Elevation Parameters (current placeholder logic)
+            noiseScale: landParams.noiseScale,
+            noiseOctaves: landParams.noiseOctaves,
+            noisePersistence: landParams.noisePersistence,
+            noiseLacunarity: landParams.noiseLacunarity,
+            elevationMultiplier: landParams.elevationMultiplier,
+
+            // Output and Base Mesh Data
+            landOutputName: landParams.landOutputName,
             baseIcosphereData: activeMeshData.icosphereData,
             baseVoronoiData: activeMeshData.voronoiData,
-            icosphereSubdivisions: activeMeshData.subdivisionLevel
+            icosphereSubdivisions: activeMeshData.subdivisionLevel,
         };
 
         commonViewerAPIInstance.showStatus('Requesting land generation... Please wait.', 'info');
@@ -148,31 +181,25 @@ function initializeLandgenTab(commonViewerAPI) {
                             if (elevation > maxElev) maxElev = elevation;
                         });
 
-                        if (minElev === Infinity || maxElev === -Infinity) { // Handle case where map might be empty or all values are non-numeric
-                            minElev = 0;
-                            maxElev = 0.1;
-                            console.warn("LandgenHandler: minElev or maxElev was not updated, defaulting to 0 and 0.1. Check elevation data content.");
-                        } else if (minElev === maxElev) { // Ensure a range if all elevations are the same
-                            maxElev = minElev + Math.abs(minElev * 0.1) + 0.01; // Add a small delta
-                            if (minElev === maxElev) maxElev = minElev + 0.1; // If minElev was 0
+                        if (minElev === Infinity || maxElev === -Infinity) {
+                            minElev = 0; maxElev = 0.1;
+                            console.warn("LandgenHandler: minElev or maxElev was not updated, defaulting. Check elevation data.");
+                        } else if (minElev === maxElev) {
+                            maxElev = minElev + Math.abs(minElev * 0.1) + 0.01;
+                            if (minElev === maxElev) maxElev = minElev + 0.1;
                         }
                         console.log(`LandgenHandler: Calculated minElev: ${minElev}, maxElev: ${maxElev}`);
 
                         const numIcosphereSites = activeMeshData.icosphereData.vertices.length / 3;
-
                         let texWidth = Math.ceil(Math.sqrt(numIcosphereSites));
-                        const MAX_TEXTURE_DIM = 4096; // Or a value from capabilities if available
+                        const MAX_TEXTURE_DIM = 4096;
                         texWidth = Math.min(texWidth, MAX_TEXTURE_DIM);
                         let texHeight = Math.ceil(numIcosphereSites / texWidth);
                         texHeight = Math.min(texHeight, MAX_TEXTURE_DIM);
-
-                        // Ensure texHeight is sufficient if texWidth was clamped
                         if (texWidth * texHeight < numIcosphereSites) {
                             texHeight = Math.ceil(numIcosphereSites / texWidth);
                         }
-
-
-                        console.log(`LandgenHandler: numIcosphereSites: ${numIcosphereSites}, Calculated TexWidth: ${texWidth}, TexHeight: ${texHeight}`);
+                        console.log(`LandgenHandler: numIcosphereSites: ${numIcosphereSites}, TexWidth: ${texWidth}, TexHeight: ${texHeight}`);
 
                         if (numIcosphereSites > 0 && texWidth > 0 && texHeight > 0) {
                             commonViewerAPIInstance.updateVoronoiElevationVisuals(
@@ -181,7 +208,7 @@ function initializeLandgenTab(commonViewerAPI) {
                                 maxElev,
                                 texWidth,
                                 texHeight,
-                                activeMeshData.subdivisionLevel // Pass the base mesh's subdivision level
+                                activeMeshData.subdivisionLevel
                             );
                         } else {
                             console.error("LandgenHandler: Invalid dimensions for elevation texture.", { numIcosphereSites, texWidth, texHeight });
@@ -190,7 +217,7 @@ function initializeLandgenTab(commonViewerAPI) {
                     } else {
                         commonViewerAPIInstance.showStatus("No elevation data found in response to visualize.", "info");
                         if (commonViewerAPIInstance.updateVoronoiElevationVisuals) {
-                            commonViewerAPIInstance.updateVoronoiElevationVisuals(new Map(), 0, 0.1, 1, 1, -1); // Reset with dummy, invalid subdivision
+                            commonViewerAPIInstance.updateVoronoiElevationVisuals(new Map(), 0, 0.1, 1, 1, -1);
                         }
                     }
                 } else if (result.heightmapUrl) {
@@ -211,6 +238,9 @@ function initializeLandgenTab(commonViewerAPI) {
 
     const handlerAPI = {
         generate: handleLandGeneration,
+        /**
+         * Updates the state and text of the main generate button based on current conditions.
+         */
         updateGenerateButton: () => {
             if (!mainGenerateBtnRef) mainGenerateBtnRef = document.getElementById('mainGenerateBtn');
 
@@ -218,38 +248,45 @@ function initializeLandgenTab(commonViewerAPI) {
             const canGenerateLand = updateBaseMeshInfoDisplay(
                 activeMeshData ? activeMeshData.icosphereData : null,
                 activeMeshData ? activeMeshData.voronoiData : null,
-                activeMeshData ? activeMeshData.subdivisionLevel : -1 // Pass subdivision to display
+                activeMeshData ? activeMeshData.subdivisionLevel : -1
             );
 
             if (mainGenerateBtnRef) {
                 if (canGenerateLand) {
-                    mainGenerateBtnRef.textContent = 'Generate Land';
+                    mainGenerateBtnRef.textContent = 'Generate Land & Tectonics'; // Updated button text
                     mainGenerateBtnRef.classList.remove('btn-secondary');
                     mainGenerateBtnRef.classList.add('btn-primary');
                     mainGenerateBtnRef.disabled = false;
                 } else {
-                    mainGenerateBtnRef.textContent = 'Generate Land';
+                    mainGenerateBtnRef.textContent = 'Generate Land & Tectonics';
                     mainGenerateBtnRef.classList.remove('btn-primary');
                     mainGenerateBtnRef.classList.add('btn-secondary');
                     mainGenerateBtnRef.disabled = true;
                 }
             }
         },
+        /**
+         * Cleans up resources specific to this tab handler.
+         */
         dispose: () => {
             console.log("Disposing Land Generation Tab specific resources...");
+            // Nullify references to DOM elements and API instances to prevent memory leaks
             commonViewerAPIInstance = null;
             landGenerationFormRef = null;
             mainGenerateBtnRef = null;
             baseMeshInfoDivRef = null;
+            // Any other specific event listeners or objects created by this tab should be cleaned up here
         }
     };
 
+    // Initial update of the generate button state when the tab is loaded
     if (typeof handlerAPI.updateGenerateButton === 'function') {
         handlerAPI.updateGenerateButton();
     }
 
-    console.log("Land Generation Tab specific JavaScript Initialized.");
+    console.log("Land Generation Tab specific JavaScript Initialized (with Tectonic Params).");
     return handlerAPI;
 }
 
+// Expose the initializer to be called by the tab loader
 window.initializeLandgenTab = initializeLandgenTab;

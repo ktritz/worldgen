@@ -59,8 +59,33 @@ func (v Vector3D) LengthSq() float64 {
 // Normalize returns a unit vector in the same direction.
 func (v Vector3D) Normalize() Vector3D {
 	l := v.Length()
-	if l < 1e-9 {
+	if l < 1e-9 { // Avoid division by zero for zero-length vectors
 		return Vector3D{0, 0, 0}
 	}
 	return Vector3D{v.X / l, v.Y / l, v.Z / l}
+}
+
+// --- Methods for kdtree.Point interface ---
+
+// Dimensions returns the number of dimensions for the point (3 for Vector3D).
+func (v Vector3D) Dimensions() int {
+	return 3
+}
+
+// Dimension returns the value of the i-th dimension (0 for X, 1 for Y, 2 for Z).
+func (v Vector3D) Dimension(i int) float64 {
+	switch i {
+	case 0:
+		return v.X
+	case 1:
+		return v.Y
+	case 2:
+		return v.Z
+	default:
+		// Or panic, depending on how strict you want to be.
+		// Returning 0 for out-of-bounds is a common approach for KD-trees
+		// if they somehow query an invalid dimension, though it shouldn't happen
+		// for a fixed-dimension point type.
+		return 0
+	}
 }
