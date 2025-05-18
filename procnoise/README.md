@@ -2,7 +2,7 @@
 
 
 
-Conversion time: 0.983 seconds.
+Conversion time: 0.888 seconds.
 
 
 Using this Markdown file:
@@ -15,24 +15,26 @@ Using this Markdown file:
 Conversion notes:
 
 * Docs to Markdown version 1.0β44
-* Sat May 17 2025 18:03:56 GMT-0700 (PDT)
-* Source doc: Please create a readme.md markdown file explainin...
+* Sat May 17 2025 18:06:01 GMT-0700 (PDT)
+* Source doc: ok, recreate the README in standard Google Doc fo...
 ----->
 
 
-# `procnoise` Module for Procedural World Generation \
- \
-The `procnoise` Go module provides a suite of noise generation algorithms and utilities specifically tailored for procedural world generation. It aims to offer diverse tools for creating complex and naturalistic patterns suitable for various aspects of world building, from terrain and textures to fluid dynamics and resource distribution. \
- \
-This document outlines the purpose and interface of each major component within the `procnoise` module. \
- \
-## Core Concepts \
- \
-### `ScalarField3D` Interface \
- \
-A central concept in parts of this module is the `ScalarField3D` interface, defined in `curl.go` (and used by `flow.go`): \
- \
-```go \
+
+# procnoise Module for Procedural World Generation
+
+The procnoise Go module provides a suite of noise generation algorithms and utilities specifically tailored for procedural world generation. It aims to offer diverse tools for creating complex and naturalistic patterns suitable for various aspects of world building, from terrain and textures to fluid dynamics and resource distribution.
+
+This document outlines the purpose and interface of each major component within the procnoise module.
+
+
+## Core Concepts
+
+
+### ScalarField3D Interface
+
+A central concept in parts of this module is the ScalarField3D interface, defined in curl.go (and used by flow.go):
+
 type ScalarField3D interface { \
     GetNoise(p icosphere.Vector3D) float32 \
 } \
@@ -148,7 +150,7 @@ This component implements 3D Curl Noise, which generates divergence-free vector 
 
 
 
-* **Divergence-Free** Vector** Fields:** The primary characteristic is that the resulting vector field has no sources or sinks, mimicking natural fluid motion.
+* **Divergence-Free Vector Fields:** The primary characteristic is that the resulting vector field has no sources or sinks, mimicking natural fluid motion.
 * **Potential Field Based:** Curl noise is derived by taking the curl of a 3D vector potential field (ψ).
 * **ScalarField3D Dependency:** Each component of the vector potential (ψx, ψy, ψz) is defined by a ScalarField3D (e.g., Spherical Wavelet Noise or an adapted FastNoiseLite instance).
 * **Finite Differences:** Partial derivatives for the curl calculation are approximated using finite differences.
@@ -299,3 +301,8 @@ These utilities are primarily used internally by other procnoise components. Use
     * Employ Domain Warping (from FastNoiseLite) to add complexity to almost any other noise pattern.
 * **Performance:** Noise generation, especially with many octaves or in 3D/4D, can be computationally intensive. Profile your use cases and consider optimizations where necessary. FastNoiseLite is designed for performance.
 * **Dimensionality:** Be mindful of the dimensionality of the noise required for different effects (e.g., 2D for heightmaps, 3D for volumetric textures or potential fields, 4D for time-animated 3D noise).
+
+
+## Conclusion
+
+The procnoise module offers a comprehensive toolkit for procedural noise generation in Go, catering to a wide array of needs in world building. By understanding the strengths and interfaces of each component, developers can create rich, detailed, and dynamic virtual environments.
