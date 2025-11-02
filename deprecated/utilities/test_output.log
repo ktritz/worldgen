@@ -1,0 +1,14 @@
+🧪 Generating Test Data for Visual Analysis
+==========================================
+1. Generating icosphere and Voronoi data...
+✅ Icosphere generated successfully
+2. Generating land with tectonic plates and elevation...
+✅ Land generated successfully
+💾 Saved: elevation_data.json
+📊 Saved: analysis_summary.txt
+
+🎯 Test data generation complete!
+📊 Check the following files for visual analysis:
+   - elevation_data.json (raw elevation values)
+   - analysis_summary.txt (statistical summary)
+   - Any auxiliary output files from the server

@@ -1,0 +1,154 @@
+Tectonic Plate Generation & Validation Results
+==============================================
+
+GENERATION PARAMETERS:
+Subdivision level: 6
+Target plates: 39
+Actual plates generated: 122
+Random seed: 12345
+Planet radius: 6.371e+06 m
+Generation time: 4.306268878s
+Validation time: 9.859776ms
+
+VALIDATION SCORES:
+Overall Score: 0.200/1.0
+Size Distribution: 0.095/1.0
+Coverage Match: 0.040/1.0
+Continental Mix: 0.500/1.0
+Boundary Complexity: 0.920/1.0
+
+PLATE DISTRIBUTION:
+Major plates (≥4%): 2
+Minor plates (0.5-4%): 62
+Micro plates (0.1-0.5%): 38
+Continental plates: 17
+Oceanic plates: 105
+
+SURFACE COVERAGE:
+Major plate coverage: 9.2%
+Minor plate coverage: 77.2%
+Micro plate coverage: 12.4%
+
+INDIVIDUAL PLATE DETAILS:
+Plate 1: Area=4.34%, Type=Continental
+Plate 2: Area=4.82%, Type=Oceanic
+Plate 3: Area=1.38%, Type=Oceanic
+Plate 4: Area=2.81%, Type=Continental
+Plate 5: Area=1.12%, Type=Oceanic
+Plate 6: Area=1.99%, Type=Oceanic
+Plate 7: Area=2.52%, Type=Oceanic
+Plate 8: Area=0.77%, Type=Oceanic
+Plate 9: Area=0.78%, Type=Oceanic
+Plate 10: Area=0.64%, Type=Oceanic
+Plate 11: Area=1.58%, Type=Oceanic
+Plate 12: Area=1.81%, Type=Oceanic
+Plate 13: Area=1.80%, Type=Continental
+Plate 14: Area=0.86%, Type=Continental
+Plate 15: Area=0.54%, Type=Continental
+Plate 16: Area=1.03%, Type=Oceanic
+Plate 17: Area=0.49%, Type=Oceanic
+Plate 18: Area=1.43%, Type=Oceanic
+Plate 19: Area=0.55%, Type=Oceanic
+Plate 20: Area=2.47%, Type=Oceanic
+Plate 21: Area=1.86%, Type=Oceanic
+Plate 22: Area=1.23%, Type=Oceanic
+Plate 23: Area=0.53%, Type=Oceanic
+Plate 24: Area=0.64%, Type=Oceanic
+Plate 25: Area=0.56%, Type=Oceanic
+Plate 26: Area=0.55%, Type=Oceanic
+Plate 27: Area=0.49%, Type=Oceanic
+Plate 28: Area=1.92%, Type=Oceanic
+Plate 29: Area=1.12%, Type=Oceanic
+Plate 30: Area=1.64%, Type=Oceanic
+Plate 31: Area=0.51%, Type=Oceanic
+Plate 32: Area=3.61%, Type=Oceanic
+Plate 33: Area=1.10%, Type=Oceanic
+Plate 34: Area=0.67%, Type=Continental
+Plate 35: Area=1.52%, Type=Oceanic
+Plate 36: Area=0.93%, Type=Oceanic
+Plate 37: Area=0.70%, Type=Oceanic
+Plate 38: Area=0.79%, Type=Oceanic
+Plate 39: Area=0.65%, Type=Oceanic
+Plate 40: Area=1.72%, Type=Oceanic
+Plate 41: Area=0.81%, Type=Oceanic
+Plate 42: Area=3.00%, Type=Oceanic
+Plate 43: Area=1.91%, Type=Oceanic
+Plate 44: Area=1.18%, Type=Oceanic
+Plate 45: Area=0.47%, Type=Continental
+Plate 46: Area=0.54%, Type=Continental
+Plate 47: Area=0.55%, Type=Continental
+Plate 48: Area=0.51%, Type=Oceanic
+Plate 49: Area=0.86%, Type=Oceanic
+Plate 50: Area=0.73%, Type=Oceanic
+Plate 51: Area=1.45%, Type=Oceanic
+Plate 52: Area=0.67%, Type=Oceanic
+Plate 53: Area=1.28%, Type=Oceanic
+Plate 54: Area=0.65%, Type=Oceanic
+Plate 55: Area=0.59%, Type=Continental
+Plate 56: Area=1.35%, Type=Oceanic
+Plate 57: Area=3.34%, Type=Oceanic
+Plate 58: Area=0.63%, Type=Oceanic
+Plate 59: Area=0.53%, Type=Continental
+Plate 60: Area=0.71%, Type=Oceanic
+Plate 61: Area=1.04%, Type=Oceanic
+Plate 62: Area=1.28%, Type=Oceanic
+Plate 63: Area=3.63%, Type=Oceanic
+Plate 64: Area=2.10%, Type=Oceanic
+Plate 65: Area=0.30%, Type=Oceanic
+Plate 66: Area=0.40%, Type=Oceanic
+Plate 67: Area=0.57%, Type=Oceanic
+Plate 68: Area=0.09%, Type=Oceanic
+Plate 69: Area=0.44%, Type=Continental
+Plate 70: Area=0.07%, Type=Oceanic
+Plate 71: Area=0.08%, Type=Oceanic
+Plate 72: Area=0.19%, Type=Oceanic
+Plate 73: Area=0.09%, Type=Oceanic
+Plate 74: Area=0.38%, Type=Oceanic
+Plate 75: Area=0.07%, Type=Oceanic
+Plate 76: Area=0.20%, Type=Oceanic
+Plate 77: Area=0.07%, Type=Oceanic
+Plate 78: Area=0.31%, Type=Oceanic
+Plate 79: Area=0.09%, Type=Continental
+Plate 80: Area=0.23%, Type=Oceanic
+Plate 81: Area=0.36%, Type=Oceanic
+Plate 82: Area=0.08%, Type=Oceanic
+Plate 83: Area=0.07%, Type=Oceanic
+Plate 84: Area=0.32%, Type=Oceanic
+Plate 85: Area=0.43%, Type=Oceanic
+Plate 86: Area=0.17%, Type=Oceanic
+Plate 87: Area=0.46%, Type=Oceanic
+Plate 88: Area=0.25%, Type=Oceanic
+Plate 89: Area=0.40%, Type=Continental
+Plate 90: Area=0.10%, Type=Oceanic
+Plate 91: Area=0.23%, Type=Oceanic
+Plate 92: Area=0.21%, Type=Oceanic
+Plate 93: Area=0.22%, Type=Oceanic
+Plate 94: Area=0.04%, Type=Oceanic
+Plate 95: Area=0.02%, Type=Oceanic
+Plate 96: Area=0.01%, Type=Oceanic
+Plate 97: Area=0.47%, Type=Oceanic
+Plate 98: Area=0.05%, Type=Oceanic
+Plate 99: Area=0.07%, Type=Oceanic
+Plate 100: Area=0.31%, Type=Oceanic
+Plate 101: Area=0.34%, Type=Continental
+Plate 102: Area=0.51%, Type=Oceanic
+Plate 103: Area=0.12%, Type=Oceanic
+Plate 104: Area=0.15%, Type=Oceanic
+Plate 105: Area=0.42%, Type=Oceanic
+Plate 106: Area=0.36%, Type=Oceanic
+Plate 107: Area=0.38%, Type=Oceanic
+Plate 108: Area=0.09%, Type=Oceanic
+Plate 109: Area=0.30%, Type=Continental
+Plate 110: Area=0.36%, Type=Oceanic
+Plate 111: Area=0.34%, Type=Oceanic
+Plate 112: Area=0.18%, Type=Oceanic
+Plate 113: Area=0.52%, Type=Oceanic
+Plate 114: Area=0.48%, Type=Continental
+Plate 115: Area=0.18%, Type=Oceanic
+Plate 116: Area=0.01%, Type=Oceanic
+Plate 117: Area=0.05%, Type=Oceanic
+Plate 118: Area=0.44%, Type=Oceanic
+Plate 119: Area=0.02%, Type=Oceanic
+Plate 120: Area=0.34%, Type=Oceanic
+Plate 121: Area=0.05%, Type=Oceanic
+Plate 122: Area=0.30%, Type=Oceanic

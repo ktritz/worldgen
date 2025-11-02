@@ -1,0 +1,67 @@
+Tectonic Plate Generation & Validation Results
+==============================================
+
+GENERATION PARAMETERS:
+Subdivision level: 6
+Target plates: 39
+Actual plates generated: 35
+Random seed: 12345
+Planet radius: 6.371e+06 m
+Generation time: 1.55249771s
+Validation time: 10.12971ms
+
+VALIDATION SCORES:
+Overall Score: 0.546/1.0
+Size Distribution: 0.455/1.0
+Coverage Match: 0.329/1.0
+Continental Mix: 0.886/1.0
+Boundary Complexity: 0.503/1.0
+
+PLATE DISTRIBUTION:
+Major plates (≥4%): 7
+Minor plates (0.5-4%): 24
+Micro plates (0.1-0.5%): 4
+Continental plates: 13
+Oceanic plates: 22
+
+SURFACE COVERAGE:
+Major plate coverage: 63.6%
+Minor plate coverage: 36.2%
+Micro plate coverage: 0.1%
+
+INDIVIDUAL PLATE DETAILS:
+Plate 1: Area=9.27%, Type=Oceanic
+Plate 2: Area=6.26%, Type=Continental
+Plate 3: Area=7.34%, Type=Oceanic
+Plate 4: Area=10.05%, Type=Continental
+Plate 5: Area=9.34%, Type=Continental
+Plate 6: Area=11.31%, Type=Oceanic
+Plate 7: Area=10.05%, Type=Oceanic
+Plate 8: Area=2.34%, Type=Continental
+Plate 9: Area=1.89%, Type=Oceanic
+Plate 10: Area=1.17%, Type=Oceanic
+Plate 11: Area=5.31%, Type=Oceanic
+Plate 12: Area=5.53%, Type=Continental
+Plate 13: Area=1.81%, Type=Continental
+Plate 14: Area=3.96%, Type=Continental
+Plate 15: Area=0.85%, Type=Oceanic
+Plate 16: Area=1.14%, Type=Continental
+Plate 17: Area=0.20%, Type=Oceanic
+Plate 18: Area=0.24%, Type=Oceanic
+Plate 19: Area=0.29%, Type=Continental
+Plate 20: Area=1.15%, Type=Oceanic
+Plate 21: Area=4.10%, Type=Oceanic
+Plate 22: Area=4.15%, Type=Oceanic
+Plate 23: Area=0.26%, Type=Continental
+Plate 24: Area=0.37%, Type=Oceanic
+Plate 25: Area=0.21%, Type=Continental
+Plate 26: Area=0.27%, Type=Oceanic
+Plate 27: Area=0.15%, Type=Oceanic
+Plate 28: Area=0.21%, Type=Oceanic
+Plate 29: Area=0.21%, Type=Oceanic
+Plate 30: Area=0.26%, Type=Oceanic
+Plate 31: Area=0.18%, Type=Continental
+Plate 32: Area=0.07%, Type=Oceanic
+Plate 33: Area=0.01%, Type=Oceanic
+Plate 34: Area=0.04%, Type=Continental
+Plate 35: Area=0.02%, Type=Oceanic

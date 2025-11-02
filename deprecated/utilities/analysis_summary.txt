@@ -1,0 +1,26 @@
+LANDGEN TEST DATA ANALYSIS SUMMARY
+===================================
+
+Icosphere Vertices: 10242
+Icosphere Faces: 20480
+Voronoi Cells (Potential Plates): 10242
+
+Elevation Analysis:
+  Sites with elevation: 10242
+  Elevation range: -5287.2 to 2580.7 meters
+  Average elevation: -2009.2 meters
+  Total relief: 7867.8 meters
+
+Elevation Distribution:
+  Oceanic (< 0m): 10238 (100.0%)
+  Lowland (0-200m): 0 (0.0%)
+  Highland (200-1000m): 0 (0.0%)
+  Mountain (>1000m): 4 (0.0%)
+
+Expected Behavior:
+- Should see mix of oceanic (negative) and continental (positive) elevations
+- Continental plates should show higher base elevations (200-600m range)
+- Oceanic plates should show lower base elevations (-4500 to -3500m range)
+- Convergent boundaries should create mountains (elevated areas)
+- Divergent boundaries should create rifts (depressed areas)
+- Total relief should be significant (>3000m) indicating tectonic effects

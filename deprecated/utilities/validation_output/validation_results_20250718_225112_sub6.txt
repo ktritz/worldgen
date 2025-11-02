@@ -1,0 +1,60 @@
+Tectonic Plate Generation & Validation Results
+==============================================
+
+GENERATION PARAMETERS:
+Subdivision level: 6
+Target plates: 15
+Actual plates generated: 28
+Random seed: 12345
+Planet radius: 6.371e+06 m
+Generation time: 1.476098352s
+Validation time: 16.38434ms
+
+VALIDATION SCORES:
+Overall Score: 0.401/1.0
+Size Distribution: 0.561/1.0
+Coverage Match: 0.517/1.0
+Continental Mix: 0.071/1.0
+Boundary Complexity: 0.825/1.0
+
+PLATE DISTRIBUTION:
+Major plates (≥4%): 6
+Minor plates (0.5-4%): 18
+Micro plates (0.1-0.5%): 4
+Continental plates: 18
+Oceanic plates: 10
+
+SURFACE COVERAGE:
+Major plate coverage: 89.9%
+Minor plate coverage: 9.7%
+Micro plate coverage: 0.5%
+
+INDIVIDUAL PLATE DETAILS:
+Plate 1: Area=33.53%, Type=Continental
+Plate 2: Area=18.40%, Type=Continental
+Plate 3: Area=6.42%, Type=Oceanic
+Plate 4: Area=15.66%, Type=Oceanic
+Plate 5: Area=9.57%, Type=Oceanic
+Plate 6: Area=6.32%, Type=Continental
+Plate 7: Area=0.28%, Type=Continental
+Plate 8: Area=0.84%, Type=Continental
+Plate 9: Area=0.67%, Type=Continental
+Plate 10: Area=0.20%, Type=Oceanic
+Plate 11: Area=0.57%, Type=Oceanic
+Plate 12: Area=0.51%, Type=Continental
+Plate 13: Area=0.63%, Type=Continental
+Plate 14: Area=0.68%, Type=Continental
+Plate 15: Area=0.86%, Type=Continental
+Plate 16: Area=0.46%, Type=Oceanic
+Plate 17: Area=0.81%, Type=Continental
+Plate 18: Area=0.92%, Type=Oceanic
+Plate 19: Area=0.44%, Type=Continental
+Plate 20: Area=0.23%, Type=Continental
+Plate 21: Area=0.56%, Type=Oceanic
+Plate 22: Area=0.40%, Type=Oceanic
+Plate 23: Area=0.36%, Type=Continental
+Plate 24: Area=0.21%, Type=Continental
+Plate 25: Area=0.11%, Type=Oceanic
+Plate 26: Area=0.10%, Type=Continental
+Plate 27: Area=0.13%, Type=Continental
+Plate 28: Area=0.11%, Type=Continental

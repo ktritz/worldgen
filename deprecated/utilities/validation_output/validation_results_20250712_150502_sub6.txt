@@ -1,0 +1,69 @@
+Tectonic Plate Generation & Validation Results
+==============================================
+
+GENERATION PARAMETERS:
+Subdivision level: 6
+Target plates: 39
+Actual plates generated: 37
+Random seed: 12345
+Planet radius: 6.371e+06 m
+Generation time: 1.376274554s
+Validation time: 10.006221ms
+
+VALIDATION SCORES:
+Overall Score: 0.422/1.0
+Size Distribution: 0.273/1.0
+Coverage Match: 0.177/1.0
+Continental Mix: 0.865/1.0
+Boundary Complexity: 0.557/1.0
+
+PLATE DISTRIBUTION:
+Major plates (≥4%): 5
+Minor plates (0.5-4%): 30
+Micro plates (0.1-0.5%): 2
+Continental plates: 14
+Oceanic plates: 23
+
+SURFACE COVERAGE:
+Major plate coverage: 38.0%
+Minor plate coverage: 62.0%
+Micro plate coverage: 0.0%
+
+INDIVIDUAL PLATE DETAILS:
+Plate 1: Area=6.93%, Type=Continental
+Plate 2: Area=6.30%, Type=Continental
+Plate 3: Area=7.05%, Type=Continental
+Plate 4: Area=11.31%, Type=Continental
+Plate 5: Area=6.40%, Type=Oceanic
+Plate 6: Area=2.25%, Type=Oceanic
+Plate 7: Area=2.34%, Type=Oceanic
+Plate 8: Area=1.89%, Type=Continental
+Plate 9: Area=3.69%, Type=Oceanic
+Plate 10: Area=1.17%, Type=Oceanic
+Plate 11: Area=5.31%, Type=Oceanic
+Plate 12: Area=5.53%, Type=Continental
+Plate 13: Area=1.81%, Type=Oceanic
+Plate 14: Area=0.42%, Type=Oceanic
+Plate 15: Area=3.96%, Type=Oceanic
+Plate 16: Area=0.85%, Type=Continental
+Plate 17: Area=0.25%, Type=Continental
+Plate 18: Area=1.14%, Type=Continental
+Plate 19: Area=0.41%, Type=Oceanic
+Plate 20: Area=0.88%, Type=Continental
+Plate 21: Area=0.29%, Type=Oceanic
+Plate 22: Area=0.45%, Type=Oceanic
+Plate 23: Area=2.43%, Type=Continental
+Plate 24: Area=0.87%, Type=Oceanic
+Plate 25: Area=0.25%, Type=Oceanic
+Plate 26: Area=1.15%, Type=Oceanic
+Plate 27: Area=0.70%, Type=Continental
+Plate 28: Area=4.10%, Type=Oceanic
+Plate 29: Area=4.15%, Type=Continental
+Plate 30: Area=0.30%, Type=Oceanic
+Plate 31: Area=3.75%, Type=Oceanic
+Plate 32: Area=5.38%, Type=Oceanic
+Plate 33: Area=0.19%, Type=Oceanic
+Plate 34: Area=5.40%, Type=Oceanic
+Plate 35: Area=0.68%, Type=Continental
+Plate 36: Area=0.01%, Type=Oceanic
+Plate 37: Area=0.02%, Type=Oceanic
