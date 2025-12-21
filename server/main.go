@@ -10,8 +10,10 @@ import (
 	"strconv"
 
 	// Added for default seed generation
-	"worldgen/icosphere" // Your icosphere library
-	"worldgen/landgen"   // Your landgen library (now an orchestrator)
+	"worldgen/icosphere"          // Your icosphere library
+	"worldgen/landgen"            // Your landgen library (now an orchestrator)
+	"worldgen/landgen/elevation"  // Elevation module
+	"worldgen/landgen/tectonics"  // Tectonics module
 )
 
 // --- Struct Definitions ---
@@ -45,8 +47,9 @@ type MeshData struct {
 }
 
 type VoronoiCellData struct {
-	SiteIndex     int32   `json:"siteIndex"`
-	VertexIndices []int32 `json:"vertexIndices"`
+	SiteIndex           int32   `json:"siteIndex"`
+	NeighborSiteIndices []int32 `json:"neighborSiteIndices"`
+	VertexIndices       []int32 `json:"vertexIndices"`
 }
 
 type VoronoiMeshData struct {
@@ -78,11 +81,11 @@ type LandGenerationRequestParams struct {
 	LandSeed int64 `json:"landSeed"`
 
 	// Parameters for Tectonic Plate Generation (defaults will be used if not provided by UI)
-	NumPlates   int     `json:"numPlates,omitempty"`
-	BaseSpeed   float64 `json:"baseSpeed,omitempty"`
-	SpeedFactor float64 `json:"speedFactor,omitempty"`
-	PConvergent float64 `json:"pConvergent,omitempty"`
-	PDivergent  float64 `json:"pDivergent,omitempty"`
+	NumPlates                   int     `json:"numPlates,omitempty"`
+	BaseSpeed                   float64 `json:"baseSpeed,omitempty"`
+	SpeedVariationFactor        float64 `json:"speedVariationFactor,omitempty"`
+	TargetContinentalProportion float64 `json:"targetContinentalProportion,omitempty"`
+	NumInitialContinentalSeeds  int     `json:"numInitialContinentalSeeds,omitempty"`
 	// TectonicSeed will be derived from LandSeed/GlobalSeed in landgen package if not set directly
 
 	// Parameters for Elevation Generation (from existing UI form)
@@ -91,6 +94,12 @@ type LandGenerationRequestParams struct {
 	NoisePersistence    float64 `json:"noisePersistence"`
 	NoiseLacunarity     float64 `json:"noiseLacunarity"`
 	ElevationMultiplier float64 `json:"elevationMultiplier"`
+	
+	// Tectonic Boundary Effects
+	CharacteristicFalloffDistance float64 `json:"characteristicFalloffDistance,omitempty"`
+	MaxBoundaryEffectDistance     float64 `json:"maxBoundaryEffectDistance,omitempty"`
+	ConvergentBoundaryStrength    float64 `json:"convergentBoundaryStrength,omitempty"`
+	DivergentBoundaryStrength     float64 `json:"divergentBoundaryStrength,omitempty"`
 
 	// Output and Base Mesh Data
 	LandOutputName        string           `json:"landOutputName"` // For auxiliary files
@@ -105,7 +114,7 @@ type LandGenerationResponse struct {
 	Status        string                 `json:"status"`
 	Message       string                 `json:"message"`
 	HeightmapUrl  string                 `json:"heightmapUrl,omitempty"` // For auxiliary image output
-	ElevationData *landgen.ElevationData `json:"elevationData,omitempty"`
+	ElevationData *elevation.ElevationData `json:"elevationData,omitempty"`
 }
 
 // --- Helper Functions (flattenVertices, etc. remain the same) ---
@@ -169,8 +178,9 @@ func convertToIcosphereVoronoiCells(jsonDataCells []VoronoiCellData) []icosphere
 	icosphereCells := make([]icosphere.VoronoiCell, len(jsonDataCells))
 	for i, dataCell := range jsonDataCells {
 		icosphereCells[i] = icosphere.VoronoiCell{
-			SiteIndex:     dataCell.SiteIndex,
-			VertexIndices: dataCell.VertexIndices,
+			SiteIndex:           dataCell.SiteIndex,
+			NeighborSiteIndices: dataCell.NeighborSiteIndices,
+			VertexIndices:       dataCell.VertexIndices,
 		}
 	}
 	return icosphereCells
@@ -180,10 +190,17 @@ func convertToJSONVoronoiCellData(icosphereCells []icosphere.VoronoiCell) []Voro
 	jsonDataCells := make([]VoronoiCellData, len(icosphereCells))
 	for i, icoCell := range icosphereCells {
 		jsonDataCells[i] = VoronoiCellData{
-			SiteIndex:     icoCell.SiteIndex,
-			VertexIndices: icoCell.VertexIndices,
+			SiteIndex:           icoCell.SiteIndex,
+			NeighborSiteIndices: icoCell.NeighborSiteIndices,
+			VertexIndices:       icoCell.VertexIndices,
+		}
+		// Debug: Check first few cells during conversion
+		if i < 3 {
+			log.Printf("  Converting cell %d: SiteIndex=%d, %d neighbors %v, %d vertices", 
+				i, icoCell.SiteIndex, len(icoCell.NeighborSiteIndices), icoCell.NeighborSiteIndices, len(icoCell.VertexIndices))
 		}
 	}
+	log.Printf("Converted %d cells to JSON format", len(jsonDataCells))
 	return jsonDataCells
 }
 
@@ -311,6 +328,16 @@ func apiGenerateHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println("API: Generating Voronoi diagram...")
 		voronoiMeshVertices, voronoiCellsStructs := icosphere.GenerateSphericalVoronoi(currentVertices, currentFaces)
 		log.Printf("API: Voronoi generated with %d vertices, %d cells", len(voronoiMeshVertices), len(voronoiCellsStructs))
+		
+		// Debug: Check if neighbor data is present in fresh generation
+		neighborsFound := 0
+		for i := 0; i < 5 && i < len(voronoiCellsStructs); i++ {
+			if len(voronoiCellsStructs[i].NeighborSiteIndices) > 0 {
+				neighborsFound++
+			}
+			log.Printf("  Fresh Voronoi cell %d: %d neighbors %v", i, len(voronoiCellsStructs[i].NeighborSiteIndices), voronoiCellsStructs[i].NeighborSiteIndices)
+		}
+		log.Printf("Fresh Voronoi: %d/5 cells have neighbors", neighborsFound)
 
 		apiResponse.VoronoiData = &VoronoiMeshData{
 			Vertices: flattenVertices(voronoiMeshVertices),
@@ -482,32 +509,62 @@ func apiGenerateLandHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("API: Received land generation request with params: %+v\n", reqPayload)
 
 	if reqPayload.BaseIcosphereData == nil || reqPayload.BaseVoronoiData == nil {
-		log.Println("API (LandGen): Missing base Icosphere or Voronoi data in request.")
-		http.Error(w, "Missing baseIcosphereData or baseVoronoiData in request payload.", http.StatusBadRequest)
-		return
+		log.Printf("API (LandGen): Missing base mesh data, auto-loading for subdivision %d...", reqPayload.IcosphereSubdivisions)
+		
+		// Auto-load mesh data from cache
+		jsonCacheDir := "./mesh_cache"
+		icosphereJSONFilename := fmt.Sprintf("icosphere_sub%d_data.json", reqPayload.IcosphereSubdivisions)
+		icosphereJSONFullPath := filepath.Join(jsonCacheDir, icosphereJSONFilename)
+		
+		var icoData MeshData
+		if err := loadJSONData(icosphereJSONFullPath, &icoData); err != nil {
+			log.Printf("Failed to auto-load icosphere data: %v", err)
+			http.Error(w, fmt.Sprintf("Missing mesh data and failed to auto-load for subdivision %d", reqPayload.IcosphereSubdivisions), http.StatusBadRequest)
+			return
+		}
+		reqPayload.BaseIcosphereData = &icoData
+		
+		voronoiJSONFilename := fmt.Sprintf("voronoi_sub%d_data.json", reqPayload.IcosphereSubdivisions)
+		voronoiJSONFullPath := filepath.Join(jsonCacheDir, voronoiJSONFilename)
+		
+		var voroData VoronoiMeshData
+		if err := loadJSONData(voronoiJSONFullPath, &voroData); err != nil {
+			log.Printf("Failed to auto-load Voronoi data: %v", err)
+			http.Error(w, fmt.Sprintf("Missing mesh data and failed to auto-load for subdivision %d", reqPayload.IcosphereSubdivisions), http.StatusBadRequest)
+			return
+		}
+		reqPayload.BaseVoronoiData = &voroData
+		
+		log.Printf("Successfully auto-loaded mesh data for subdivision %d", reqPayload.IcosphereSubdivisions)
 	}
 
 	// --- Construct LandGenerationPipelineSettings ---
 	pipelineSettings := landgen.LandGenerationPipelineSettings{
 		GlobalSeed: reqPayload.LandSeed, // Use landSeed from UI as the global seed
-		TectonicSettings: landgen.TectonicSettings{
-			NumPlates:   reqPayload.NumPlates,
-			Seed:        0, // Will default to GlobalSeed in landgen.GeneratePlanetData if 0
-			BaseSpeed:   reqPayload.BaseSpeed,
-			SpeedFactor: reqPayload.SpeedFactor,
-			PConvergent: reqPayload.PConvergent,
-			PDivergent:  reqPayload.PDivergent,
-			// NumWorkers is now handled automatically in tectonics.go
+		TectonicSettings: tectonics.TectonicSettings{
+			NumPlates:                   reqPayload.NumPlates,
+			Seed:                        0, // Will default to GlobalSeed in landgen.GeneratePlanetData if 0
+			BaseSpeed:                   reqPayload.BaseSpeed,
+			SpeedVariationFactor:        reqPayload.SpeedVariationFactor,
+			TargetContinentalProportion: reqPayload.TargetContinentalProportion,
+			NumInitialContinentalSeeds:  reqPayload.NumInitialContinentalSeeds,
+			PlanetRadius:                6371000.0, // Earth radius in meters
 		},
-		ElevationSettings: landgen.ElevationSettings{
-			NoiseScale:          reqPayload.NoiseScale,
-			NoiseOctaves:        reqPayload.NoiseOctaves,
-			NoisePersistence:    reqPayload.NoisePersistence,
-			NoiseLacunarity:     reqPayload.NoiseLacunarity,
-			ElevationMultiplier: reqPayload.ElevationMultiplier,
+		ElevationSettings: elevation.ElevationSettings{
+			NoiseScale:                    reqPayload.NoiseScale,
+			NoiseOctaves:                  reqPayload.NoiseOctaves,
+			NoisePersistence:              reqPayload.NoisePersistence,
+			NoiseLacunarity:               reqPayload.NoiseLacunarity,
+			ElevationMultiplier:           reqPayload.ElevationMultiplier,
+			CharacteristicFalloffDistance: reqPayload.CharacteristicFalloffDistance,
+			MaxBoundaryEffectDistance:     reqPayload.MaxBoundaryEffectDistance,
+			ConvergentBoundaryStrength:    reqPayload.ConvergentBoundaryStrength,
+			DivergentBoundaryStrength:     reqPayload.DivergentBoundaryStrength,
 		},
-		OutputPath:           filepath.Join("./output_from_server", "land"), // Example base output path
-		OutputAuxiliaryFiles: true,                                          // Example
+		OutputPath:                filepath.Join("./output_from_server", "land"), // Example base output path
+		OutputAuxiliaryFiles:      true,                                          // Example
+		BaseIcosphereSubdivisions: reqPayload.IcosphereSubdivisions,              // Set subdivision level
+		PlanetRadius:              6371000.0,                                     // Earth radius in meters
 	}
 
 	// Set defaults for TectonicSettings if not provided by UI (or if UI doesn't send them yet)
@@ -519,14 +576,17 @@ func apiGenerateLandHandler(w http.ResponseWriter, r *http.Request) {
 		pipelineSettings.TectonicSettings.BaseSpeed = 0.01 // Default base speed
 		log.Printf("  LandGen: BaseSpeed not provided, defaulting to %f", pipelineSettings.TectonicSettings.BaseSpeed)
 	}
-	if pipelineSettings.TectonicSettings.SpeedFactor == 0 {
-		pipelineSettings.TectonicSettings.SpeedFactor = 1.0 // Default speed factor
-		log.Printf("  LandGen: SpeedFactor not provided, defaulting to %f", pipelineSettings.TectonicSettings.SpeedFactor)
+	if pipelineSettings.TectonicSettings.SpeedVariationFactor == 0 {
+		pipelineSettings.TectonicSettings.SpeedVariationFactor = 0.5 // Default speed variation factor (50% variation)
+		log.Printf("  LandGen: SpeedVariationFactor not provided, defaulting to %f", pipelineSettings.TectonicSettings.SpeedVariationFactor)
 	}
-	if pipelineSettings.TectonicSettings.PConvergent == 0 && pipelineSettings.TectonicSettings.PDivergent == 0 {
-		pipelineSettings.TectonicSettings.PConvergent = 0.4 // Default probability
-		pipelineSettings.TectonicSettings.PDivergent = 0.4  // Default probability
-		log.Printf("  LandGen: PConvergent/PDivergent not provided, defaulting to 0.4 each")
+	if pipelineSettings.TectonicSettings.TargetContinentalProportion == 0 {
+		pipelineSettings.TectonicSettings.TargetContinentalProportion = 0.35 // Default continental proportion (35%)
+		log.Printf("  LandGen: TargetContinentalProportion not provided, defaulting to %f", pipelineSettings.TectonicSettings.TargetContinentalProportion)
+	}
+	if pipelineSettings.TectonicSettings.NumInitialContinentalSeeds == 0 {
+		pipelineSettings.TectonicSettings.NumInitialContinentalSeeds = 3 // Default number of continental seeds
+		log.Printf("  LandGen: NumInitialContinentalSeeds not provided, defaulting to %d", pipelineSettings.TectonicSettings.NumInitialContinentalSeeds)
 	}
 
 	// --- Prepare base mesh data for the pipeline ---
@@ -554,7 +614,6 @@ func apiGenerateLandHandler(w http.ResponseWriter, r *http.Request) {
 		baseIcoFaces,
 		baseVoroVertices,
 		baseVoroCells,
-		reqPayload.IcosphereSubdivisions,
 	)
 	if err != nil {
 		log.Printf("Error generating planet data: %v", err)

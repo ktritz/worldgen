@@ -130,16 +130,22 @@ function initializeLandgenTab(commonViewerAPI) {
             // Tectonic Plate Parameters
             numPlates: landParams.numPlates,
             baseSpeed: landParams.baseSpeed,
-            speedFactor: landParams.speedFactor,
-            pConvergent: landParams.pConvergent,
-            pDivergent: landParams.pDivergent,
+            speedVariationFactor: landParams.speedVariationFactor,
+            targetContinentalProportion: landParams.targetContinentalProportion,
+            numInitialContinentalSeeds: landParams.numInitialContinentalSeeds,
 
-            // Elevation Parameters (current placeholder logic)
+            // Elevation Parameters
             noiseScale: landParams.noiseScale,
             noiseOctaves: landParams.noiseOctaves,
             noisePersistence: landParams.noisePersistence,
             noiseLacunarity: landParams.noiseLacunarity,
             elevationMultiplier: landParams.elevationMultiplier,
+            
+            // Tectonic Boundary Effects
+            characteristicFalloffDistance: landParams.characteristicFalloffDistance,
+            maxBoundaryEffectDistance: landParams.maxBoundaryEffectDistance,
+            convergentBoundaryStrength: landParams.convergentBoundaryStrength,
+            divergentBoundaryStrength: landParams.divergentBoundaryStrength,
 
             // Output and Base Mesh Data
             landOutputName: landParams.landOutputName,

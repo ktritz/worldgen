@@ -27,47 +27,70 @@
                 title="Average angular speed of plates.">
         </div>
         <div>
-            <label for="speedFactor">Plate Speed Factor:</label>
-            <input type="number" id="speedFactor" name="speedFactor" value="1.0" step="0.1" min="0" class="form-input"
-                title="Multiplier to introduce variability in plate speeds.">
+            <label for="speedVariationFactor">Speed Variation Factor:</label>
+            <input type="number" id="speedVariationFactor" name="speedVariationFactor" value="0.5" step="0.1" min="0" max="2" class="form-input"
+                title="Factor to vary plate speeds (e.g., 0.5 means speed can be BaseSpeed ± 50%).">
         </div>
         <div>
-            <label for="pConvergent">P(Convergent Boundary):</label>
-            <input type="number" id="pConvergent" name="pConvergent" value="0.4" step="0.01" min="0" max="1"
-                class="form-input" title="Probability for an adjacent plate pair to have a convergent boundary.">
+            <label for="targetContinentalProportion">Target Continental Proportion:</label>
+            <input type="number" id="targetContinentalProportion" name="targetContinentalProportion" value="0.35" step="0.05" min="0" max="1"
+                class="form-input" title="Proportion of surface area to be continental plates (e.g., 0.35 = 35%).">
         </div>
         <div>
-            <label for="pDivergent">P(Divergent Boundary):</label>
-            <input type="number" id="pDivergent" name="pDivergent" value="0.4" step="0.01" min="0" max="1"
-                class="form-input"
-                title="Probability for an adjacent plate pair to have a divergent boundary (after convergent check). Passive if neither.">
+            <label for="numInitialContinentalSeeds">Initial Continental Seeds:</label>
+            <input type="number" id="numInitialContinentalSeeds" name="numInitialContinentalSeeds" value="3" min="1" max="20"
+                class="form-input" title="Number of initial continental seed points for continent formation.">
         </div>
     </div>
 
     <div class="param-group">
-        <h3>Elevation Parameters (Current Placeholder Logic)</h3>
+        <h3>Elevation Parameters</h3>
         <div>
-            <label for="noiseScale">Noise Scale (Frequency for Sine Wave):</label>
+            <label for="noiseScale">Noise Scale (Future use for procedural noise):</label>
             <input type="number" id="noiseScale" name="noiseScale" value="1.0" step="0.05" class="form-input">
         </div>
         <div>
-            <label for="noiseOctaves">Octaves (Not used by current sine logic):</label>
+            <label for="noiseOctaves">Noise Octaves (Future use):</label>
             <input type="number" id="noiseOctaves" name="noiseOctaves" value="4" min="1" class="form-input">
         </div>
         <div>
-            <label for="noisePersistence">Persistence (Not used by current sine logic):</label>
+            <label for="noisePersistence">Noise Persistence (Future use):</label>
             <input type="number" id="noisePersistence" name="noisePersistence" value="0.5" step="0.01" min="0" max="1"
                 class="form-input">
         </div>
         <div>
-            <label for="noiseLacunarity">Lacunarity (Not used by current sine logic):</label>
+            <label for="noiseLacunarity">Noise Lacunarity (Future use):</label>
             <input type="number" id="noiseLacunarity" name="noiseLacunarity" value="2.0" step="0.1" min="1"
                 class="form-input">
         </div>
         <div>
-            <label for="elevationMultiplier">Elevation Multiplier (Amplitude for Sine Wave):</label>
-            <input type="number" id="elevationMultiplier" name="elevationMultiplier" value="0.1" step="0.01"
-                class="form-input">
+            <label for="elevationMultiplier">Base Elevation Multiplier:</label>
+            <input type="number" id="elevationMultiplier" name="elevationMultiplier" value="100" step="10" min="0"
+                class="form-input" title="Base amplitude for elevation generation (meters).">
+        </div>
+    </div>
+
+    <div class="param-group">
+        <h3>Tectonic Boundary Effects</h3>
+        <div>
+            <label for="characteristicFalloffDistance">Characteristic Falloff Distance (% of radius):</label>
+            <input type="number" id="characteristicFalloffDistance" name="characteristicFalloffDistance" value="0.15" step="0.01" min="0" max="1"
+                class="form-input" title="Distance over which tectonic effects fade, as fraction of planet radius.">
+        </div>
+        <div>
+            <label for="maxBoundaryEffectDistance">Max Boundary Effect Distance (% of radius):</label>
+            <input type="number" id="maxBoundaryEffectDistance" name="maxBoundaryEffectDistance" value="0.45" step="0.01" min="0" max="1"
+                class="form-input" title="Maximum distance for any tectonic boundary effects, as fraction of planet radius.">
+        </div>
+        <div>
+            <label for="convergentBoundaryStrength">Convergent Boundary Strength (meters):</label>
+            <input type="number" id="convergentBoundaryStrength" name="convergentBoundaryStrength" value="1000" step="100" min="0"
+                class="form-input" title="Elevation boost from convergent boundaries (mountain formation).">
+        </div>
+        <div>
+            <label for="divergentBoundaryStrength">Divergent Boundary Strength (meters):</label>
+            <input type="number" id="divergentBoundaryStrength" name="divergentBoundaryStrength" value="500" step="50" min="0"
+                class="form-input" title="Elevation depression from divergent boundaries (rift formation).">
         </div>
     </div>
 
