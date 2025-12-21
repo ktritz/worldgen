@@ -34,6 +34,9 @@ server/server.pid
 cmd/*/generate_planet
 cmd/*/evaluate_plates
 cmd/*/pipeline-cli
+cmd/*/pipeline-cli-*
+cmd/*/validate_tectonics
+cmd/*/worldgen-cli
 
 # Log files
 *.log
@@ -48,6 +51,5 @@ redblobgames-planet/
 # Handoff files
 HANDOFF*.md
 
-# Deprecated test binaries (keep .go source files)
-deprecated/tests/*
-!deprecated/tests/*.go
+# Deprecated code (historical reference only)
+deprecated/
