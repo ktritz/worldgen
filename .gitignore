@@ -26,3 +26,28 @@ go.work.sum
 
 # env file
 .env
+
+# Build artifacts
+main
+server/server
+server/server.pid
+cmd/*/generate_planet
+cmd/*/evaluate_plates
+cmd/*/pipeline-cli
+
+# Log files
+*.log
+server/server_debug.log
+
+# Windows metadata
+*:Zone.Identifier
+
+# External reference code
+redblobgames-planet/
+
+# Handoff files
+HANDOFF*.md
+
+# Deprecated test binaries (keep .go source files)
+deprecated/tests/*
+!deprecated/tests/*.go
