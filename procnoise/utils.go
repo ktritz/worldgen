@@ -104,6 +104,11 @@ func (v Vec2) LengthSq() float64 {
 	return v.X*v.X + v.Y*v.Y
 }
 
+// Length returns the length of the vector.
+func (v Vec2) Length() float64 {
+	return math.Sqrt(v.X*v.X + v.Y*v.Y)
+}
+
 // Vec3 represents a 3D vector or point.
 type Vec3 struct {
 	X, Y, Z float64

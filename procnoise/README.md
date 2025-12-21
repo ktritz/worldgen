@@ -303,6 +303,217 @@ These utilities are primarily used internally by other procnoise components. Use
 * **Dimensionality:** Be mindful of the dimensionality of the noise required for different effects (e.g., 2D for heightmaps, 3D for volumetric textures or potential fields, 4D for time-animated 3D noise).
 
 
+### 7. Poisson Disk Sampling (poisson.go)
+
+This component implements Poisson disk sampling for generating well-distributed point sets with minimum distance constraints.
+
+**Purpose & Key Features:**
+
+* **Uniform Distribution:** Ensures minimum distance between samples while maximizing density
+* **2D and 3D Support:** Both planar and spherical surface sampling
+* **Noise Generation:** Converts sample distributions into continuous noise fields
+* **Mitchell's Algorithm:** Uses fast grid-based approach for efficient generation
+
+**Interfacing:**
+
+* **2D Sampling:**
+    * NewPoissonDiskSampler2D(seed int64, minDistance float64, domain [4]float64) *PoissonDiskSampler2D
+    * sampler.Generate() []PoissonSample2D
+    * NewPoissonDiskNoise2D(sampler, falloffType string, maxInfluence float64) *PoissonDiskNoise2D
+* **Spherical Sampling:**
+    * NewSphericalPoissonDiskSampler(seed int64, minAngularDistance float64) *SphericalPoissonDiskSampler
+    * sampler.Generate() []SphericalPoissonSample
+    * NewSphericalPoissonDiskNoise(sampler, falloffType string, maxInfluence float64) *SphericalPoissonDiskNoise
+
+**World Generation Context:**
+
+* Generating biome distribution points with natural spacing
+* Placing resources, settlements, or geological features
+* Creating territorial boundaries for agent-based systems
+* Ecosystem modeling with competition constraints
+
+### 8. Multifractal Noise (multifractal.go)
+
+This component implements multifractal noise algorithms that vary roughness characteristics across space.
+
+**Purpose & Key Features:**
+
+* **Variable Roughness:** Unlike standard fractals, roughness changes spatially
+* **Terrain Types:** Hetero, Hybrid, Ridged, and Varying Lacunarity algorithms
+* **Realistic Geology:** Better models natural terrain variation
+* **Hurst Exponent:** Controls roughness variation intensity
+
+**Interfacing:**
+
+* **Initialization:**
+    * NewMultifractalNoiseBuilder(baseNoise ScalarField3D) *MultifractalNoiseBuilder
+    * builder.SetType(MultifractalHeteroTerrain).SetH(0.5).Build() *MultifractalNoise3D
+* **Types Available:**
+    * MultifractalHeteroTerrain: Varying roughness terrain
+    * MultifractalHybridTerrain: Combines additive and multiplicative fractals
+    * MultifractalRidgedTerrain: Sharp ridges with varying characteristics
+    * MultifractalVaryingLacunarity: Spatially varying frequency scaling
+
+**World Generation Context:**
+
+* Creating realistic mountain ranges with varying roughness
+* Modeling geological diversity across continents
+* Generating complex coastlines and terrain transitions
+* Climate-influenced terrain characteristics
+
+### 9. Turbulence Noise (turbulence.go)
+
+This component implements various turbulence algorithms for chaotic, flowing patterns.
+
+**Purpose & Key Features:**
+
+* **Fluid Dynamics:** Models turbulent flow and atmospheric patterns
+* **Multiple Algorithms:** Basic, Ridged, Billow, Swiss, Jordan, and Vortex turbulence
+* **Domain Warping:** Adds complexity through coordinate distortion
+* **Derivative Control:** Advanced algorithms use gradient information
+
+**Interfacing:**
+
+* **Initialization:**
+    * NewTurbulenceNoiseBuilder(baseNoise ScalarField3D) *TurbulenceNoiseBuilder
+    * builder.SetType(TurbulenceSwiss).SetRoughness(0.5).Build() *TurbulenceNoise3D
+* **Specialized Generators:**
+    * NewVortexTurbulence(baseNoise, centers, radii, strengths) *VortexTurbulence
+
+**World Generation Context:**
+
+* Atmospheric turbulence for weather systems
+* Ocean current patterns and wave generation
+* Erosion modeling with chaotic flow patterns
+* Cloud and smoke effects for visual realism
+
+### 10. Spectral Synthesis (spectral.go)
+
+This component implements frequency-domain noise generation using physically-based spectra.
+
+**Purpose & Key Features:**
+
+* **Physically-Based:** Uses real-world energy spectra (ocean waves, atmospheric turbulence)
+* **Frequency Control:** Direct manipulation of spectral content
+* **Time Evolution:** Proper wave propagation and animation
+* **Multiple Spectra:** Ocean waves, atmospheric, terrain, turbulent, and periodic
+
+**Interfacing:**
+
+* **Initialization:**
+    * NewSpectralSynthesisBuilder().SetType(SpectralOceanWaves).Build() *SpectralSynthesis
+    * synthesis.Generate() [][]float64
+    * synthesis.UpdateTime(deltaTime) // For animation
+* **Spectral Types:**
+    * SpectralOceanWaves: Pierson-Moskowitz ocean wave spectrum
+    * SpectralAtmospheric: Kolmogorov turbulence spectrum
+    * SpectralTerrain: Power-law terrain spectra
+
+**World Generation Context:**
+
+* Realistic ocean wave simulation for coastal environments
+* Atmospheric pressure systems and weather patterns
+* Large-scale terrain with proper frequency content
+* Time-evolving phenomena with correct physics
+
+### 11. Reaction-Diffusion (reaction_diffusion.go)
+
+This component implements reaction-diffusion systems for self-organizing pattern formation.
+
+**Purpose & Key Features:**
+
+* **Self-Organization:** Patterns emerge from simple rules without external input
+* **Multiple Systems:** Gray-Scott, FitzHugh-Nagumo, Brusselator, Turing, Competition
+* **Biological Realism:** Models real chemical and biological processes
+* **Pattern Control:** Seed points and parameters control pattern characteristics
+
+**Interfacing:**
+
+* **Initialization:**
+    * NewReactionDiffusionBuilder().SetType(GrayScott).Build() *ReactionDiffusionSystem
+    * system.Simulate() // Run the simulation
+    * NewReactionDiffusionNoise(settings, useSpeciesB) *ReactionDiffusionNoise
+* **System Types:**
+    * GrayScott: Classic spots and stripes patterns
+    * Turing: Activator-inhibitor pattern formation
+    * Competition: Species competition and territorial patterns
+
+**World Generation Context:**
+
+* Biome boundary formation through competition
+* Vegetation patterns and ecological territories
+* Mineral vein formation and geological patterns
+* Animal territory and migration corridor modeling
+
+## Advanced Usage Examples
+
+### Combining Multiple Noise Types
+
+```go
+// Create a complex terrain combining multiple noise types
+fnlState := procnoise.New[float32]()
+fnlState.NoiseType(procnoise.OpenSimplex2)
+fnlState.Frequency = 0.02
+
+// Base terrain with multifractal noise
+baseTerrain := procnoise.NewMultifractalNoiseBuilder(
+    procnoise.NewFastNoiseLiteScalarField(fnlState),
+).SetType(procnoise.MultifractalHeteroTerrain).
+  SetH(0.7).
+  Build()
+
+// Add turbulent erosion patterns
+erosionNoise := procnoise.NewTurbulenceNoiseBuilder(baseTerrain).
+    SetType(procnoise.TurbulenceSwiss).
+    SetWarp(0.15).
+    Build()
+
+// Distribute biomes with Poisson disk sampling
+biomeSeeds := procnoise.NewSphericalPoissonDiskSampler(12345, 0.1)
+biomeSeeds.Generate()
+```
+
+### Ocean Wave Simulation
+
+```go
+// Create realistic ocean waves
+oceanWaves := procnoise.NewSpectralSynthesisBuilder().
+    SetType(procnoise.SpectralOceanWaves).
+    SetOceanParameters(15.0, 0.0, 1000.0). // 15 m/s wind
+    SetResolution(256).
+    Build()
+
+// Animate waves over time
+for t := 0.0; t < 100.0; t += 0.1 {
+    oceanWaves.UpdateTime(0.1)
+    waveField := oceanWaves.Generate()
+    // Use waveField for rendering or physics
+}
+```
+
+### Ecological Pattern Formation
+
+```go
+// Model competing vegetation species
+vegetation := procnoise.NewReactionDiffusionBuilder().
+    SetType(procnoise.Competition).
+    SetDiffusionRates(0.1, 0.05). // Different dispersal rates
+    SetGridSize(256).
+    AddSeedPoint(0.3, 0.3, 10.0, 1.0). // Forest seed
+    AddSeedPoint(0.7, 0.7, 8.0, 1.0).  // Grassland seed
+    BuildNoise(false)
+
+// Use as biome distribution noise
+```
+
 ## Conclusion
 
-The procnoise module offers a comprehensive toolkit for procedural noise generation in Go, catering to a wide array of needs in world building. By understanding the strengths and interfaces of each component, developers can create rich, detailed, and dynamic virtual environments.
+The expanded procnoise module now offers a comprehensive toolkit for procedural noise generation in Go, covering everything from basic terrain generation to complex ecological modeling. The new modules fill critical gaps in world generation capabilities:
+
+- **Poisson Disk Sampling** ensures natural feature distribution
+- **Multifractal Noise** creates geologically realistic terrain
+- **Turbulence Noise** models fluid dynamics and atmospheric phenomena
+- **Spectral Synthesis** provides physically-based wave generation
+- **Reaction-Diffusion** enables self-organizing biological patterns
+
+By combining these tools strategically, developers can create rich, scientifically-grounded virtual worlds with unprecedented realism and complexity.
