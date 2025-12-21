@@ -1,6 +1,6 @@
 # Terrain Generation System
 
-Red Blob Games-inspired tectonic planet generation with Earth-like hypsometry.
+Tectonic planet generation with Earth-like hypsometry.
 
 ## Features
 
