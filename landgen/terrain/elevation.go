@@ -258,6 +258,71 @@ func hashGradient(ix, iy, iz, seed int64, fx, fy, fz float64) float64 {
 	return gx*fx + gy*fy + gz*fz
 }
 
+// ApplyElevationScaledNoise adds fractal noise with amplitude proportional to elevation
+// This creates:
+// - Rough, jagged mountain peaks
+// - Gently rolling plains and lowlands
+// - Moderate roughness on ocean floor (abyssal hills, ridges)
+//
+// Parameters:
+// - baseFrequency: base noise frequency (higher = more detail, smaller features)
+// - mountainAmplitude: max noise amplitude for high mountains (meters)
+// - plainAmplitude: noise amplitude for low-elevation land (meters)
+// - oceanAmplitude: noise amplitude for ocean floor (meters)
+func ApplyElevationScaledNoise(
+	sites []Vector3D,
+	elevation []float64,
+	seed int64,
+	baseFrequency float64,
+	mountainAmplitude float64,
+	plainAmplitude float64,
+	oceanAmplitude float64,
+) {
+	// Use a different seed offset for this noise layer
+	noiseSeed := seed + 999999
+
+	for i := range elevation {
+		elev := elevation[i]
+
+		// Determine amplitude based on elevation
+		var amplitude float64
+		if elev > 0 {
+			// Land: scale from plainAmplitude at sea level to mountainAmplitude at high elevation
+			// Use sqrt scaling so mountains get rougher faster
+			normalizedElev := math.Min(1.0, elev/4000.0) // 4000m as "full mountain"
+			amplitude = plainAmplitude + (mountainAmplitude-plainAmplitude)*math.Sqrt(normalizedElev)
+		} else {
+			// Ocean: use ocean amplitude, slightly scaled by depth
+			normalizedDepth := math.Min(1.0, math.Abs(elev)/5000.0)
+			amplitude = oceanAmplitude * (0.5 + 0.5*normalizedDepth)
+		}
+
+		// Generate multi-octave noise at this position
+		// Use higher frequency for finer detail
+		pos := sites[i]
+		noise := FBMNoiseWithFreq(pos, noiseSeed, baseFrequency, 6)
+
+		// Apply noise
+		elevation[i] += amplitude * noise
+	}
+}
+
+// FBMNoiseWithFreq generates fractal Brownian motion noise with configurable base frequency
+func FBMNoiseWithFreq(pos Vector3D, seed int64, baseFreq float64, octaves int) float64 {
+	persistence := 0.5
+	sum := 0.0
+	sumOfAmplitudes := 0.0
+
+	for octave := 0; octave < octaves; octave++ {
+		amplitude := math.Pow(persistence, float64(octave))
+		frequency := baseFreq * float64(int(1)<<octave)
+		sum += amplitude * SimplexNoise3D(pos.X*frequency, pos.Y*frequency, pos.Z*frequency, seed+int64(octave)*1000)
+		sumOfAmplitudes += amplitude
+	}
+
+	return sum / sumOfAmplitudes
+}
+
 // applySubductionProfile creates gradual elevation from trench to volcanic arc
 // Real subduction zones have: trench → accretionary wedge → forearc basin → volcanic arc → back-arc
 func applySubductionProfile(

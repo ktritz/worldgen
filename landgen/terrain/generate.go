@@ -118,6 +118,14 @@ func GeneratePlanetElevation(
 	fmt.Printf("Step 6: Applying Earth hypsometry (target land: %.1f%%)...\n", targetLandFraction*100)
 	elevation = ApplyEarthHypsometry(elevation, targetLandFraction)
 
+	// Step 9b: Apply elevation-scaled noise for terrain detail
+	// baseFrequency=64 gives ~625km largest features, ~10km smallest (6 octaves)
+	// Amplitudes based on Earth's actual terrain roughness at these scales:
+	// - Mountains: ±800m (Himalayan peaks vary 1-2km within ranges)
+	// - Plains: ±80m (rolling hills, river terraces)
+	// - Ocean: ±150m (abyssal hills typically 50-300m)
+	ApplyElevationScaledNoise(sites, elevation, seed, 64.0, 800.0, 80.0, 150.0)
+
 	// Step 10: Apply landmass-aware erosion (caps peaks on small islands, in meters)
 	fmt.Println("  Applying landmass erosion (size + coastal proximity)...")
 	ApplyLandmassErosion(cells, elevation, rPlate, plateIsOcean, distFromCoast)
@@ -126,7 +134,7 @@ func GeneratePlanetElevation(
 	// This slightly increases land percentage but creates realistic volcanic islands
 	fmt.Println("Step 7: Generating hotspot island chains...")
 	hotspotChains := PlaceHotspots(sites, cells, rPlate, plateRot, plateIsOcean, rng)
-	numIslandCells, _, hotspotCells := ApplyHotspotElevation(elevation, cells, hotspotChains, rPlate, plateIsOcean, rng)
+	numIslandCells, _, hotspotCells := ApplyHotspotElevation(elevation, cells, sites, hotspotChains, rPlate, plateIsOcean, rng)
 	// Show chain lengths and type breakdown
 	oceanicCount, continentalCount := 0, 0
 	oceanicLengths := make([]int, 0)

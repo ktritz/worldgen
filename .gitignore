@@ -53,3 +53,19 @@ HANDOFF*.md
 
 # Deprecated code (historical reference only)
 deprecated/
+
+# Compiled binaries (root level)
+analyze_biomes
+compare_noise
+generate_planet
+test_hotspot_geometry
+test_ocean_currents
+test_temperature
+test_wind
+
+# Output directories
+output/
+cli_output/
+mesh_cache/
+evaluation_output/
+output_from_server/

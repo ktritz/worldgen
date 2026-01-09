@@ -154,6 +154,25 @@ func traceHotspotChain(
 	minSpacing := baseSpacing * 0.5 // Clustered islands
 	maxSpacing := baseSpacing * 2.5 // Gaps in chain
 
+	// Orthogonal jitter - perpendicular displacement for natural wandering
+	// Amount scales with spacing to maintain proportions
+	jitterScale := baseSpacing * 0.3 // Up to 30% of spacing as sideways wander
+
+	// Direction change (bend) parameters
+	// Longer chains have higher probability of experiencing a plate motion change
+	// Hawaiian-Emperor bend is ~60°, we'll use 30-70° range
+	bendProbability := 0.0
+	if hotspotLifetime > 1.5 {
+		bendProbability = 0.4 // 40% chance for ancient chains
+	} else if hotspotLifetime > 1.0 {
+		bendProbability = 0.2 // 20% chance for mature chains
+	} else if hotspotLifetime > 0.7 {
+		bendProbability = 0.08 // 8% chance for middle-aged
+	}
+	hasBend := rng.Float64() < bendProbability
+	bendPosition := 0.3 + 0.4*rng.Float64() // Bend occurs 30-70% along chain
+	bendApplied := false
+
 	chainLength := 0.0
 	stepsSinceLastIsland := 0
 
@@ -207,9 +226,60 @@ func traceHotspotChain(
 			stepsSinceLastIsland++
 		}
 
+		// Check for direction change (bend) at this position
+		chainProgress := chainLength / maxChainLength
+		if hasBend && !bendApplied && chainProgress >= bendPosition {
+			// Apply a significant change in pole direction (30-70 degrees)
+			bendAngle := (30.0 + 40.0*rng.Float64()) * math.Pi / 180.0
+
+			// Rotate the pole around the current position
+			// This simulates a change in plate motion direction
+			sinB, cosB := math.Sin(bendAngle), math.Cos(bendAngle)
+
+			// Create rotation around currentPos axis
+			oldPole := backwardRotation.Pole
+			// Rodrigues' rotation formula components
+			dot := oldPole.X*currentPos.X + oldPole.Y*currentPos.Y + oldPole.Z*currentPos.Z
+			crossX := currentPos.Y*oldPole.Z - currentPos.Z*oldPole.Y
+			crossY := currentPos.Z*oldPole.X - currentPos.X*oldPole.Z
+			crossZ := currentPos.X*oldPole.Y - currentPos.Y*oldPole.X
+
+			newPole := Vector3D{
+				X: oldPole.X*cosB + crossX*sinB + currentPos.X*dot*(1-cosB),
+				Y: oldPole.Y*cosB + crossY*sinB + currentPos.Y*dot*(1-cosB),
+				Z: oldPole.Z*cosB + crossZ*sinB + currentPos.Z*dot*(1-cosB),
+			}
+
+			// Normalize new pole
+			poleMag := math.Sqrt(newPole.X*newPole.X + newPole.Y*newPole.Y + newPole.Z*newPole.Z)
+			if poleMag > 0.1 {
+				backwardRotation.Pole = Vector3D{
+					X: newPole.X / poleMag,
+					Y: newPole.Y / poleMag,
+					Z: newPole.Z / poleMag,
+				}
+			}
+			bendApplied = true
+		}
+
 		// Rotate backward around the Euler pole
 		currentPos = backwardRotation.RotatePoint(currentPos, thisSpacing)
 		chainLength += thisSpacing
+
+		// Apply orthogonal jitter - sideways displacement perpendicular to travel
+		// Find perpendicular direction by crossing current position with pole
+		perpX := currentPos.Y*backwardRotation.Pole.Z - currentPos.Z*backwardRotation.Pole.Y
+		perpY := currentPos.Z*backwardRotation.Pole.X - currentPos.X*backwardRotation.Pole.Z
+		perpZ := currentPos.X*backwardRotation.Pole.Y - currentPos.Y*backwardRotation.Pole.X
+		perpMag := math.Sqrt(perpX*perpX + perpY*perpY + perpZ*perpZ)
+
+		if perpMag > 0.01 {
+			// Normalize and apply random jitter
+			jitterAmount := (rng.Float64() - 0.5) * 2 * jitterScale
+			currentPos.X += (perpX / perpMag) * jitterAmount
+			currentPos.Y += (perpY / perpMag) * jitterAmount
+			currentPos.Z += (perpZ / perpMag) * jitterAmount
+		}
 
 		// Normalize to stay on unit sphere
 		mag := math.Sqrt(currentPos.X*currentPos.X + currentPos.Y*currentPos.Y + currentPos.Z*currentPos.Z)
