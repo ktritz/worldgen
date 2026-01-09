@@ -69,3 +69,4 @@ cli_output/
 mesh_cache/
 evaluation_output/
 output_from_server/
+diff_images
