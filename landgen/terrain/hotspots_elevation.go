@@ -30,7 +30,7 @@ func spreadOceanicElevation(
 		return 0
 	}
 
-	_ = cells           // Not used in radial selection (no BFS)
+	_ = cells             // Not used in radial selection (no BFS)
 	_ = cellAngularRadius // Not used directly
 
 	cellCount := 0
@@ -402,6 +402,11 @@ func applyOceanicChainElevation(
 		// - Age ~0.15: peak shield volcano (~4000m base for large islands)
 		// - Age 0.5+: eroded/subsiding atoll (~50m base)
 		age := island.Age
+		strength := island.Strength
+		if strength <= 0 {
+			strength = 1
+		}
+		strength = Clamp(strength, 0.35, 1.55)
 		peakAge := 0.15
 
 		// Higher base peak for realistic Hawaii-style volcanism
@@ -421,7 +426,7 @@ func applyOceanicChainElevation(
 
 		// Apply chain vigor and per-island random variation
 		islandVariation := 0.6 + 0.8*rng.Float64() // 0.6x to 1.4x
-		prelimPeakElev := baseElev * chainVigor * islandVariation
+		prelimPeakElev := baseElev * chainVigor * islandVariation * strength
 
 		// Clamp preliminary peak for spread calculation
 		if prelimPeakElev < 20 {
@@ -484,6 +489,7 @@ func applyOceanicChainElevation(
 
 			// Add per-island random variation (±25%)
 			targetRadius *= 0.75 + 0.5*rng.Float64()
+			targetRadius *= math.Sqrt(strength)
 		} else {
 			targetRadius = 0
 		}
@@ -593,7 +599,7 @@ func applyContinentalChainElevationMixed(
 		if elevation[cellIdx] <= 0 {
 			// Underwater continental: create Kerguelen-style volcanic islands
 			cellCount, sizes, cellHotspots := applyUnderwaterContinentalIsland(
-				elevation, cells, sites, cellIdx, feature.Age, chainVigor, cellAngularRadius, numRegions, rng)
+				elevation, cells, sites, cellIdx, feature.Age, feature.Strength, chainVigor, cellAngularRadius, numRegions, rng)
 			totalCells += cellCount
 			featureSizes = append(featureSizes, sizes...)
 			for idx, info := range cellHotspots {
@@ -602,7 +608,7 @@ func applyContinentalChainElevationMixed(
 		} else {
 			// Above water: Yellowstone-style caldera track
 			cellCount, sizes, cellHotspots := applyContinentalCaldera(
-				elevation, cells, cellIdx, feature.Age, chainVigor, trackCells, rPlate, plateIsOcean, cellAngularRadius, numRegions, rng)
+				elevation, cells, cellIdx, feature.Age, feature.Strength, chainVigor, trackCells, rPlate, plateIsOcean, cellAngularRadius, numRegions, rng)
 			totalCells += cellCount
 			featureSizes = append(featureSizes, sizes...)
 			for idx, info := range cellHotspots {
@@ -624,6 +630,7 @@ func applyUnderwaterContinentalIsland(
 	sites []Vector3D,
 	cellIdx int,
 	age float64,
+	strength float64,
 	chainVigor float64,
 	cellAngularRadius float64,
 	numRegions int,
@@ -641,6 +648,10 @@ func applyUnderwaterContinentalIsland(
 	// Kerguelen-style: max ~1800m instead of ~4000m for Hawaii
 	peakAge := 0.15
 	basePeak := UnderwaterContinentalPeakElevation // ~1800m
+	if strength <= 0 {
+		strength = 1
+	}
+	strength = Clamp(strength, 0.35, 1.55)
 
 	var baseElev float64
 	if age < peakAge {
@@ -655,7 +666,7 @@ func applyUnderwaterContinentalIsland(
 
 	// Apply chain vigor and per-island random variation
 	islandVariation := 0.7 + 0.6*rng.Float64() // 0.7x to 1.3x
-	prelimPeakElev := baseElev * chainVigor * islandVariation
+	prelimPeakElev := baseElev * chainVigor * islandVariation * strength
 
 	// Clamp preliminary peak
 	if prelimPeakElev < 20 {
@@ -693,6 +704,7 @@ func applyUnderwaterContinentalIsland(
 
 		// Per-island random variation
 		targetRadius *= 0.75 + 0.5*rng.Float64()
+		targetRadius *= math.Sqrt(strength)
 	}
 
 	// Continuous size cap based on radius
@@ -751,6 +763,7 @@ func applyContinentalCaldera(
 	cells []VoronoiCell,
 	cellIdx int,
 	age float64,
+	strength float64,
 	chainVigor float64,
 	trackCells map[int]bool,
 	rPlate []int,
@@ -764,6 +777,10 @@ func applyContinentalCaldera(
 	hotspotCells := make(map[int]HotspotCellInfo)
 
 	calderaCellCount := 0
+	if strength <= 0 {
+		strength = 1
+	}
+	strength = Clamp(strength, 0.35, 1.55)
 
 	// Continental hotspot lifecycle:
 	// - Age 0-0.12: Building up to peak caldera (uplift phase)
@@ -788,6 +805,7 @@ func applyContinentalCaldera(
 		// Apply chain vigor and random variation
 		featureVariation := 0.7 + 0.6*rng.Float64()
 		boostElev *= chainVigor * featureVariation
+		boostElev *= 0.70 + 0.30*strength
 
 		// Clamp boost to reasonable range (400-1000m above terrain)
 		if boostElev > 1000 {
@@ -799,6 +817,7 @@ func applyContinentalCaldera(
 
 		// Smaller footprint for subtler continental features
 		targetRadius := ContinentalCalderaRadius * 0.5 * (0.7 + 0.3*rng.Float64())
+		targetRadius *= math.Sqrt(0.70 + 0.30*strength)
 		spreadDepth := int(targetRadius / cellAngularRadius)
 		if spreadDepth > 2 {
 			spreadDepth = 2 // Cap at 2 rings for subtler calderas

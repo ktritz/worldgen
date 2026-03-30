@@ -7,9 +7,23 @@ import (
 
 // --- Coverage Calculations ---
 
-// ComputeMetrics calculates all terrain metrics from elevation data.
-// This is the primary entry point for terrain evaluation.
+// ComputeMetrics calculates terrain metrics from elevation data.
+// This compatibility wrapper computes only the metrics that do not require
+// mesh topology. Use ComputeMetricsWithCells to also compute coastline,
+// continent, and local relief metrics.
 func ComputeMetrics(sites []Vector3D, elevation []float64) TerrainMetrics {
+	return ComputeMetricsWithCells(sites, nil, elevation)
+}
+
+// ComputeMetricsWithCells calculates all terrain metrics available from the
+// provided mesh and elevation data.
+func ComputeMetricsWithCells(sites []Vector3D, cells []VoronoiCell, elevation []float64) TerrainMetrics {
+	return ComputeMetricsWithHotspots(sites, cells, elevation, nil)
+}
+
+// ComputeMetricsWithHotspots calculates all terrain metrics available from the
+// provided mesh, elevation field, and optional hotspot-chain diagnostics.
+func ComputeMetricsWithHotspots(sites []Vector3D, cells []VoronoiCell, elevation []float64, chains []HotspotChain) TerrainMetrics {
 	if len(elevation) == 0 {
 		return TerrainMetrics{}
 	}
@@ -32,6 +46,14 @@ func ComputeMetrics(sites []Vector3D, elevation []float64) TerrainMetrics {
 
 	// Compute hypsometric curve
 	metrics.HypsometricCurve = computeHypsometricCurve(elevation)
+
+	// Compute topology-aware metrics when mesh connectivity is available.
+	if len(cells) == len(elevation) {
+		computeSpatialMetrics(&metrics, sites, cells, elevation)
+	}
+	if len(chains) > 0 {
+		computeHotspotMetrics(&metrics, sites, chains)
+	}
 
 	return metrics
 }
@@ -314,11 +336,11 @@ func (c TerrainCounts) Fractions() map[TerrainType]float64 {
 
 // ElevationHistogram represents a binned elevation distribution.
 type ElevationHistogram struct {
-	BinMin   float64   // Minimum elevation of first bin
-	BinMax   float64   // Maximum elevation of last bin
-	BinWidth float64   // Width of each bin
-	Counts   []int     // Count per bin
-	Total    int       // Total count
+	BinMin   float64 // Minimum elevation of first bin
+	BinMax   float64 // Maximum elevation of last bin
+	BinWidth float64 // Width of each bin
+	Counts   []int   // Count per bin
+	Total    int     // Total count
 }
 
 // ComputeElevationHistogram creates a histogram of elevations.
@@ -516,14 +538,14 @@ func ComputePercentiles(elevation []float64, percentiles []float64) map[float64]
 
 // ElevationSummary provides a quick statistical summary.
 type ElevationSummary struct {
-	Count   int
-	Min     float64
-	Max     float64
-	Mean    float64
-	StdDev  float64
-	Median  float64
-	P25     float64 // 25th percentile
-	P75     float64 // 75th percentile
+	Count  int
+	Min    float64
+	Max    float64
+	Mean   float64
+	StdDev float64
+	Median float64
+	P25    float64 // 25th percentile
+	P75    float64 // 75th percentile
 }
 
 // ComputeElevationSummary returns summary statistics for elevations.

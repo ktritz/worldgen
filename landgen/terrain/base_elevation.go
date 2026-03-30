@@ -409,7 +409,38 @@ func AdjustElevationForHypsometry(elevation []float64) []float64 {
 
 		for i, e := range adjusted {
 			if e > 0 {
-				adjusted[i] = e * landScale
+				scale := landScale
+				if e > 2500 {
+					// Preserve high mountain tails; scaling lowlands and midlands is enough
+					// to correct the mean without erasing too many mountains.
+					t := SmoothStep(2500, 4500, e)
+					scale = Lerp(landScale, 1.0, t)
+				}
+				adjusted[i] = e * scale
+			}
+		}
+
+		// If the preserved mountain tail still leaves land too high overall, apply
+		// one more gentle pass that scales mid/high terrain a bit more while
+		// keeping the very highest mountains closer to their original heights.
+		updatedLandMean := computeMeanLandElevation(adjusted)
+		if updatedLandMean > 980 {
+			secondaryScale := EarthMeanLandElevation / updatedLandMean
+			secondaryScale = Clamp(secondaryScale, 0.94, 1.0)
+
+			if secondaryScale < 0.999 {
+				for i, e := range adjusted {
+					if e <= 0 {
+						continue
+					}
+
+					scale := secondaryScale
+					if e > 2800 {
+						t := SmoothStep(2800, 5000, e)
+						scale = Lerp(secondaryScale, 1.0, t)
+					}
+					adjusted[i] = e * scale
+				}
 			}
 		}
 	}

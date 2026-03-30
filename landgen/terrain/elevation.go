@@ -18,7 +18,7 @@ func ComputeElevation(
 	rPlate []int,
 	plateRot map[int]PlateRotation,
 	seed int64,
-) ([]float64, map[int]bool) {
+) ([]float64, map[int]bool, map[int]bool, map[int]bool, map[int]bool, map[int]bool, map[int]bool) {
 	numRegions := len(sites)
 	rng := rand.New(rand.NewSource(seed + 12345))
 	epsilon := 1e-3
@@ -40,10 +40,21 @@ func ComputeElevation(
 	for r := range seeds.Ocean {
 		stopR[r] = true
 	}
+	for r := range seeds.Rift {
+		stopR[r] = true
+	}
+
+	oceanLikeSeeds := make(map[int]bool, len(seeds.Ocean)+len(seeds.Rift))
+	for r := range seeds.Ocean {
+		oceanLikeSeeds[r] = true
+	}
+	for r := range seeds.Rift {
+		oceanLikeSeeds[r] = true
+	}
 
 	// Compute distance fields
-	rDistanceA := AssignDistanceField(cells, seeds.Mountain, seeds.Ocean, rng)
-	rDistanceB := AssignDistanceField(cells, seeds.Ocean, seeds.Coastline, rng)
+	rDistanceA := AssignDistanceField(cells, seeds.Mountain, oceanLikeSeeds, rng)
+	rDistanceB := AssignDistanceField(cells, oceanLikeSeeds, seeds.Coastline, rng)
 	rDistanceC := AssignDistanceField(cells, seeds.Coastline, stopR, rng)
 
 	// Compute elevation using original formula
@@ -68,9 +79,21 @@ func ComputeElevation(
 		elevation[r] += 0.15
 	}
 
+	// Continental rifts should bias toward low elevations so some of them remain
+	// as inland seas after hypsometric remapping instead of welding continents together.
+	for r := range seeds.Rift {
+		elevation[r] -= 0.22
+	}
+
 	// Compute forearc elevation profile for subduction zones
 	// This creates gradual transition: trench → forearc basin → volcanic arc
-	applySubductionProfile(sites, cells, seeds.Trench, seeds.Mountain, rPlate, plateIsOcean, elevation)
+	applySubductionProfile(sites, cells, seeds.Trench, seeds.Arc, rPlate, plateIsOcean, elevation)
+
+	// Divergent continental boundaries should start from a lower baseline so they
+	// can plausibly survive later remapping as rift valleys or inland seas.
+	for r := range seeds.Rift {
+		elevation[r] -= 0.22
+	}
 
 	// Debug: print some trench locations
 	if len(seeds.Trench) > 0 {
@@ -85,7 +108,7 @@ func ComputeElevation(
 		}
 	}
 
-	return elevation, seeds.Coastline
+	return elevation, seeds.Coastline, seeds.Mountain, seeds.Collision, seeds.Arc, seeds.Ridge, seeds.Trench
 }
 
 // AssignDistanceField computes distance from seeds using randomized BFS
@@ -160,13 +183,273 @@ func ComputeDistanceFromCoast(cells []VoronoiCell, coastlineR map[int]bool, rPla
 	return distFromCoast
 }
 
+// ComputeContinentalComponentMaxDistance returns, for each continental region,
+// the maximum inland distance within its connected continental domain.
+func ComputeContinentalComponentMaxDistance(cells []VoronoiCell, rPlate []int, plateIsOcean map[int]bool, distFromCoast []float64) []float64 {
+	numRegions := len(cells)
+	componentMax := make([]float64, numRegions)
+	visited := make([]bool, numRegions)
+
+	for start := 0; start < numRegions; start++ {
+		if visited[start] || plateIsOcean[rPlate[start]] {
+			continue
+		}
+
+		queue := []int{start}
+		component := make([]int, 0)
+		visited[start] = true
+		maxDist := 0.0
+
+		for len(queue) > 0 {
+			current := queue[0]
+			queue = queue[1:]
+			component = append(component, current)
+
+			if !math.IsInf(distFromCoast[current], 1) && distFromCoast[current] > maxDist {
+				maxDist = distFromCoast[current]
+			}
+
+			for _, nIdx := range cells[current].NeighborSiteIndices {
+				neighbor := int(nIdx)
+				if neighbor < 0 || neighbor >= numRegions || visited[neighbor] || plateIsOcean[rPlate[neighbor]] {
+					continue
+				}
+				visited[neighbor] = true
+				queue = append(queue, neighbor)
+			}
+		}
+
+		if maxDist < 1 {
+			maxDist = 1
+		}
+		for _, region := range component {
+			componentMax[region] = maxDist
+		}
+	}
+
+	return componentMax
+}
+
+// ComputeDistanceFromMountainSeeds computes distance from tectonic mountain belts
+// within continental domains. This is used to avoid turning every continental
+// interior into a monotonic broad dome.
+func ComputeDistanceFromMountainSeeds(
+	cells []VoronoiCell,
+	mountainR map[int]bool,
+	rPlate []int,
+	plateIsOcean map[int]bool,
+) []float64 {
+	numRegions := len(cells)
+	distFromMountain := make([]float64, numRegions)
+	for r := range distFromMountain {
+		distFromMountain[r] = math.Inf(1)
+	}
+
+	var queue []int
+	for r := range mountainR {
+		if r < 0 || r >= numRegions || plateIsOcean[rPlate[r]] {
+			continue
+		}
+		distFromMountain[r] = 0
+		queue = append(queue, r)
+	}
+
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		currentDist := distFromMountain[current]
+
+		for _, nIdx := range cells[current].NeighborSiteIndices {
+			neighbor := int(nIdx)
+			if neighbor < 0 || neighbor >= numRegions || plateIsOcean[rPlate[neighbor]] {
+				continue
+			}
+			newDist := currentDist + 1
+			if newDist < distFromMountain[neighbor] {
+				distFromMountain[neighbor] = newDist
+				queue = append(queue, neighbor)
+			}
+		}
+	}
+
+	return distFromMountain
+}
+
+// ComputeContinentalComponentMaxTectonicDistance returns, for each continental
+// region, the maximum finite distance from tectonic mountain belts within its
+// connected continental domain.
+func ComputeContinentalComponentMaxTectonicDistance(
+	cells []VoronoiCell,
+	rPlate []int,
+	plateIsOcean map[int]bool,
+	distFromMountain []float64,
+) []float64 {
+	numRegions := len(cells)
+	componentMax := make([]float64, numRegions)
+	visited := make([]bool, numRegions)
+
+	for start := 0; start < numRegions; start++ {
+		if visited[start] || plateIsOcean[rPlate[start]] {
+			continue
+		}
+
+		queue := []int{start}
+		component := make([]int, 0)
+		visited[start] = true
+		maxDist := 0.0
+
+		for len(queue) > 0 {
+			current := queue[0]
+			queue = queue[1:]
+			component = append(component, current)
+
+			if !math.IsInf(distFromMountain[current], 1) && distFromMountain[current] > maxDist {
+				maxDist = distFromMountain[current]
+			}
+
+			for _, nIdx := range cells[current].NeighborSiteIndices {
+				neighbor := int(nIdx)
+				if neighbor < 0 || neighbor >= numRegions || visited[neighbor] || plateIsOcean[rPlate[neighbor]] {
+					continue
+				}
+				visited[neighbor] = true
+				queue = append(queue, neighbor)
+			}
+		}
+
+		if maxDist < 1 {
+			maxDist = 1
+		}
+		for _, region := range component {
+			componentMax[region] = maxDist
+		}
+	}
+
+	return componentMax
+}
+
+// ComputeOceanDistanceFromCoast computes distance from coastline for ocean regions.
+func ComputeOceanDistanceFromCoast(cells []VoronoiCell, coastlineR map[int]bool, rPlate []int, plateIsOcean map[int]bool) []float64 {
+	numRegions := len(cells)
+	distFromCoast := make([]float64, numRegions)
+	for r := range distFromCoast {
+		distFromCoast[r] = math.Inf(1)
+	}
+
+	var queue []int
+	for r := range coastlineR {
+		if plateIsOcean[rPlate[r]] {
+			distFromCoast[r] = 0
+			queue = append(queue, r)
+		}
+	}
+
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		currentDist := distFromCoast[current]
+
+		for _, nIdx := range cells[current].NeighborSiteIndices {
+			neighbor := int(nIdx)
+			if neighbor >= numRegions {
+				continue
+			}
+			if plateIsOcean[rPlate[neighbor]] {
+				newDist := currentDist + 1
+				if newDist < distFromCoast[neighbor] {
+					distFromCoast[neighbor] = newDist
+					queue = append(queue, neighbor)
+				}
+			}
+		}
+	}
+
+	return distFromCoast
+}
+
+// ComputeOceanDistanceFromSeeds computes ocean-only distance from a seed set.
+func ComputeOceanDistanceFromSeeds(cells []VoronoiCell, seedR map[int]bool, rPlate []int, plateIsOcean map[int]bool) []float64 {
+	numRegions := len(cells)
+	dist := make([]float64, numRegions)
+	for r := range dist {
+		dist[r] = math.Inf(1)
+	}
+
+	var queue []int
+	for r := range seedR {
+		if r < 0 || r >= numRegions || !plateIsOcean[rPlate[r]] {
+			continue
+		}
+		dist[r] = 0
+		queue = append(queue, r)
+	}
+
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		currentDist := dist[current]
+
+		for _, nIdx := range cells[current].NeighborSiteIndices {
+			neighbor := int(nIdx)
+			if neighbor < 0 || neighbor >= numRegions || !plateIsOcean[rPlate[neighbor]] {
+				continue
+			}
+			nextDist := currentDist + 1
+			if nextDist < dist[neighbor] {
+				dist[neighbor] = nextDist
+				queue = append(queue, neighbor)
+			}
+		}
+	}
+
+	return dist
+}
+
+// ComputeOceanPlateMaxDistance returns, for each oceanic region, the maximum
+// finite distance observed on its plate in the provided distance field.
+func ComputeOceanPlateMaxDistance(rPlate []int, plateIsOcean map[int]bool, dist []float64) []float64 {
+	plateMax := make(map[int]float64)
+	for r, value := range dist {
+		plate := rPlate[r]
+		if !plateIsOcean[plate] || math.IsInf(value, 1) {
+			continue
+		}
+		if value > plateMax[plate] {
+			plateMax[plate] = value
+		}
+	}
+
+	componentMax := make([]float64, len(dist))
+	for r := range dist {
+		plate := rPlate[r]
+		if !plateIsOcean[plate] {
+			continue
+		}
+		maxDist := plateMax[plate]
+		if maxDist < 1 {
+			maxDist = 1
+		}
+		componentMax[r] = maxDist
+	}
+	return componentMax
+}
+
 // ApplyBimodalElevation applies bimodal elevation with continental slope
 func ApplyBimodalElevation(
 	elevation []float64,
 	distFromCoast []float64,
+	oceanDistFromCoast []float64,
+	componentMaxDist []float64,
+	distFromMountain []float64,
+	componentMaxMountainDist []float64,
+	distFromCollision []float64,
+	componentMaxCollisionDist []float64,
+	distFromArc []float64,
+	componentMaxArcDist []float64,
 	rPlate []int,
 	plateIsOcean map[int]bool,
 	maxDist float64,
+	maxOceanDist float64,
 ) {
 	numRegions := len(elevation)
 
@@ -175,19 +458,217 @@ func ApplyBimodalElevation(
 		e := elevation[r]
 
 		if plateIsOcean[plate] {
-			// Ocean: base at -0.7 (abyssal), variation from ridges/trenches
-			elevation[r] = -0.7 + e*0.3
+			dist := oceanDistFromCoast[r]
+			if math.IsInf(dist, 1) {
+				dist = maxOceanDist
+			}
+
+			shelfWidth := math.Max(2.0, maxOceanDist*0.06)
+			slopeWidth := math.Max(shelfWidth+2.0, maxOceanDist*0.22)
+
+			switch {
+			case dist <= shelfWidth:
+				t := SmoothStep(0, shelfWidth, dist)
+				baseElev := Lerp(-0.05, -0.16, t)
+				elevation[r] = baseElev + e*0.06
+			case dist <= slopeWidth:
+				t := SmoothStep(shelfWidth, slopeWidth, dist)
+				baseElev := Lerp(-0.16, -0.68, t)
+				elevation[r] = baseElev + e*0.14
+			default:
+				t := SmoothStep(slopeWidth, maxOceanDist, dist)
+				abyssBonus := SmoothStep(0.55, 1.0, t)
+				baseElev := Lerp(-0.68, -0.86, t) - 0.05*abyssBonus
+				elevation[r] = baseElev + e*(0.22+0.02*abyssBonus)
+			}
 		} else {
-			// Continental: base elevation depends on distance from coast
-			normalizedDist := distFromCoast[r] / maxDist
+			// Continental: base elevation depends on distance from coast, but use
+			// local continental-domain scale so smaller continents can retain
+			// meaningful interiors instead of being flattened by the global max.
+			localMaxDist := componentMaxDist[r]
+			if localMaxDist <= 0 {
+				localMaxDist = maxDist
+			}
+			localNorm := distFromCoast[r] / localMaxDist
+			globalNorm := distFromCoast[r] / maxDist
+			normalizedDist := 0.75*localNorm + 0.25*globalNorm
 			if math.IsInf(distFromCoast[r], 1) {
 				normalizedDist = 0.5
 			}
+			if normalizedDist < 0 {
+				normalizedDist = 0
+			}
+			if normalizedDist > 1 {
+				normalizedDist = 1
+			}
 
-			// Base: 0.1 at coast, 0.5 at interior
-			baseElev := 0.1 + normalizedDist*0.4
-			elevation[r] = baseElev + e*0.4
+			inlandness := SmoothStep(0, 1, normalizedDist)
+
+			genericSupport := 0.0
+			if localMaxMountainDist := componentMaxMountainDist[r]; localMaxMountainDist > 0 && !math.IsInf(distFromMountain[r], 1) {
+				normMountainDist := distFromMountain[r] / localMaxMountainDist
+				if normMountainDist < 0 {
+					normMountainDist = 0
+				}
+				if normMountainDist > 1 {
+					normMountainDist = 1
+				}
+				genericSupport = 1.0 - SmoothStep(0, 1, normMountainDist)
+			}
+
+			collisionSupport := 0.0
+			if localMaxCollisionDist := componentMaxCollisionDist[r]; localMaxCollisionDist > 0 && !math.IsInf(distFromCollision[r], 1) {
+				normCollisionDist := distFromCollision[r] / localMaxCollisionDist
+				if normCollisionDist < 0 {
+					normCollisionDist = 0
+				}
+				if normCollisionDist > 1 {
+					normCollisionDist = 1
+				}
+				collisionSupport = 1.0 - SmoothStep(0, 1, normCollisionDist)
+			}
+
+			arcSupport := 0.0
+			if localMaxArcDist := componentMaxArcDist[r]; localMaxArcDist > 0 && !math.IsInf(distFromArc[r], 1) {
+				normArcDist := distFromArc[r] / localMaxArcDist
+				if normArcDist < 0 {
+					normArcDist = 0
+				}
+				if normArcDist > 1 {
+					normArcDist = 1
+				}
+				arcSupport = 1.0 - SmoothStep(0, 1, normArcDist)
+			}
+
+			genericBelt := math.Sqrt(genericSupport)
+			collisionBelt := math.Sqrt(collisionSupport)
+			arcBelt := math.Sqrt(arcSupport)
+			coastalness := 1.0 - SmoothStep(0.08, 0.78, inlandness)
+			collisionPlateau := collisionSupport * SmoothStep(0.18, 0.92, inlandness)
+			collisionCore := collisionBelt * (0.45 + 0.55*inlandness)
+			arcCordillera := arcBelt * (0.65 + 0.35*coastalness)
+
+			// Cratonic interiors should not rise monotonically all the way to a
+			// central dome. Collision belts create broad elevated interiors;
+			// volcanic arcs create tighter, coast-parallel uplift.
+			cratonLift := 0.05 + inlandness*0.16
+			tectonicLift := genericBelt * (0.10 + inlandness*0.20)
+			collisionPlateauLift := collisionPlateau * (0.08 + inlandness*0.16)
+			collisionRangeLift := collisionCore * (0.05 + inlandness*0.14)
+			arcLift := arcCordillera * (0.06 + coastalness*0.11)
+			basinPenalty := inlandness * (1.0 - 0.55*collisionSupport) * (1.0 - genericSupport) * (1.0 - 0.35*arcSupport) * 0.13
+			noiseScale := 0.16 + inlandness*0.05 + genericBelt*0.16 + collisionPlateau*0.05 + collisionCore*0.08 + arcCordillera*0.10
+
+			elevation[r] = cratonLift + tectonicLift + collisionPlateauLift + collisionRangeLift + arcLift - basinPenalty + e*noiseScale
 		}
+	}
+}
+
+// ApplyOceanBasinStructure adds pre-hypsometry structure to ocean basins based
+// on spreading age, subduction proximity, and plate-motion-aligned lineation.
+func ApplyOceanBasinStructure(
+	elevation []float64,
+	sites []Vector3D,
+	rPlate []int,
+	plateIsOcean map[int]bool,
+	plateRot map[int]PlateRotation,
+	oceanDistFromCoast []float64,
+	distFromRidge []float64,
+	maxRidgeDist []float64,
+	distFromTrench []float64,
+	maxOceanDist float64,
+	seed int64,
+) {
+	type plateFrame struct {
+		axisA Vector3D
+		axisB Vector3D
+	}
+
+	frames := make(map[int]plateFrame)
+	for plateID, rotation := range plateRot {
+		if !plateIsOcean[plateID] {
+			continue
+		}
+		pole := rotation.Pole.Normalize()
+		ref := Vector3D{X: 0, Y: 0, Z: 1}
+		if math.Abs(pole.Dot(ref)) > 0.90 {
+			ref = Vector3D{X: 1, Y: 0, Z: 0}
+		}
+		axisA := pole.Cross(ref).Normalize()
+		axisB := pole.Cross(axisA).Normalize()
+		frames[plateID] = plateFrame{axisA: axisA, axisB: axisB}
+	}
+
+	if maxOceanDist < 1 {
+		maxOceanDist = 1
+	}
+
+	for r, elev := range elevation {
+		plate := rPlate[r]
+		if !plateIsOcean[plate] {
+			continue
+		}
+
+		ridgeScale := maxRidgeDist[r]
+		if ridgeScale <= 0 {
+			ridgeScale = maxOceanDist
+		}
+		ridgeAge := distFromRidge[r] / ridgeScale
+		if math.IsInf(distFromRidge[r], 1) || ridgeAge > 1 {
+			ridgeAge = 1
+		}
+		if ridgeAge < 0 {
+			ridgeAge = 0
+		}
+		matureOcean := SmoothStep(0.18, 0.90, ridgeAge)
+
+		coastNorm := oceanDistFromCoast[r] / maxOceanDist
+		if math.IsInf(oceanDistFromCoast[r], 1) || coastNorm > 1 {
+			coastNorm = 1
+		}
+		if coastNorm < 0 {
+			coastNorm = 0
+		}
+		openOcean := SmoothStep(0.10, 0.55, coastNorm)
+
+		ridgeSupport := 0.0
+		if !math.IsInf(distFromRidge[r], 1) {
+			ridgeSupport = 1.0 - SmoothStep(0, math.Max(2.0, ridgeScale*0.10), distFromRidge[r])
+		}
+
+		trenchSupport := 0.0
+		if !math.IsInf(distFromTrench[r], 1) {
+			trenchSupport = 1.0 - SmoothStep(0, math.Max(3.0, ridgeScale*0.14), distFromTrench[r])
+		}
+
+		// Ridge-flank uplift, old-basin deepening, and trench sharpening.
+		structure := 0.055*ridgeSupport - 0.085*matureOcean*openOcean - 0.075*trenchSupport
+
+		// Abyssal hills are organized roughly parallel to ridge flanks, so use
+		// distance from spreading centers to create ridge-parallel bands.
+		ridgeBandFreq := 0.75 + 0.18*(1.0+FBMNoiseWithFreq(sites[r], seed+141414, 6.0, 2))
+		ridgeBands := math.Sin(distFromRidge[r] * ridgeBandFreq)
+		ridgeHillAmp := 0.014 * (0.35 + 0.65*(1.0-matureOcean)) * (0.25 + 0.75*openOcean)
+		structure += ridgeBands * ridgeHillAmp
+
+		// Broad motion-aligned lineation approximates fracture-zone style
+		// organization without requiring a full spreading-history model.
+		frame := frames[plate]
+		pos := sites[r].Normalize()
+		azimuth := math.Atan2(pos.Dot(frame.axisB), pos.Dot(frame.axisA))
+		lineationPhase := azimuth*(7.0+2.0*FBMNoiseWithFreq(pos, seed+242424, 2.5, 2)) +
+			1.2*FBMNoiseWithFreq(pos, seed+343434, 8.0, 2)
+		lineation := math.Sin(lineationPhase)
+		lineationAmp := 0.010 * SmoothStep(0.10, 0.65, ridgeAge) * openOcean * (1.0 - 0.70*trenchSupport)
+		structure += lineation * lineationAmp
+
+		// Old, open-ocean crust can host sparse non-hotspot seamount provinces.
+		provinceNoise := FBMNoiseWithFreq(pos, seed+454545, 3.2, 3)
+		provinceMask := SmoothStep(0.46, 0.78, provinceNoise)
+		provinceBands := 0.5 + 0.5*math.Sin(azimuth*5.5+2.0*FBMNoiseWithFreq(pos, seed+565656, 2.0, 2))
+		structure += 0.018 * provinceMask * provinceBands * matureOcean * openOcean * (1.0 - trenchSupport)
+
+		elevation[r] = elev + structure
 	}
 }
 
@@ -271,7 +752,9 @@ func hashGradient(ix, iy, iz, seed int64, fx, fy, fz float64) float64 {
 // - oceanAmplitude: noise amplitude for ocean floor (meters)
 func ApplyElevationScaledNoise(
 	sites []Vector3D,
+	cells []VoronoiCell,
 	elevation []float64,
+	oceanDistFromCoast []float64,
 	seed int64,
 	baseFrequency float64,
 	mountainAmplitude float64,
@@ -280,6 +763,7 @@ func ApplyElevationScaledNoise(
 ) {
 	// Use a different seed offset for this noise layer
 	noiseSeed := seed + 999999
+	coastalExposure := ComputeCoastalExposure(cells, elevation, oceanDistFromCoast)
 
 	for i := range elevation {
 		elev := elevation[i]
@@ -297,14 +781,204 @@ func ApplyElevationScaledNoise(
 			amplitude = oceanAmplitude * (0.5 + 0.5*normalizedDepth)
 		}
 
-		// Generate multi-octave noise at this position
-		// Use higher frequency for finer detail
-		pos := sites[i]
-		noise := FBMNoiseWithFreq(pos, noiseSeed, baseFrequency, 6)
+		// Coasts and shelves should avoid tiny serration, but they still need
+		// coherent medium-scale bays and capes. Suppress high-frequency detail
+		// near sea level and add a broader coastal-shape band instead.
+		highFreqCoastalFactor := 0.16 + 0.84*SmoothStep(350, 1800, math.Abs(elev))
+		coastalBand := 1.0 - SmoothStep(80, 900, math.Abs(elev))
+		exposure := coastalExposure[i]
+		amplitude *= highFreqCoastalFactor * (0.72 + 0.28*exposure)
 
-		// Apply noise
-		elevation[i] += amplitude * noise
+		// Generate multi-octave noise at this position
+		pos := sites[i]
+		detailNoise := FBMNoiseWithFreq(pos, noiseSeed, baseFrequency, 6)
+		coastalNoise := FBMNoiseWithFreq(pos, noiseSeed+424242, baseFrequency*0.16, 3)
+		macroCoastalNoise := FBMNoiseWithFreq(pos, noiseSeed+717171, baseFrequency*0.05, 2)
+
+		coastalAmplitude := coastalBand * (8.0 + 120.0*exposure)
+		openMarginFactor := SmoothStep(0.45, 0.95, exposure)
+		macroCoastalAmplitude := coastalBand * openMarginFactor * (18.0 + 72.0*SmoothStep(0, 1200, math.Abs(elev)))
+
+		elevation[i] += amplitude*detailNoise + coastalAmplitude*coastalNoise + macroCoastalAmplitude*macroCoastalNoise
 	}
+}
+
+// ComputeCoastalExposure estimates whether a near-coastal location faces open
+// ocean or a cramped seaway. Open margins can support broader embayments;
+// crowded margins should stay simpler to avoid inflated tortuosity.
+func ComputeCoastalExposure(cells []VoronoiCell, elevation []float64, oceanDistFromCoast []float64) []float64 {
+	exposure := make([]float64, len(elevation))
+	maxOceanDist := 1.0
+	for i := range oceanDistFromCoast {
+		if !math.IsInf(oceanDistFromCoast[i], 1) && oceanDistFromCoast[i] > maxOceanDist {
+			maxOceanDist = oceanDistFromCoast[i]
+		}
+	}
+	exposureScale := math.Max(2.0, maxOceanDist*0.18)
+
+	for r := range cells {
+		if math.Abs(elevation[r]) > 1200 {
+			continue
+		}
+
+		type item struct {
+			region int
+			depth  int
+		}
+
+		queue := []item{{region: r, depth: 0}}
+		visited := map[int]bool{r: true}
+		sum := 0.0
+		weightSum := 0.0
+
+		for len(queue) > 0 {
+			current := queue[0]
+			queue = queue[1:]
+
+			weight := 1.0 / float64(current.depth+1)
+			if !math.IsInf(oceanDistFromCoast[current.region], 1) {
+				sum += oceanDistFromCoast[current.region] * weight
+				weightSum += weight
+			}
+
+			if current.depth >= 2 {
+				continue
+			}
+
+			for _, neighborIdx := range cells[current.region].NeighborSiteIndices {
+				neighbor := int(neighborIdx)
+				if neighbor < 0 || neighbor >= len(cells) || visited[neighbor] {
+					continue
+				}
+				visited[neighbor] = true
+				queue = append(queue, item{region: neighbor, depth: current.depth + 1})
+			}
+		}
+
+		if weightSum == 0 {
+			continue
+		}
+
+		meanOceanDistance := sum / weightSum
+		exposure[r] = SmoothStep(1.5, exposureScale, meanOceanDistance)
+	}
+
+	return exposure
+}
+
+// RegularizeCoastlines removes single-cell serration near sea level without
+// erasing medium-scale embayments or tectonic seaways.
+func RegularizeCoastlines(cells []VoronoiCell, elevation []float64, coastalExposure []float64, iterations int) {
+	if iterations <= 0 {
+		return
+	}
+
+	const coastalWindow = 600.0
+	buffer := make([]float64, len(elevation))
+
+	for iter := 0; iter < iterations; iter++ {
+		copy(buffer, elevation)
+
+		for r, cell := range cells {
+			elev := elevation[r]
+			if math.Abs(elev) > coastalWindow {
+				continue
+			}
+
+			neighborCount := 0
+			landNeighbors := 0
+			oceanNeighbors := 0
+			sum := 0.0
+
+			for _, neighborIdx := range cell.NeighborSiteIndices {
+				neighbor := int(neighborIdx)
+				if neighbor < 0 || neighbor >= len(elevation) {
+					continue
+				}
+				neighborCount++
+				sum += elevation[neighbor]
+				if elevation[neighbor] > 0 {
+					landNeighbors++
+				} else {
+					oceanNeighbors++
+				}
+			}
+
+			if neighborCount == 0 || landNeighbors == 0 || oceanNeighbors == 0 {
+				continue
+			}
+
+			mixedness := 1.0 - math.Abs(float64(landNeighbors-oceanNeighbors))/float64(neighborCount)
+			shorelineFactor := 1.0 - SmoothStep(60, coastalWindow, math.Abs(elev))
+			exposure := 0.0
+			if r < len(coastalExposure) {
+				exposure = coastalExposure[r]
+			}
+			blend := (0.09 + 0.20*mixedness + 0.20*(1.0-exposure)) * shorelineFactor
+			if blend <= 0 {
+				continue
+			}
+
+			neighborMean := sum / float64(neighborCount)
+			buffer[r] = elev*(1.0-blend) + neighborMean*blend
+		}
+
+		copy(elevation, buffer)
+	}
+}
+
+// ReinforceTectonicMountains restores some high-relief tail after hypsometric
+// remapping by boosting only tectonically supported uplands.
+func ReinforceTectonicMountains(
+	elevation []float64,
+	rPlate []int,
+	plateIsOcean map[int]bool,
+	distFromMountain []float64,
+	componentMaxMountainDist []float64,
+	distFromCollision []float64,
+	componentMaxCollisionDist []float64,
+	distFromArc []float64,
+	componentMaxArcDist []float64,
+) {
+	for r := range elevation {
+		if plateIsOcean[rPlate[r]] || elevation[r] <= 800 {
+			continue
+		}
+
+		genericSupport := normalizedSeedSupport(distFromMountain[r], componentMaxMountainDist[r])
+		collisionSupport := normalizedSeedSupport(distFromCollision[r], componentMaxCollisionDist[r])
+		arcSupport := normalizedSeedSupport(distFromArc[r], componentMaxArcDist[r])
+		if genericSupport <= 0 && collisionSupport <= 0 && arcSupport <= 0 {
+			continue
+		}
+
+		uplandFactor := SmoothStep(1200, 3000, elevation[r])
+		if uplandFactor <= 0 {
+			continue
+		}
+
+		plateauFactor := SmoothStep(900, 2600, elevation[r])
+		arcPeakFactor := SmoothStep(1500, 3400, elevation[r])
+		boost := 120*genericSupport*uplandFactor +
+			240*collisionSupport*plateauFactor +
+			260*collisionSupport*uplandFactor +
+			360*arcSupport*arcPeakFactor
+		elevation[r] += boost
+	}
+}
+
+func normalizedSeedSupport(distance float64, maxDistance float64) float64 {
+	if maxDistance <= 0 || math.IsInf(distance, 1) {
+		return 0
+	}
+	norm := distance / maxDistance
+	if norm < 0 {
+		norm = 0
+	}
+	if norm > 1 {
+		norm = 1
+	}
+	return 1.0 - SmoothStep(0, 1, norm)
 }
 
 // FBMNoiseWithFreq generates fractal Brownian motion noise with configurable base frequency
@@ -329,7 +1003,7 @@ func applySubductionProfile(
 	sites []Vector3D,
 	cells []VoronoiCell,
 	trenchR map[int]bool,
-	mountainR map[int]bool,
+	arcR map[int]bool,
 	rPlate []int,
 	plateIsOcean map[int]bool,
 	elevation []float64,
@@ -341,57 +1015,8 @@ func applySubductionProfile(
 		elevation[trenchRegion] -= 0.3 // Reduced from 0.5
 	}
 
-	// Compute distance from nearest trench using BFS (O(regions) instead of O(regions*trenches))
-	distFromTrench := make([]float64, numRegions)
-	for i := range distFromTrench {
-		distFromTrench[i] = math.Inf(1)
-	}
-
-	// BFS from all trenches simultaneously - track source trench in queue
-	type queueItem struct {
-		region   int
-		trenchR  int     // originating trench
-		trenchPos Vector3D
-	}
-	var queue []queueItem
-
-	// Seed with continental neighbors of each trench
-	for trenchRegion := range trenchR {
-		trenchPos := sites[trenchRegion]
-		for _, neighborIdx := range cells[trenchRegion].NeighborSiteIndices {
-			neighborR := int(neighborIdx)
-			if neighborR < numRegions && !plateIsOcean[rPlate[neighborR]] {
-				dist := Distance(sites[neighborR], trenchPos)
-				if dist < distFromTrench[neighborR] {
-					distFromTrench[neighborR] = dist
-					queue = append(queue, queueItem{neighborR, trenchRegion, trenchPos})
-				}
-			}
-		}
-	}
-
-	// Process BFS queue
-	for queueIdx := 0; queueIdx < len(queue); queueIdx++ {
-		item := queue[queueIdx]
-
-		// Only process cells within range
-		if distFromTrench[item.region] > VolcanoDistanceRadians*2.0 {
-			continue
-		}
-
-		for _, neighborIdx := range cells[item.region].NeighborSiteIndices {
-			neighborR := int(neighborIdx)
-			if neighborR >= numRegions || plateIsOcean[rPlate[neighborR]] {
-				continue
-			}
-
-			neighborDist := Distance(sites[neighborR], item.trenchPos)
-			if neighborDist < distFromTrench[neighborR] {
-				distFromTrench[neighborR] = neighborDist
-				queue = append(queue, queueItem{neighborR, item.trenchR, item.trenchPos})
-			}
-		}
-	}
+	distFromTrench := computeContinentalSeedDistance(sites, cells, trenchR, rPlate, plateIsOcean, VolcanoDistanceRadians*2.0)
+	distFromArc := computeContinentalSeedDistance(sites, cells, arcR, rPlate, plateIsOcean, VolcanoDistanceRadians*1.5)
 
 	// Apply elevation profile based on distance from nearest trench
 	for r := 0; r < numRegions; r++ {
@@ -399,35 +1024,99 @@ func applySubductionProfile(
 			continue
 		}
 
-		dist := distFromTrench[r]
-		if dist > VolcanoDistanceRadians*1.5 || math.IsInf(dist, 1) {
+		trenchDist := distFromTrench[r]
+		arcDist := distFromArc[r]
+		adjustment := 0.0
+
+		if !math.IsInf(trenchDist, 1) && trenchDist <= VolcanoDistanceRadians*1.5 {
+			// Normalize: 0 = at coast, 1 = at volcanic arc distance
+			t := trenchDist / VolcanoDistanceRadians
+			if t > 1.0 {
+				t = 1.0
+			}
+
+			// t=0: trench/coastal depression
+			// t=0.4-0.7: forearc basin
+			// t>0.7: broad rise toward arc/back-arc plateau
+			if t < 0.4 {
+				adjustment += -0.04 * (1 - t/0.4)
+			} else if t < 0.7 {
+				basinT := (t - 0.4) / 0.3
+				adjustment += -0.03 * (1 - 4*(basinT-0.5)*(basinT-0.5))
+			} else {
+				backArcT := (t - 0.7) / 0.3
+				adjustment += 0.04*backArcT + 0.03*backArcT*backArcT
+			}
+		}
+
+		if !math.IsInf(arcDist, 1) && arcDist <= ArcHalfWidthRadians*3.0 {
+			arcT := arcDist / (ArcHalfWidthRadians * 3.0)
+			if arcT > 1.0 {
+				arcT = 1.0
+			}
+			adjustment += 0.12 * (1 - arcT*arcT)
+		}
+
+		if adjustment != 0 {
+			elevation[r] += adjustment
+		}
+	}
+}
+
+func computeContinentalSeedDistance(
+	sites []Vector3D,
+	cells []VoronoiCell,
+	seedR map[int]bool,
+	rPlate []int,
+	plateIsOcean map[int]bool,
+	maxDistance float64,
+) []float64 {
+	distFromSeed := make([]float64, len(sites))
+	for i := range distFromSeed {
+		distFromSeed[i] = math.Inf(1)
+	}
+
+	type queueItem struct {
+		region    int
+		sourcePos Vector3D
+	}
+
+	queue := make([]queueItem, 0, len(seedR))
+	for seed := range seedR {
+		if seed < 0 || seed >= len(cells) {
+			continue
+		}
+		for _, neighborIdx := range cells[seed].NeighborSiteIndices {
+			neighborR := int(neighborIdx)
+			if neighborR < 0 || neighborR >= len(cells) || plateIsOcean[rPlate[neighborR]] {
+				continue
+			}
+			dist := Distance(sites[neighborR], sites[seed])
+			if dist < distFromSeed[neighborR] {
+				distFromSeed[neighborR] = dist
+				queue = append(queue, queueItem{region: neighborR, sourcePos: sites[seed]})
+			}
+		}
+	}
+
+	for queueIdx := 0; queueIdx < len(queue); queueIdx++ {
+		item := queue[queueIdx]
+		if distFromSeed[item.region] > maxDistance {
 			continue
 		}
 
-		// Normalize: 0 = at coast, 1 = at volcanic arc distance
-		t := dist / VolcanoDistanceRadians
-		if t > 1.0 {
-			t = 1.0
+		for _, neighborIdx := range cells[item.region].NeighborSiteIndices {
+			neighborR := int(neighborIdx)
+			if neighborR < 0 || neighborR >= len(cells) || plateIsOcean[rPlate[neighborR]] {
+				continue
+			}
+			neighborDist := Distance(sites[neighborR], item.sourcePos)
+			if neighborDist < distFromSeed[neighborR] {
+				distFromSeed[neighborR] = neighborDist
+				queue = append(queue, queueItem{region: neighborR, sourcePos: item.sourcePos})
+			}
 		}
-
-		// Gentler elevation profile (reduced from previous values)
-		// t=0: slight coastal depression
-		// t=0.4-0.6: forearc basin
-		// t=0.8-1.0: volcanic arc rise
-		var adjustment float64
-		if t < 0.4 {
-			// Gentle slope from coast
-			adjustment = -0.03 * (1 - t/0.4)
-		} else if t < 0.7 {
-			// Forearc basin - very subtle
-			basinT := (t - 0.4) / 0.3
-			adjustment = -0.02 * (1 - 4*(basinT-0.5)*(basinT-0.5))
-		} else {
-			// Rising toward volcanic arc - gentler
-			arcT := (t - 0.7) / 0.3
-			adjustment = 0.08 * arcT * arcT
-		}
-
-		elevation[r] += adjustment
 	}
+
+	return distFromSeed
 }

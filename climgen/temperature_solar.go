@@ -56,7 +56,7 @@ func ComputeInsolation(vertices []Vector3D, settings SolarSettings) []float64 {
 //
 // The solar declination angle varies throughout the year:
 //
-//	delta = axialTilt * sin(2*pi*seasonPhase)
+//	delta = -axialTilt * cos(2*pi*seasonPhase)
 //
 // where seasonPhase = 0 at northern winter solstice, 0.5 at summer solstice.
 //
@@ -77,9 +77,11 @@ func ComputeSeasonalInsolation(vertices []Vector3D, settings SolarSettings) []fl
 	tiltRad := settings.AxialTilt * math.Pi / 180.0
 
 	// Solar declination: varies from -tilt to +tilt over the year
-	// seasonPhase = 0 -> winter solstice (declination = -tilt for NH)
-	// seasonPhase = 0.5 -> summer solstice (declination = +tilt for NH)
-	declination := tiltRad * math.Sin(2.0*math.Pi*settings.SeasonPhase)
+	// seasonPhase = 0   -> NH winter solstice  (declination = -tilt)
+	// seasonPhase = 0.25 -> NH spring equinox  (declination = 0)
+	// seasonPhase = 0.5 -> NH summer solstice  (declination = +tilt)
+	// seasonPhase = 0.75 -> NH autumn equinox  (declination = 0)
+	declination := -tiltRad * math.Cos(2.0*math.Pi*settings.SeasonPhase)
 
 	baseQ := SolarConstant * settings.SolarLuminosity
 
@@ -185,7 +187,7 @@ func ComputeAlbedoSmooth(
 	albedo := make([]float64, numVertices)
 
 	// Ocean freezes at lower temp (-2°C) and has wider transition
-	const seawaterFreezing = 271.15 // -2°C for seawater
+	const seawaterFreezing = 271.15               // -2°C for seawater
 	oceanTransitionWidth := transitionWidth * 3.0 // Much wider transition for ocean
 
 	for i := range temperature {

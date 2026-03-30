@@ -317,13 +317,43 @@ func SolveEnergyBalance(
 	currents []Vector3D,
 	settings TemperatureSettings,
 ) ([]float64, int, float64, bool) {
+	return SolveEnergyBalanceWithInitial(
+		insolation,
+		vertices,
+		elevation,
+		seaLevelThreshold,
+		adj,
+		wind,
+		currents,
+		nil,
+		settings,
+	)
+}
+
+// SolveEnergyBalanceWithInitial is like SolveEnergyBalance but starts from an
+// explicit initial temperature field when provided.
+func SolveEnergyBalanceWithInitial(
+	insolation []float64,
+	vertices []Vector3D,
+	elevation []float64,
+	seaLevelThreshold float64,
+	adj *FlatAdjacency,
+	wind []Vector3D,
+	currents []Vector3D,
+	initialTemperature []float64,
+	settings TemperatureSettings,
+) ([]float64, int, float64, bool) {
 	numVertices := len(vertices)
 
 	// Initialize temperature field
 	// Start at a reasonable Earth-like average (288K = 15°C)
 	temperature := make([]float64, numVertices)
-	for i := range temperature {
-		temperature[i] = 288.0
+	if len(initialTemperature) == numVertices {
+		copy(temperature, initialTemperature)
+	} else {
+		for i := range temperature {
+			temperature[i] = 288.0
+		}
 	}
 
 	maxIterations := settings.Balance.MaxIterations

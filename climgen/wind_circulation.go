@@ -23,8 +23,8 @@ const zoneTransitionWidth = 5.0
 
 // ITCZ (Intertropical Convergence Zone) parameters
 // The doldrums - calm zone near equator where trade winds converge
-const itczWidth = 5.0       // Half-width in degrees (full zone is ±5°)
-const itczMinSpeed = 0.15   // Minimum flow strength at equator (vs normal 0.5-1.0)
+const itczWidth = 5.0     // Half-width in degrees (full zone is ±5°)
+const itczMinSpeed = 0.15 // Minimum flow strength at equator (vs normal 0.5-1.0)
 
 // smoothstep returns a smooth interpolation value between 0 and 1.
 // Returns 0 when t <= 0, returns 1 when t >= 1, and smoothly interpolates between.
@@ -54,7 +54,7 @@ func ComputeCirculationPressure(
 	ferrelLat := settings.FerrelEdgeLat * math.Pi / 180
 
 	for i, v := range vertices {
-		lat := math.Asin(v.Y) // Y-up coordinate system, returns radians
+		lat := effectiveCirculationLatitude(math.Asin(v.Y), settings)
 		absLat := math.Abs(lat)
 
 		// Classify zone
@@ -120,7 +120,7 @@ func ComputeCellDrivenWind(
 	rossbyPhase := settings.RossbyPhase
 
 	for i, v := range vertices {
-		lat := math.Asin(v.Y) // radians, signed
+		lat := effectiveCirculationLatitude(math.Asin(v.Y), settings) // radians, signed, thermal-equator shifted
 		absLat := math.Abs(lat)
 		hemisphere := 1.0
 		if lat < 0 {
@@ -139,9 +139,9 @@ func ComputeCellDrivenWind(
 		ferrelLatDeg := settings.FerrelEdgeLat
 
 		// Compute normalized position within each zone (0-1)
-		tHadley := absLat / hadleyLat                                   // 0 at equator, 1 at 30°
-		tFerrel := (absLat - hadleyLat) / (ferrelLat - hadleyLat)       // 0 at 30°, 1 at 60°
-		tPolar := (absLat - ferrelLat) / (math.Pi/2 - ferrelLat)        // 0 at 60°, 1 at 90°
+		tHadley := absLat / hadleyLat                             // 0 at equator, 1 at 30°
+		tFerrel := (absLat - hadleyLat) / (ferrelLat - hadleyLat) // 0 at 30°, 1 at 60°
+		tPolar := (absLat - ferrelLat) / (math.Pi/2 - ferrelLat)  // 0 at 60°, 1 at 90°
 		tFerrel = math.Max(0, math.Min(1, tFerrel))
 		tPolar = math.Max(0, math.Min(1, tPolar))
 
@@ -371,192 +371,6 @@ func ComputeGeostrophicWind(
 		// This makes wind flow with low pressure to the left (NH) or right (SH)
 		windE := -gradN / coriolis
 		windN := gradE / coriolis
-
-		wind[i] = Add(Scale(east, windE), Scale(north, windN))
-	}
-
-	return wind
-}
-
-// AddGeographicPressureAnomalies modifies the base zonal pressure field
-// to account for land/ocean distribution effects:
-//   - Subtropical ocean highs (~30°): High pressure over eastern ocean basins
-//   - Subpolar ocean lows (~60°): Low pressure centers like Icelandic/Aleutian Lows
-//   - Continental thermal lows: Low pressure over large heated land masses
-//
-// These anomalies create the longitudinal pressure variations that drive
-// monsoons and modify the idealized zonal wind patterns.
-func AddGeographicPressureAnomalies(
-	pressure []float64,
-	vertices []Vector3D,
-	elevation []float64,
-	seaLevelThreshold float64,
-	settings CirculationSettings,
-) []float64 {
-	numVertices := len(pressure)
-	result := make([]float64, numVertices)
-	copy(result, pressure)
-
-	// Skip if all strengths are zero
-	if settings.SubtropicalHighStrength == 0 &&
-		settings.SubpolarLowStrength == 0 &&
-		settings.ContinentalLowStrength == 0 {
-		return result
-	}
-
-	// Latitude bands for pressure centers (in radians)
-	subtropicalLat := settings.HadleyEdgeLat * math.Pi / 180 // ~30°
-	subpolarLat := settings.FerrelEdgeLat * math.Pi / 180    // ~60°
-	bandWidth := 15.0 * math.Pi / 180                        // ±15° band for effects
-
-	for i, v := range vertices {
-		lat := math.Asin(v.Y)
-		absLat := math.Abs(lat)
-		isOcean := elevation[i] < seaLevelThreshold
-
-		var anomaly float64
-
-		// Subtropical ocean highs (~30°)
-		// High pressure over oceans in the subtropical belt
-		if isOcean && settings.SubtropicalHighStrength > 0 {
-			// Gaussian-like falloff from 30°
-			distFromSubtropical := absLat - subtropicalLat
-			if math.Abs(distFromSubtropical) < bandWidth {
-				strength := math.Cos(distFromSubtropical / bandWidth * math.Pi / 2)
-				strength *= strength // Sharpen the peak
-				anomaly += settings.SubtropicalHighStrength * strength
-			}
-		}
-
-		// Subpolar ocean lows (~60°)
-		// Low pressure over oceans in the subpolar belt
-		if isOcean && settings.SubpolarLowStrength > 0 {
-			distFromSubpolar := absLat - subpolarLat
-			if math.Abs(distFromSubpolar) < bandWidth {
-				strength := math.Cos(distFromSubpolar / bandWidth * math.Pi / 2)
-				strength *= strength
-				anomaly -= settings.SubpolarLowStrength * strength
-			}
-		}
-
-		// Continental thermal lows
-		// Low pressure over land, strongest in subtropics where heating is intense
-		if !isOcean && settings.ContinentalLowStrength > 0 {
-			// Thermal lows strongest at low-mid latitudes (heating effect)
-			// Weaker at high latitudes where land is cold
-			latitudeFactor := math.Cos(lat) // Max at equator, zero at poles
-			if absLat < 60*math.Pi/180 {    // Only below 60°
-				anomaly -= settings.ContinentalLowStrength * latitudeFactor
-			}
-		}
-
-		result[i] += anomaly * settings.PressureStrength
-	}
-
-	return result
-}
-
-// ComputePressureGradientWind computes surface wind perturbations from pressure gradients.
-// This captures the effect of geographic pressure anomalies (subtropical highs, etc.)
-// on surface wind patterns. Wind flows roughly perpendicular to pressure gradients
-// (deflected by Coriolis), curving clockwise around highs in NH, counter-clockwise in SH.
-//
-// Unlike pure geostrophic wind, this applies a friction-modified version suitable
-// for surface winds, where flow crosses isobars at an angle toward low pressure.
-func ComputePressureGradientWind(
-	pressure []float64,
-	vertices []Vector3D,
-	adj *FlatAdjacency,
-	strength float64,
-) []Vector3D {
-	numVertices := len(pressure)
-	wind := make([]Vector3D, numVertices)
-
-	for i := range vertices {
-		normal := vertices[i]
-		east, north := GetTangentVectors(vertices[i])
-
-		// Compute pressure gradient using neighbor differences
-		var gradE, gradN float64
-		var totalWeight float64
-
-		for _, k := range adj.GetNeighbors(i) {
-			if k < 0 || k >= numVertices {
-				continue
-			}
-
-			// Vector to neighbor, projected onto tangent plane
-			diff := Sub(vertices[k], vertices[i])
-			dotN := Dot(diff, normal)
-			tangentDiff := Sub(diff, Scale(normal, dotN))
-
-			de := Dot(tangentDiff, east)
-			dn := Dot(tangentDiff, north)
-			dist := math.Sqrt(de*de + dn*dn)
-
-			if dist < 1e-12 {
-				continue
-			}
-
-			// Pressure difference drives gradient
-			dp := pressure[k] - pressure[i]
-			weight := 1.0 / dist
-
-			gradE += weight * dp * de / (dist * dist)
-			gradN += weight * dp * dn / (dist * dist)
-			totalWeight += weight
-		}
-
-		if totalWeight < 1e-12 {
-			continue
-		}
-		gradE /= totalWeight
-		gradN /= totalWeight
-
-		// Latitude for Coriolis effect
-		lat := math.Asin(vertices[i].Y)
-		sinLat := math.Sin(lat)
-
-		// Surface wind crosses isobars at an angle (not purely geostrophic)
-		// Angle depends on friction: ~15-30° over ocean, ~30-45° over land
-		// We use a simplified model: partial geostrophic + partial down-gradient
-		//
-		// Geostrophic component (perpendicular to gradient):
-		//   NH: wind to RIGHT of "down-gradient" direction
-		//   SH: wind to LEFT of "down-gradient" direction
-		//
-		// Cross-isobar component (toward low pressure):
-		//   Always flows from high to low (down-gradient)
-
-		// Coriolis factor (weaker near equator)
-		coriolisFactor := math.Abs(sinLat)
-		if coriolisFactor < 0.2 {
-			coriolisFactor = 0.2 // Minimum to avoid singularity
-		}
-
-		// Down-gradient direction (toward low pressure)
-		downGradE := -gradE
-		downGradN := -gradN
-
-		// Geostrophic direction (perpendicular, accounting for hemisphere)
-		// In NH (sinLat > 0): rotate 90° clockwise from down-gradient
-		// In SH (sinLat < 0): rotate 90° counter-clockwise
-		hemisphere := 1.0
-		if sinLat < 0 {
-			hemisphere = -1.0
-		}
-		geoE := downGradN * hemisphere  // Rotated perpendicular
-		geoN := -downGradE * hemisphere
-
-		// Blend: more geostrophic at high latitudes, more cross-isobar near equator
-		geoWeight := coriolisFactor * 0.7
-		crossWeight := 1.0 - geoWeight
-
-		// Don't divide by coriolisFactor - that over-amplifies near equator
-		// Instead use sqrt for gentler latitude scaling
-		latScale := math.Sqrt(coriolisFactor)
-		windE := (geoE*geoWeight + downGradE*crossWeight) * strength * latScale
-		windN := (geoN*geoWeight + downGradN*crossWeight) * strength * latScale
 
 		wind[i] = Add(Scale(east, windE), Scale(north, windN))
 	}

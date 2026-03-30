@@ -48,8 +48,8 @@ const (
 	AtmosphericTransmissivity = 0.75
 
 	// Default diffusion rates (s⁻¹)
-	DefaultDiffusionLand  = 1e-6  // Minimal diffusion over land
-	DefaultDiffusionWater = 5e-6  // Moderate diffusion smooths current boundaries
+	DefaultDiffusionLand  = 1e-6 // Minimal diffusion over land
+	DefaultDiffusionWater = 5e-6 // Moderate diffusion smooths current boundaries
 
 	// Default iteration parameters
 	DefaultMaxIterations = 1000
@@ -58,12 +58,12 @@ const (
 
 	// Default transport scales - multipliers on physical advection
 	// 1.0 = pure physics (v * dt / cellSize), adjust if needed
-	DefaultWindTransportScale     = 1.0   // Wind advection over land
-	DefaultCurrentTransportScale  = 1.0   // Physical current advection (local neighbor blending)
-	DefaultCurrentOriginForcing      = 100.0  // W/m² - how strongly currents impose source-latitude temps
-	DefaultCurrentBacktrackDistance  = 3500.0 // km - how far to trace back along current streamlines (~30 cells at level 6)
-	DefaultWindOriginForcing         = 8.0   // Test stronger forcing
-	DefaultWindBacktrackDistance     = 800.0
+	DefaultWindTransportScale       = 1.0    // Wind advection over land
+	DefaultCurrentTransportScale    = 1.0    // Physical current advection (local neighbor blending)
+	DefaultCurrentOriginForcing     = 100.0  // W/m² - how strongly currents impose source-latitude temps
+	DefaultCurrentBacktrackDistance = 3500.0 // km - how far to trace back along current streamlines (~30 cells at level 6)
+	DefaultWindOriginForcing        = 8.0    // Test stronger forcing
+	DefaultWindBacktrackDistance    = 800.0
 )
 
 // --- Settings Structs ---
@@ -94,24 +94,24 @@ func (s SolarSettings) Validate() error {
 func DefaultSolarSettings() SolarSettings {
 	return SolarSettings{
 		SolarLuminosity: 1.0,
-		AxialTilt:       0.0,   // No seasonal variation by default
-		SeasonPhase:     0.0,   // Not used when AxialTilt = 0
+		AxialTilt:       0.0, // No seasonal variation by default
+		SeasonPhase:     0.0, // Not used when AxialTilt = 0
 		Verbose:         false,
 	}
 }
 
 // TransportSettings controls heat diffusion and advection.
 type TransportSettings struct {
-	DiffusionLand              float64 `json:"diffusionLand"`              // Base diffusion rate over land (s⁻¹)
-	DiffusionWater             float64 `json:"diffusionWater"`             // Base diffusion rate over water (s⁻¹)
-	WindTransportScale         float64 `json:"windTransportScale"`         // Multiplier on physical wind advection
-	CurrentTransportScale      float64 `json:"currentTransportScale"`      // Multiplier on physical current advection
-	CurrentOriginForcing       float64 `json:"currentOriginForcing"`       // W/m² forcing from current source-latitude temps
-	CurrentBacktrackDistance   float64 `json:"currentBacktrackDistance"`   // km to backtrack along current streamlines
-	WindOriginForcing          float64 `json:"windOriginForcing"`          // W/m² forcing from wind source temps on land
-	WindBacktrackDistance      float64 `json:"windBacktrackDistance"`      // km to backtrack along wind streamlines
-	AtmosphericHeatTransport   float64 `json:"atmosphericHeatTransport"`   // Meridional heat flux (W/m²) from Hadley/Ferrel/Polar cells
-	Verbose                    bool    `json:"verbose"`
+	DiffusionLand            float64 `json:"diffusionLand"`            // Base diffusion rate over land (s⁻¹)
+	DiffusionWater           float64 `json:"diffusionWater"`           // Base diffusion rate over water (s⁻¹)
+	WindTransportScale       float64 `json:"windTransportScale"`       // Multiplier on physical wind advection
+	CurrentTransportScale    float64 `json:"currentTransportScale"`    // Multiplier on physical current advection
+	CurrentOriginForcing     float64 `json:"currentOriginForcing"`     // W/m² forcing from current source-latitude temps
+	CurrentBacktrackDistance float64 `json:"currentBacktrackDistance"` // km to backtrack along current streamlines
+	WindOriginForcing        float64 `json:"windOriginForcing"`        // W/m² forcing from wind source temps on land
+	WindBacktrackDistance    float64 `json:"windBacktrackDistance"`    // km to backtrack along wind streamlines
+	AtmosphericHeatTransport float64 `json:"atmosphericHeatTransport"` // Meridional heat flux (W/m²) from Hadley/Ferrel/Polar cells
+	Verbose                  bool    `json:"verbose"`
 }
 
 // Validate checks that all settings are within acceptable ranges.
@@ -330,6 +330,33 @@ func GenerateTemperature(
 		return nil, fmt.Errorf("invalid settings: %w", err)
 	}
 
+	insolation := ComputeInsolation(vertices, settings.Solar)
+	return generateTemperatureForInsolation(
+		vertices,
+		elevation,
+		seaLevelThreshold,
+		adj,
+		wind,
+		currents,
+		settings,
+		insolation,
+		nil,
+	)
+}
+
+// --- Helper Functions ---
+
+func generateTemperatureForInsolation(
+	vertices []Vector3D,
+	elevation []float64,
+	seaLevelThreshold float64,
+	adj *FlatAdjacency,
+	wind *WindResult,
+	currents *OceanCurrentResult,
+	settings TemperatureSettings,
+	insolation []float64,
+	initialTemperature []float64,
+) (*TemperatureResult, error) {
 	numVertices := len(vertices)
 	if settings.Verbose {
 		fmt.Printf("=== Temperature Generation ===\n")
@@ -337,12 +364,6 @@ func GenerateTemperature(
 		fmt.Printf("  Max iterations: %d, tolerance: %.4f K\n",
 			settings.Balance.MaxIterations, settings.Balance.Tolerance)
 	}
-
-	// Step 1: Compute solar insolation
-	if settings.Verbose {
-		fmt.Println("  Computing solar insolation...")
-	}
-	insolation := ComputeInsolation(vertices, settings.Solar)
 
 	if settings.Verbose {
 		minQ, maxQ := insolation[0], insolation[0]
@@ -357,12 +378,13 @@ func GenerateTemperature(
 		fmt.Printf("  Insolation range: [%.1f, %.1f] W/m²\n", minQ, maxQ)
 	}
 
-	// Step 2: Extract wind and current vectors (if provided)
 	var windVectors []Vector3D
 	var currentVectors []Vector3D
 
 	if wind != nil {
-		windVectors = wind.SurfaceWind
+		windVectors = BuildTemperatureTransportWindField(
+			wind, elevation, seaLevelThreshold,
+		)
 		if settings.Verbose {
 			fmt.Println("  Using wind field for heat advection")
 		}
@@ -374,11 +396,10 @@ func GenerateTemperature(
 		}
 	}
 
-	// Step 3: Solve energy balance
 	if settings.Verbose {
 		fmt.Println("  Solving energy balance...")
 	}
-	temperature, iterations, finalDelta, converged := SolveEnergyBalance(
+	temperature, iterations, finalDelta, converged := SolveEnergyBalanceWithInitial(
 		insolation,
 		vertices,
 		elevation,
@@ -386,6 +407,7 @@ func GenerateTemperature(
 		adj,
 		windVectors,
 		currentVectors,
+		initialTemperature,
 		settings,
 	)
 
@@ -399,26 +421,24 @@ func GenerateTemperature(
 		}
 	}
 
-	// Step 4: Compute continentality and apply effects
 	if settings.Verbose {
 		fmt.Println("  Computing continentality effects...")
 	}
 	continentality := ComputeContinentality(vertices, elevation, seaLevelThreshold, adj, 1500.0)
 	temperature = ApplyContinentalityEffect(temperature, vertices, continentality, 10.0)
 
-	// Step 5: Apply marine influence (coasts moderated by ocean)
 	if settings.Verbose {
 		fmt.Println("  Applying marine influence on coasts...")
 	}
-	temperature = ApplyMarineInfluence(temperature, vertices, elevation, seaLevelThreshold, adj, 0.5, 350.0)
+	temperature = ApplyResolvedMaritimeInfluence(
+		temperature, vertices, elevation, seaLevelThreshold, adj, wind, currentVectors, settings.Transport,
+	)
 
-	// Step 6: Apply lapse rate correction for elevation
 	if settings.Verbose {
 		fmt.Println("  Applying elevation lapse rate correction...")
 	}
 	temperature = ApplyLapseRateCorrection(temperature, elevation, seaLevelThreshold)
 
-	// Step 7: Compute diagnostic fields
 	albedo := ComputeAlbedo(temperature, elevation, seaLevelThreshold, settings.Balance.IceAlbedoFeedback)
 	absorbedSolar := ComputeAbsorbedSolar(insolation, albedo)
 	olr := ComputeOutgoingLongwave(temperature, elevation, seaLevelThreshold)
@@ -427,7 +447,6 @@ func GenerateTemperature(
 		windVectors, currentVectors, settings.Transport,
 	)
 
-	// Convert to Celsius for convenience
 	tempCelsius := make([]float64, numVertices)
 	for i, t := range temperature {
 		tempCelsius[i] = t - FreezingPoint
@@ -457,8 +476,6 @@ func GenerateTemperature(
 
 	return result, nil
 }
-
-// --- Helper Functions ---
 
 // getLatitude returns the latitude in radians for a point on the unit sphere.
 // Y-up coordinate system: Y = sin(latitude).

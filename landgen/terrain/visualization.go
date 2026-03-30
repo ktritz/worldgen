@@ -192,6 +192,74 @@ func RenderElevationMap(sites []Vector3D, elevation []float64, index *SpatialInd
 	fmt.Printf("  Saved %s\n", filename)
 }
 
+// RenderHydrologyOverlayMap renders a terrain map with climate/hydrology-driven
+// rivers, lakes, and floodplain hints overlaid for broad visual inspection.
+func RenderHydrologyOverlayMap(
+	sites []Vector3D,
+	elevation []float64,
+	scaffold *HydrologyScaffold,
+	index *SpatialIndex,
+	filename string,
+	width, height int,
+) {
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	if scaffold == nil {
+		f, _ := os.Create(filename)
+		png.Encode(f, img)
+		f.Close()
+		fmt.Printf("  Saved %s\n", filename)
+		return
+	}
+
+	maxChannel := 0.0
+	for _, v := range scaffold.ChannelStrength {
+		if v > maxChannel {
+			maxChannel = v
+		}
+	}
+	if maxChannel <= 0 {
+		maxChannel = 1
+	}
+
+	for py := 0; py < height; py++ {
+		lat := 90 - float64(py)/float64(height)*180
+		for px := 0; px < width; px++ {
+			lon := float64(px)/float64(width)*360 - 180
+			cellIdx := index.FindNearest(lat, lon, sites)
+			base := HypsometricColor(elevation[cellIdx])
+			out := base
+			if elevation[cellIdx] >= 0 {
+				floodplain := hydrologyFloodplainStrength(scaffold, cellIdx)
+				if floodplain > 0 {
+					floodColor := color.RGBA{124, 166, 118, 255}
+					out = blendColor(out, floodColor, 0.20+0.35*floodplain)
+				}
+				if cellIdx < len(scaffold.WaterBodyLabel) && scaffold.WaterBodyLabel[cellIdx] > 0 {
+					lakeColor := color.RGBA{66, 126, 178, 255}
+					out = blendColor(out, lakeColor, 0.55)
+				}
+				channel := 0.0
+				if cellIdx < len(scaffold.ChannelStrength) {
+					channel = scaffold.ChannelStrength[cellIdx]
+				}
+				if channel > 0 {
+					riverColor := color.RGBA{44, 102, 184, 255}
+					riverT := math.Sqrt(clamp01Terrain(channel / maxChannel))
+					if riverT > 0.10 {
+						out = blendColor(out, riverColor, 0.20+0.70*riverT)
+					}
+				}
+			}
+			img.Set(px, py, out)
+		}
+	}
+
+	f, _ := os.Create(filename)
+	png.Encode(f, img)
+	f.Close()
+	fmt.Printf("  Saved %s\n", filename)
+}
+
 // RenderLandOceanMap renders a land/ocean classification map to a file
 func RenderLandOceanMap(sites []Vector3D, elevation []float64, isLand []bool, index *SpatialIndex, filename string) {
 	width, height := 1024, 512
@@ -488,6 +556,48 @@ func computeMultiHillshade(dzdx, dzdy float64) float64 {
 	// Normalize and add ambient
 	ambient := 0.15
 	return math.Min(1.0, ambient+totalShade*0.85)
+}
+
+func hydrologyFloodplainStrength(scaffold *HydrologyScaffold, idx int) float64 {
+	if scaffold == nil || idx < 0 || idx >= len(scaffold.CellClass) {
+		return 0
+	}
+	switch scaffold.CellClass[idx] {
+	case "floodplain":
+		return 1.0
+	case "delta":
+		return 0.95
+	case "lake_reach":
+		return 0.65
+	case "confluence":
+		return 0.45
+	case "trunk":
+		return 0.30
+	case "coast_outlet":
+		return 0.35
+	default:
+		return 0
+	}
+}
+
+func blendColor(a, b color.RGBA, t float64) color.RGBA {
+	t = clamp01Terrain(t)
+	return color.RGBA{
+		R: uint8(float64(a.R)*(1-t) + float64(b.R)*t),
+		G: uint8(float64(a.G)*(1-t) + float64(b.G)*t),
+		B: uint8(float64(a.B)*(1-t) + float64(b.B)*t),
+		A: 255,
+	}
+}
+
+func clamp01Terrain(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 1 {
+		return 1
+	}
+	return v
 }
 
 // PrintStats prints elevation statistics to stdout

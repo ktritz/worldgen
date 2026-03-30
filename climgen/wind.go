@@ -67,11 +67,12 @@ func (z CirculationZone) String() string {
 
 // CirculationSettings controls Hadley/Ferrel/Polar cell parameters.
 type CirculationSettings struct {
-	HadleyEdgeLat    float64 `json:"hadleyEdgeLat"`    // Latitude of Hadley cell edge (degrees)
-	FerrelEdgeLat    float64 `json:"ferrelEdgeLat"`    // Latitude of Ferrel cell edge (degrees)
-	PressureStrength float64 `json:"pressureStrength"` // Base pressure gradient magnitude
-	CoriolisScale    float64 `json:"coriolisScale"`    // Coriolis effect multiplier
-	SmoothingFactor  float64 `json:"smoothingFactor"`  // Blend weight for pressure smoothing
+	HadleyEdgeLat          float64 `json:"hadleyEdgeLat"`          // Latitude of Hadley cell edge (degrees)
+	FerrelEdgeLat          float64 `json:"ferrelEdgeLat"`          // Latitude of Ferrel cell edge (degrees)
+	ThermalEquatorShiftDeg float64 `json:"thermalEquatorShiftDeg"` // Seasonal shift of circulation cells (degrees, north positive)
+	PressureStrength       float64 `json:"pressureStrength"`       // Base pressure gradient magnitude
+	CoriolisScale          float64 `json:"coriolisScale"`          // Coriolis effect multiplier
+	SmoothingFactor        float64 `json:"smoothingFactor"`        // Blend weight for pressure smoothing
 
 	// Rossby wave parameters (mid-latitude meandering)
 	RossbyWavenumber int     `json:"rossbyWavenumber"` // Number of waves around globe (Earth: 4-6)
@@ -94,6 +95,9 @@ func (s CirculationSettings) Validate() error {
 	if s.FerrelEdgeLat <= s.HadleyEdgeLat || s.FerrelEdgeLat >= 90 {
 		return fmt.Errorf("ferrelEdgeLat must be in (%f, 90), got %f", s.HadleyEdgeLat, s.FerrelEdgeLat)
 	}
+	if math.Abs(s.ThermalEquatorShiftDeg) > 45 {
+		return fmt.Errorf("thermalEquatorShiftDeg must be in [-45, 45], got %f", s.ThermalEquatorShiftDeg)
+	}
 	if s.PressureStrength <= 0 {
 		return fmt.Errorf("pressureStrength must be positive, got %f", s.PressureStrength)
 	}
@@ -109,14 +113,15 @@ func (s CirculationSettings) Validate() error {
 // DefaultCirculationSettings returns Earth-like defaults for circulation.
 func DefaultCirculationSettings() CirculationSettings {
 	return CirculationSettings{
-		HadleyEdgeLat:    DefaultHadleyEdgeLat,
-		FerrelEdgeLat:    DefaultFerrelEdgeLat,
-		PressureStrength: DefaultPressureStrength,
-		CoriolisScale:    DefaultCoriolisScale,
-		SmoothingFactor:  DefaultWindSmoothingFactor,
-		RossbyWavenumber: 5,   // Earth typically has 4-6 Rossby waves
-		RossbyAmplitude:  0.8, // Visible meandering (0.4=subtle, 1.2=extreme)
-		RossbyPhase:      0.0, // Will be set from seed
+		HadleyEdgeLat:          DefaultHadleyEdgeLat,
+		FerrelEdgeLat:          DefaultFerrelEdgeLat,
+		ThermalEquatorShiftDeg: 0.0,
+		PressureStrength:       DefaultPressureStrength,
+		CoriolisScale:          DefaultCoriolisScale,
+		SmoothingFactor:        DefaultWindSmoothingFactor,
+		RossbyWavenumber:       5,   // Earth typically has 4-6 Rossby waves
+		RossbyAmplitude:        0.8, // Visible meandering (0.4=subtle, 1.2=extreme)
+		RossbyPhase:            0.0, // Will be set from seed
 		// Pressure basin strengths (fraction of base pressure)
 		SubtropicalHighStrength: 0.3, // Ocean highs at ~30° (Azores, Pacific High)
 		SubpolarLowStrength:     0.3, // Ocean lows at ~60° (Icelandic, Aleutian Low)
@@ -237,7 +242,8 @@ func DefaultWindSettings() WindSettings {
 // WindResult contains the output from wind generation.
 type WindResult struct {
 	// Core outputs
-	SurfaceWind []Vector3D // Wind vector at each vertex (tangent to surface)
+	MarineWind  []Vector3D // Basin-scale marine wind for ocean forcing/SST transport
+	SurfaceWind []Vector3D // Terrain-aware near-surface wind for local climate
 	Pressure    []float64  // Atmospheric pressure at each vertex (normalized)
 
 	// Diagnostic layers (for visualization/debugging)
@@ -283,7 +289,7 @@ func GenerateWindField(
 		fmt.Println("  Adding geographic pressure anomalies...")
 	}
 	pressure = AddGeographicPressureAnomalies(
-		pressure, vertices, elevation, seaLevelThreshold, settings.Circulation,
+		pressure, vertices, elevation, seaLevelThreshold, adj, settings.Circulation,
 	)
 
 	if settings.Verbose {
@@ -331,7 +337,7 @@ func GenerateWindField(
 	if settings.Verbose {
 		fmt.Println("  Computing pressure gradient wind...")
 	}
-	pressureGradientStrength := 0.3 // Blend factor for pressure-driven component
+	pressureGradientStrength := 0.24 // Keep basin-scale steering without overpowering zonal cells
 	pressureWind := ComputePressureGradientWind(smoothedPressure, vertices, adj, pressureGradientStrength)
 
 	// Combine cell-driven wind with pressure gradient perturbations
@@ -353,7 +359,15 @@ func GenerateWindField(
 	// Keep geostrophic wind for the result struct (diagnostic layer)
 	geostrophicWind := ComputeGeostrophicWind(smoothedPressure, vertices, adj, settings.Circulation)
 
-	// Step 3: Apply surface friction (speed reduction over land)
+	// Step 3: Build a smoother marine wind product before terrain perturbations.
+	if settings.Verbose {
+		fmt.Println("  Building basin-scale marine wind...")
+	}
+	marineWind := BuildMarineWind(
+		cellWind, vertices, elevation, seaLevelThreshold, adj, settings.Surface,
+	)
+
+	// Step 4: Apply surface friction (speed reduction over land)
 	if settings.Verbose {
 		fmt.Println("  Applying surface friction...")
 	}
@@ -361,13 +375,13 @@ func GenerateWindField(
 		cellWind, vertices, elevation, seaLevelThreshold, settings.Surface,
 	)
 
-	// Step 4: Apply slope effects (uphill deceleration, downhill acceleration)
+	// Step 5: Apply slope effects (uphill deceleration, downhill acceleration)
 	if settings.Verbose {
 		fmt.Println("  Applying slope effects...")
 	}
 	surfaceWind = ApplySlopeEffects(surfaceWind, vertices, elevation, adj)
 
-	// Step 5: Apply orographic deflection
+	// Step 6: Apply orographic deflection
 	if settings.Orographic.DeflectionStrength > 0 {
 		if settings.Verbose {
 			fmt.Println("  Applying orographic deflection...")
@@ -376,7 +390,7 @@ func GenerateWindField(
 			surfaceWind, vertices, elevation, adj, settings.Orographic,
 		)
 
-		// Step 5b: Propagate lee-side wind shadows
+		// Step 6b: Propagate lee-side wind shadows
 		// Wind stays slow downwind of mountains
 		if settings.Verbose {
 			fmt.Println("  Propagating lee-side wind shadows...")
@@ -393,7 +407,7 @@ func GenerateWindField(
 		)
 	}
 
-	// Step 6: Final smoothing for stability
+	// Step 7: Final smoothing for stability
 	const windSmoothAngular = 0.025 // radians ≈ 1.4 degrees
 	windSmoothIters := int(windSmoothAngular/cellSize) + 1
 	if windSmoothIters < 2 {
@@ -402,7 +416,9 @@ func GenerateWindField(
 	if settings.Verbose {
 		fmt.Printf("  Smoothing wind field (%d iterations)...\n", windSmoothIters)
 	}
-	surfaceWind = SmoothVectorField(surfaceWind, vertices, adj, windSmoothIters, 0.3)
+	surfaceWind = SmoothVectorFieldBySurface(
+		surfaceWind, vertices, elevation, seaLevelThreshold, adj, windSmoothIters, 0.3,
+	)
 
 	if settings.Verbose {
 		maxSpeed := 0.0
@@ -416,6 +432,7 @@ func GenerateWindField(
 	}
 
 	return &WindResult{
+		MarineWind:      marineWind,
 		SurfaceWind:     surfaceWind,
 		Pressure:        pressure,
 		GeostrophicWind: geostrophicWind,
@@ -423,89 +440,10 @@ func GenerateWindField(
 	}, nil
 }
 
-// --- Smoothing Utilities ---
-
-// SmoothScalarField performs iterative diffusion on a scalar field.
-func SmoothScalarField(
-	field []float64,
-	vertices []Vector3D,
-	adj *FlatAdjacency,
-	iterations int,
-	factor float64,
-) []float64 {
-	numVertices := len(field)
-	smoothed := make([]float64, numVertices)
-	copy(smoothed, field)
-	next := make([]float64, numVertices)
-
-	for iter := 0; iter < iterations; iter++ {
-		for i := 0; i < numVertices; i++ {
-			sum := 0.0
-			count := 0
-			for _, k := range adj.GetNeighbors(i) {
-				if k >= 0 && k < numVertices {
-					sum += smoothed[k]
-					count++
-				}
-			}
-			if count > 0 {
-				avg := sum / float64(count)
-				next[i] = smoothed[i]*(1-factor) + avg*factor
-			} else {
-				next[i] = smoothed[i]
-			}
-		}
-		smoothed, next = next, smoothed
-	}
-
-	return smoothed
-}
-
-// SmoothVectorField performs diffusion on a vector field, maintaining tangent-plane constraint.
-func SmoothVectorField(
-	field []Vector3D,
-	vertices []Vector3D,
-	adj *FlatAdjacency,
-	iterations int,
-	factor float64,
-) []Vector3D {
-	numVertices := len(field)
-	smoothed := make([]Vector3D, numVertices)
-	copy(smoothed, field)
-	next := make([]Vector3D, numVertices)
-
-	for iter := 0; iter < iterations; iter++ {
-		for i := 0; i < numVertices; i++ {
-			var sum Vector3D
-			count := 0
-			for _, k := range adj.GetNeighbors(i) {
-				if k >= 0 && k < numVertices {
-					sum = Add(sum, smoothed[k])
-					count++
-				}
-			}
-			if count > 0 {
-				avg := Scale(sum, 1.0/float64(count))
-				blended := Add(Scale(smoothed[i], 1.0-factor), Scale(avg, factor))
-
-				// Project to tangent plane
-				normal := vertices[i]
-				dotN := Dot(blended, normal)
-				next[i] = Sub(blended, Scale(normal, dotN))
-			} else {
-				next[i] = smoothed[i]
-			}
-		}
-		smoothed, next = next, smoothed
-	}
-
-	return smoothed
-}
-
 // --- Helper: Get circulation zone for latitude ---
 
 func getCirculationZone(lat float64, settings CirculationSettings) CirculationZone {
-	absLat := math.Abs(lat) * 180.0 / math.Pi // Convert to degrees
+	absLat := math.Abs(effectiveCirculationLatitude(lat, settings)) * 180.0 / math.Pi
 	if absLat < settings.HadleyEdgeLat {
 		return ZoneHadley
 	} else if absLat < settings.FerrelEdgeLat {

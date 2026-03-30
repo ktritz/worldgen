@@ -1,7 +1,9 @@
 package terrain
 
 import (
+	"math"
 	"runtime"
+	"sort"
 	"sync"
 )
 
@@ -156,6 +158,7 @@ func ApplyLandmassErosion(
 	rPlate []int,
 	plateIsOcean map[int]bool,
 	distFromCoast []float64,
+	distFromMountain []float64,
 ) {
 	numRegions := len(elevation)
 
@@ -228,9 +231,444 @@ func ApplyLandmassErosion(
 			maxElev = 3500 + 12500*(landFraction-0.8) // 3500-6000m
 		}
 
+		// Tectonically supported continental margins can sustain major cordilleras
+		// even when they are close to the coast. Relax the cap near collision belts
+		// and volcanic arcs, but keep oceanic/island peaks constrained.
+		if !plateIsOcean[rPlate[r]] {
+			tectonicSupport := hopDistanceSupport(distFromMountain[r], 8)
+			maxElev += 2200 * tectonicSupport
+		}
+
 		// Apply cap
 		if elevation[r] > maxElev {
 			elevation[r] = maxElev
 		}
+	}
+}
+
+func hopDistanceSupport(distance float64, maxDistance float64) float64 {
+	if math.IsInf(distance, 1) || maxDistance <= 0 {
+		return 0
+	}
+	if distance <= 0 {
+		return 1
+	}
+	norm := distance / maxDistance
+	if norm >= 1 {
+		return 0
+	}
+	return 1 - norm
+}
+
+// ApplyFluvialErosion carves a drainage network using topography-driven flow
+// routing and a long-timescale runoff proxy. It intentionally does not depend
+// on the present-day climate model; instead it uses broad wet/dry bands,
+// coastal access to moisture, and low-frequency noise to approximate
+// geological-time erosional potential.
+func ApplyFluvialErosion(
+	sites []Vector3D,
+	cells []VoronoiCell,
+	elevation []float64,
+	distFromCoast []float64,
+	maxDist float64,
+	seed int64,
+) {
+	runoff := ComputeLongTermRunoffProxy(sites, elevation, distFromCoast, maxDist, seed)
+	receivers := ComputeDrainageReceivers(cells, elevation)
+	BreachDrainageSinks(cells, elevation, receivers, 220)
+	receivers = ComputeDrainageReceivers(cells, elevation)
+	accumulation, order := ComputeFlowAccumulation(receivers, elevation, runoff)
+	FormEndorheicLakes(cells, elevation, receivers, accumulation, runoff)
+	receivers = ComputeDrainageReceivers(cells, elevation)
+	accumulation, order = ComputeFlowAccumulation(receivers, elevation, runoff)
+	carveFluvialChannels(cells, elevation, receivers, runoff, accumulation)
+	applyFluvialDeposition(cells, elevation, receivers, runoff, accumulation, order)
+}
+
+// ApplyPostDetailDrainageConditioning removes shallow synthetic traps created
+// by late-stage noise and coastline regularization without trying to erase real
+// endorheic structure. It is intentionally milder than the main fluvial pass.
+func ApplyPostDetailDrainageConditioning(cells []VoronoiCell, elevation []float64) int {
+	receivers := ComputeDrainageReceivers(cells, elevation)
+	return BreachDrainageSinks(cells, elevation, receivers, 120)
+}
+
+// ComputeLongTermRunoffProxy estimates geological-timescale runoff potential.
+// It is intentionally smoother and lower-frequency than a present-day climate
+// field so terrain is not overfit to transient weather patterns.
+func ComputeLongTermRunoffProxy(
+	sites []Vector3D,
+	elevation []float64,
+	distFromCoast []float64,
+	maxDist float64,
+	seed int64,
+) []float64 {
+	runoff := make([]float64, len(elevation))
+	if maxDist < 1 {
+		maxDist = 1
+	}
+
+	for i, elev := range elevation {
+		if elev <= 0 {
+			continue
+		}
+
+		lat := math.Asin(Clamp(sites[i].Normalize().Z, -1, 1))
+		absLatDeg := math.Abs(lat * 180 / math.Pi)
+
+		// Broad wet tropical and mid-latitude storm belts, with drier subtropics.
+		tropicalWet := 1.0 - SmoothStep(8, 28, absLatDeg)
+		midLatitudeWet := SmoothStep(32, 45, absLatDeg) * (1.0 - SmoothStep(58, 72, absLatDeg))
+		subtropicalDry := SmoothStep(18, 27, absLatDeg) * (1.0 - SmoothStep(35, 44, absLatDeg))
+		polarDry := SmoothStep(62, 80, absLatDeg)
+		latMoisture := 0.55 + 0.42*tropicalWet + 0.24*midLatitudeWet - 0.28*subtropicalDry - 0.18*polarDry
+
+		coastalness := 0.0
+		if !math.IsInf(distFromCoast[i], 1) {
+			coastalNorm := distFromCoast[i] / maxDist
+			coastalness = 1.0 - SmoothStep(0.10, 0.85, coastalNorm)
+		}
+
+		reliefBoost := SmoothStep(600, 3200, elev)
+		lowFreqNoise := FBMNoiseWithFreq(sites[i], seed+868686, 2.0, 3)
+
+		moisture := latMoisture + 0.24*coastalness + 0.10*reliefBoost + 0.12*lowFreqNoise
+		runoff[i] = Clamp(moisture, 0.08, 1.35)
+	}
+
+	return runoff
+}
+
+// ComputeDrainageReceivers selects the steepest downslope neighbor for each
+// land cell. Ocean cells and sinks have receiver -1.
+func ComputeDrainageReceivers(cells []VoronoiCell, elevation []float64) []int {
+	receivers := make([]int, len(elevation))
+	for i := range receivers {
+		receivers[i] = -1
+	}
+
+	for r, elev := range elevation {
+		if elev <= 0 {
+			continue
+		}
+
+		bestNeighbor := -1
+		bestDrop := 0.0
+		for _, neighborIdx := range cells[r].NeighborSiteIndices {
+			neighbor := int(neighborIdx)
+			if neighbor < 0 || neighbor >= len(elevation) {
+				continue
+			}
+			drop := elev - elevation[neighbor]
+			if drop > bestDrop+1e-6 {
+				bestDrop = drop
+				bestNeighbor = neighbor
+			}
+		}
+		receivers[r] = bestNeighbor
+	}
+
+	return receivers
+}
+
+// BreachDrainageSinks lowers shallow outlet saddles so local basins can drain
+// instead of creating too many persistent endorheic pits. This is a simple
+// geomorphic approximation of spillway incision, not a full depression-filling
+// model.
+func BreachDrainageSinks(cells []VoronoiCell, elevation []float64, receivers []int, maxRise float64) int {
+	if maxRise <= 0 {
+		return 0
+	}
+
+	breached := 0
+	for pass := 0; pass < 2; pass++ {
+		passBreached := 0
+		for r, receiver := range receivers {
+			if receiver >= 0 || elevation[r] <= 0 {
+				continue
+			}
+
+			lowestNeighbor := -1
+			lowestElev := math.Inf(1)
+			for _, neighborIdx := range cells[r].NeighborSiteIndices {
+				neighbor := int(neighborIdx)
+				if neighbor < 0 || neighbor >= len(elevation) {
+					continue
+				}
+				if elevation[neighbor] < lowestElev {
+					lowestElev = elevation[neighbor]
+					lowestNeighbor = neighbor
+				}
+			}
+			if lowestNeighbor < 0 {
+				continue
+			}
+
+			rise := lowestElev - elevation[r]
+			if rise <= 0 || rise > maxRise {
+				continue
+			}
+
+			// Carve a shallow spillway through the lowest saddle.
+			targetElev := elevation[r] - math.Min(6.0, 0.25*maxRise)
+			if targetElev >= elevation[lowestNeighbor] {
+				targetElev = elevation[r] - 2.0
+			}
+			if targetElev < elevation[lowestNeighbor] {
+				elevation[lowestNeighbor] = targetElev
+				passBreached++
+			}
+		}
+
+		if passBreached == 0 {
+			break
+		}
+		breached += passBreached
+		receivers = ComputeDrainageReceivers(cells, elevation)
+	}
+
+	return breached
+}
+
+// FormEndorheicLakes preserves a small number of plausible lowland internal
+// basins as lakes instead of breaching every sink away.
+func FormEndorheicLakes(
+	cells []VoronoiCell,
+	elevation []float64,
+	receivers []int,
+	accumulation []float64,
+	runoff []float64,
+) int {
+	lakeCells := 0
+	for r, receiver := range receivers {
+		if receiver >= 0 || elevation[r] <= 0 || elevation[r] > 140 {
+			continue
+		}
+
+		lakeStrength := math.Sqrt(accumulation[r] * math.Max(runoff[r], 0.1))
+		if lakeStrength < 35 {
+			continue
+		}
+
+		targetSurface := -Clamp(6+3.5*math.Log1p(lakeStrength), 6, 22)
+		if elevation[r] > targetSurface {
+			elevation[r] = targetSurface
+			lakeCells++
+		}
+
+		for _, neighborIdx := range cells[r].NeighborSiteIndices {
+			neighbor := int(neighborIdx)
+			if neighbor < 0 || neighbor >= len(elevation) || elevation[neighbor] <= 0 {
+				continue
+			}
+			if elevation[neighbor] > 120 {
+				continue
+			}
+			if accumulation[neighbor] < accumulation[r]*0.25 {
+				continue
+			}
+			neighborSurface := targetSurface + 6
+			if elevation[neighbor] > neighborSurface {
+				elevation[neighbor] = neighborSurface
+				lakeCells++
+			}
+		}
+	}
+	return lakeCells
+}
+
+// ComputeFlowAccumulation routes runoff downslope in descending-elevation order.
+func ComputeFlowAccumulation(receivers []int, elevation []float64, runoff []float64) ([]float64, []int) {
+	accumulation := make([]float64, len(elevation))
+	copy(accumulation, runoff)
+
+	order := make([]int, len(elevation))
+	for i := range order {
+		order[i] = i
+	}
+	sort.Slice(order, func(i, j int) bool {
+		return elevation[order[i]] > elevation[order[j]]
+	})
+
+	for _, r := range order {
+		receiver := receivers[r]
+		if receiver >= 0 {
+			accumulation[receiver] += accumulation[r]
+		}
+	}
+
+	return accumulation, order
+}
+
+func carveFluvialChannels(
+	cells []VoronoiCell,
+	elevation []float64,
+	receivers []int,
+	runoff []float64,
+	accumulation []float64,
+) {
+	buffer := make([]float64, len(elevation))
+	copy(buffer, elevation)
+
+	for r, elev := range elevation {
+		if elev <= 0 {
+			continue
+		}
+
+		receiver := receivers[r]
+		if receiver < 0 {
+			continue
+		}
+
+		slope := elev - elevation[receiver]
+		if slope <= 0 {
+			continue
+		}
+
+		channelScale := math.Log1p(accumulation[r])
+		if channelScale <= 0.5 {
+			continue
+		}
+
+		runoffFactor := math.Sqrt(runoff[r])
+		slopeFactor := SmoothStep(20, 900, slope)
+		incision := 16.0 * runoffFactor * channelScale * slopeFactor
+		if elev > 2400 {
+			incision *= 1.15
+		}
+		if elev < 250 {
+			incision *= 0.65
+		}
+		incision = Clamp(incision, 0, 180)
+		buffer[r] = elev - incision
+
+		// Light valley widening around major channels so drainage reads as a
+		// network instead of isolated single-cell pits.
+		if channelScale > 2.3 {
+			for _, neighborIdx := range cells[r].NeighborSiteIndices {
+				neighbor := int(neighborIdx)
+				if neighbor < 0 || neighbor >= len(elevation) || elevation[neighbor] <= 0 || neighbor == receiver {
+					continue
+				}
+				if accumulation[neighbor] > accumulation[r]*0.7 {
+					continue
+				}
+				widening := incision * 0.18
+				if widening > 24 {
+					widening = 24
+				}
+				if buffer[neighbor] > elevation[neighbor]-widening {
+					buffer[neighbor] = elevation[neighbor] - widening
+				}
+			}
+		}
+	}
+
+	copy(elevation, buffer)
+}
+
+func applyFluvialDeposition(
+	cells []VoronoiCell,
+	elevation []float64,
+	receivers []int,
+	runoff []float64,
+	accumulation []float64,
+	order []int,
+) {
+	buffer := make([]float64, len(elevation))
+	copy(buffer, elevation)
+
+	// Traverse from low to high so downstream lowlands can receive small
+	// deposits from major upstream systems.
+	for i := len(order) - 1; i >= 0; i-- {
+		r := order[i]
+		if elevation[r] <= 0 {
+			continue
+		}
+
+		receiver := receivers[r]
+		if receiver < 0 {
+			continue
+		}
+
+		slope := elevation[r] - elevation[receiver]
+		channelScale := math.Log1p(accumulation[r])
+		if channelScale < 2.0 {
+			continue
+		}
+
+		// Deposit in low-gradient inland lowlands and near river mouths.
+		depositionFactor := (1.0 - SmoothStep(25, 160, slope)) * math.Sqrt(runoff[r])
+		if depositionFactor <= 0 {
+			continue
+		}
+
+		deposit := 10.0 * channelScale * depositionFactor
+		if elevation[receiver] <= 0 {
+			// River-mouth / proto-delta case: spread deposition across the mouth
+			// cell and nearby low coastal ground so large outlets build visible
+			// fans and coastal plains.
+			deposit *= 1.05
+			if deposit > 26 {
+				deposit = 26
+			}
+			buffer[r] += deposit
+			spreadDeltaDeposit(cells, elevation, buffer, r, deposit*0.65)
+			continue
+		}
+
+		if deposit > 28 {
+			deposit = 28
+		}
+		buffer[receiver] += deposit
+
+		// Major low-gradient rivers should also broaden adjoining floodplains.
+		if channelScale > 2.6 && slope < 90 {
+			spreadFloodplainDeposit(cells, elevation, buffer, receiver, deposit*0.35)
+		}
+	}
+
+	copy(elevation, buffer)
+}
+
+func spreadDeltaDeposit(cells []VoronoiCell, elevation []float64, buffer []float64, mouth int, deposit float64) {
+	if deposit <= 0 {
+		return
+	}
+	for _, neighborIdx := range cells[mouth].NeighborSiteIndices {
+		neighbor := int(neighborIdx)
+		if neighbor < 0 || neighbor >= len(elevation) || elevation[neighbor] <= 0 {
+			continue
+		}
+		if elevation[neighbor] > 220 {
+			continue
+		}
+		buffer[neighbor] += deposit
+		for _, secondIdx := range cells[neighbor].NeighborSiteIndices {
+			second := int(secondIdx)
+			if second < 0 || second >= len(elevation) || elevation[second] <= 0 {
+				continue
+			}
+			if elevation[second] > 160 {
+				continue
+			}
+			buffer[second] += deposit * 0.45
+		}
+	}
+}
+
+func spreadFloodplainDeposit(cells []VoronoiCell, elevation []float64, buffer []float64, center int, deposit float64) {
+	if deposit <= 0 {
+		return
+	}
+	for _, neighborIdx := range cells[center].NeighborSiteIndices {
+		neighbor := int(neighborIdx)
+		if neighbor < 0 || neighbor >= len(elevation) || elevation[neighbor] <= 0 {
+			continue
+		}
+		if elevation[neighbor] > 500 {
+			continue
+		}
+		buffer[neighbor] += deposit * 0.55
 	}
 }

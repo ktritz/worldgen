@@ -21,19 +21,69 @@ func GenerateCurrentsStreamfunction(
 	elevation []float64,
 	seaLevelThreshold float64,
 	adj *FlatAdjacency,
-	basins []Basin, // Not used in wind-driven approach, kept for API compatibility
+	componentAssignments []int,
+	components []OceanComponent,
 	settings CurrentSettings,
 ) []Vector3D {
 	if settings.Verbose {
 		fmt.Println("  Generating wind-driven streamfunction (Sverdrup model)...")
 	}
 
-	// Generate wind-driven streamfunction
 	psi := GenerateWindDrivenStreamfunction(
-		vertices, elevation, seaLevelThreshold, adj,
+		vertices, elevation, seaLevelThreshold, adj, componentAssignments, components,
 		settings.TargetEdgeSpeed*15.0, // Scale factor for Ψ magnitude (higher = stronger gradients)
 	)
+	return currentsFromStreamfunction(
+		vertices, elevation, seaLevelThreshold, adj, psi, componentAssignments, components, settings,
+	)
+}
 
+// GenerateCurrentsStreamfunctionFromWind derives the Sverdrup streamfunction
+// from the generated surface wind field instead of the fixed latitude-only curl
+// pattern. A small fallback blend of the idealized curl is retained for
+// stability when local wind curl is weak or noisy.
+func GenerateCurrentsStreamfunctionFromWind(
+	vertices []Vector3D,
+	elevation []float64,
+	seaLevelThreshold float64,
+	adj *FlatAdjacency,
+	wind []Vector3D,
+	componentAssignments []int,
+	components []OceanComponent,
+	settings CurrentSettings,
+) []Vector3D {
+	if len(wind) != len(vertices) {
+		return GenerateCurrentsStreamfunction(vertices, elevation, seaLevelThreshold, adj, componentAssignments, components, settings)
+	}
+	if settings.Verbose {
+		fmt.Println("  Generating streamfunction from surface-wind stress curl...")
+	}
+
+	psi := GenerateWindDrivenStreamfunctionFromWind(
+		vertices,
+		elevation,
+		seaLevelThreshold,
+		adj,
+		wind,
+		componentAssignments,
+		components,
+		settings.TargetEdgeSpeed*15.0,
+	)
+	return currentsFromStreamfunction(
+		vertices, elevation, seaLevelThreshold, adj, psi, componentAssignments, components, settings,
+	)
+}
+
+func currentsFromStreamfunction(
+	vertices []Vector3D,
+	elevation []float64,
+	seaLevelThreshold float64,
+	adj *FlatAdjacency,
+	psi []float64,
+	componentAssignments []int,
+	components []OceanComponent,
+	settings CurrentSettings,
+) []Vector3D {
 	if settings.Verbose {
 		minPsi, maxPsi := psi[0], psi[0]
 		for _, p := range psi {
@@ -47,10 +97,8 @@ func GenerateCurrentsStreamfunction(
 		fmt.Printf("  Initial Ψ range: [%.4f, %.4f]\n", minPsi, maxPsi)
 	}
 
-	// Smooth to blend basin contributions
-	// Scale iterations for resolution independence: target angular diffusion distance
 	cellSize := estimateCellSize(vertices, adj)
-	const targetDiffusionAngular = 0.02 // radians ≈ 1.1 degrees
+	const targetDiffusionAngular = 0.02
 	scaledIterations := int(targetDiffusionAngular/cellSize) + 1
 	if scaledIterations < 1 {
 		scaledIterations = 1
@@ -76,12 +124,18 @@ func GenerateCurrentsStreamfunction(
 		fmt.Printf("  Smoothed Ψ range: [%.4f, %.4f]\n", minPsi, maxPsi)
 	}
 
-	// Compute velocity from streamfunction
 	if settings.Verbose {
 		fmt.Println("  Computing velocity from ∇Ψ...")
 	}
 	velocity := ComputeVelocityFromStreamfunction(
 		psi, vertices, elevation, seaLevelThreshold, adj,
+	)
+	coastLandDirs := CalculateCoastlineLandDirs(vertices, elevation, seaLevelThreshold, adj)
+	velocity = ApplyOceanStructure(
+		velocity, vertices, elevation, seaLevelThreshold, adj, coastLandDirs, componentAssignments, components,
+	)
+	velocity = EnforceCoastParallelFlow(
+		velocity, vertices, elevation, seaLevelThreshold, coastLandDirs, settings.CoastParallelBoost, settings.MaxAllowedSpeedSq,
 	)
 
 	if settings.Verbose {
@@ -95,10 +149,7 @@ func GenerateCurrentsStreamfunction(
 		fmt.Printf("  Raw velocity max: %.4f\n", maxSpeed)
 	}
 
-	// Smooth velocity field to remove coastal spikes while preserving bulk currents
-	// Spikes are isolated (unlike neighbors), western currents are coherent (similar neighbors)
-	// Channel speedup is physically reasonable - we just want to remove numerical artifacts
-	const velocitySmoothAngular = 0.035 // radians ≈ 2 degrees
+	const velocitySmoothAngular = 0.035
 	velocitySmoothIters := int(velocitySmoothAngular/cellSize) + 1
 	if velocitySmoothIters < 2 {
 		velocitySmoothIters = 2
@@ -106,9 +157,18 @@ func GenerateCurrentsStreamfunction(
 	if settings.Verbose {
 		fmt.Printf("  Smoothing velocity field (%d iterations)...\n", velocitySmoothIters)
 	}
-	velocity = SmoothVelocityField(
+	velocity = SmoothCurrents(
 		velocity, vertices, elevation, seaLevelThreshold, adj,
-		velocitySmoothIters, 0.35,
+		coastLandDirs,
+		CurrentSettings{
+			SmoothingIterations: velocitySmoothIters,
+			SmoothingFactor:     0.35,
+			CoastParallelBoost:  settings.CoastParallelBoost,
+			MaxAllowedSpeedSq:   settings.MaxAllowedSpeedSq,
+		},
+	)
+	velocity = EnforceCoastParallelFlow(
+		velocity, vertices, elevation, seaLevelThreshold, coastLandDirs, settings.CoastParallelBoost, settings.MaxAllowedSpeedSq,
 	)
 
 	if settings.Verbose {
@@ -123,6 +183,46 @@ func GenerateCurrentsStreamfunction(
 	}
 
 	return velocity
+}
+
+// EnforceCoastParallelFlow removes the normal-to-coast component of nearshore
+// currents using precomputed tangent directions toward land.
+func EnforceCoastParallelFlow(
+	currents []Vector3D,
+	vertices []Vector3D,
+	elevation []float64,
+	seaLevelThreshold float64,
+	coastLandDirs []Vector3D,
+	coastParallelBoost float64,
+	maxAllowedSpeedSq float64,
+) []Vector3D {
+	constrained := make([]Vector3D, len(currents))
+	copy(constrained, currents)
+
+	for i, current := range constrained {
+		if elevation[i] >= seaLevelThreshold || i >= len(coastLandDirs) {
+			continue
+		}
+
+		landDir := coastLandDirs[i]
+		if LengthSq(landDir) <= 1e-12 {
+			continue
+		}
+
+		dotPerp := Dot(current, landDir) / LengthSq(landDir)
+		parallel := Scale(Sub(current, Scale(landDir, dotPerp)), coastParallelBoost)
+		surfaceNormal := vertices[i]
+		dotNormal := Dot(parallel, surfaceNormal)
+		parallel = Sub(parallel, Scale(surfaceNormal, dotNormal))
+		parallelLenSq := LengthSq(parallel)
+		if !IsFinite(parallelLenSq) || parallelLenSq > maxAllowedSpeedSq {
+			constrained[i] = Vector3D{}
+			continue
+		}
+		constrained[i] = parallel
+	}
+
+	return constrained
 }
 
 // SmoothCurrents performs iterative smoothing passes to diffuse ocean currents.
@@ -178,8 +278,11 @@ func SmoothCurrents(
 
 			if landDirLenSq > 1e-12 {
 				// Coastline vertex: remove component perpendicular to coast
-				dotPerp := Dot(blend, landDir)
+				dotPerp := Dot(blend, landDir) / landDirLenSq
 				parallel := Sub(blend, Scale(landDir, dotPerp))
+				surfaceNormal := vertices[i]
+				dotNormal := Dot(parallel, surfaceNormal)
+				parallel = Sub(parallel, Scale(surfaceNormal, dotNormal))
 
 				// Apply coast parallel flow boost
 				parallel = Scale(parallel, settings.CoastParallelBoost)

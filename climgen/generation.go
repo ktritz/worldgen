@@ -34,6 +34,11 @@ func GenerateOceanCurrents(
 		fmt.Println("Step 1: Building flat adjacency structure...")
 	}
 	adj := BuildFlatAdjacency(cells)
+	componentAssignments, components := FindOceanComponents(elevation, seaLevelThreshold, adj)
+	displayAssignments, displayComponents := FilterComponentsBySize(
+		componentAssignments, components, settings.Basin.MinComponentSize,
+	)
+	basins := BuildBasinsFromComponents(vertices, displayComponents, settings.Basin.PolarLimitDeg)
 
 	// NOTE: Basin detection is no longer used for current generation.
 	// Wind-driven Sverdrup model creates gyres from latitude-based wind stress.
@@ -53,19 +58,13 @@ func GenerateOceanCurrents(
 		elevation,
 		seaLevelThreshold,
 		adj,
-		nil, // basins not used in wind-driven approach
+		componentAssignments,
+		components,
 		settings.Current,
 	)
 	if settings.Verbose {
 		fmt.Printf("  Streamfunction generation took: %.2fs\n", time.Since(streamStart).Seconds())
 	}
-
-	// Create empty basin data for result (preserved for API compatibility)
-	basinAssignments := make([]int, numVertices)
-	for i := range basinAssignments {
-		basinAssignments[i] = -1
-	}
-	var basins []Basin
 
 	// Calculate final statistics and quality metrics
 	if settings.Verbose {
@@ -82,7 +81,7 @@ func GenerateOceanCurrents(
 		}
 		fmt.Printf("\n=== Generation Complete ===\n")
 		fmt.Printf("  Total time: %.2fs\n", time.Since(startTime).Seconds())
-		fmt.Printf("  Basins: %d\n", len(basins))
+		fmt.Printf("  Basins: %d\n", len(displayComponents))
 		fmt.Printf("  Vertices with currents: %d\n", nonZeroCount)
 		fmt.Printf("  Max speed: %.4f\n", maxSpeed)
 
@@ -101,7 +100,84 @@ func GenerateOceanCurrents(
 
 	return &OceanCurrentResult{
 		Currents:         smoothedCurrents,
-		BasinAssignments: basinAssignments,
+		BasinAssignments: displayAssignments,
+		Basins:           basins,
+	}, nil
+}
+
+// GenerateOceanCurrentsWithWind runs the current-generation pipeline using a
+// marine wind field as the primary curl forcing.
+func GenerateOceanCurrentsWithWind(
+	vertices []Vector3D,
+	cells []VoronoiCell,
+	elevation []float64,
+	seaLevelThreshold float64,
+	wind []Vector3D,
+	settings OceanCurrentSettings,
+) (*OceanCurrentResult, error) {
+	settings.ApplyVerbose()
+
+	if err := settings.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid settings: %w", err)
+	}
+
+	numVertices := len(vertices)
+	if settings.Verbose {
+		fmt.Println("=== Ocean Current Generation Pipeline (Wind Forced) ===")
+		fmt.Printf("  Vertices: %d\n", numVertices)
+	}
+
+	startTime := time.Now()
+	if settings.Verbose {
+		fmt.Println("Step 1: Building flat adjacency structure...")
+	}
+	adj := BuildFlatAdjacency(cells)
+	componentAssignments, components := FindOceanComponents(elevation, seaLevelThreshold, adj)
+	displayAssignments, displayComponents := FilterComponentsBySize(
+		componentAssignments, components, settings.Basin.MinComponentSize,
+	)
+	basins := BuildBasinsFromComponents(vertices, displayComponents, settings.Basin.PolarLimitDeg)
+
+	if settings.Verbose {
+		fmt.Println("Step 2: Generating currents from marine-wind curl...")
+	}
+	streamStart := time.Now()
+	smoothedCurrents := GenerateCurrentsStreamfunctionFromWind(
+		vertices,
+		elevation,
+		seaLevelThreshold,
+		adj,
+		wind,
+		componentAssignments,
+		components,
+		settings.Current,
+	)
+	if settings.Verbose {
+		fmt.Printf("  Wind-forced generation took: %.2fs\n", time.Since(streamStart).Seconds())
+	}
+
+	if settings.Verbose {
+		maxSpeed := 0.0
+		nonZeroCount := 0
+		for _, c := range smoothedCurrents {
+			speed := Length(c)
+			if speed > 1e-9 {
+				nonZeroCount++
+				if speed > maxSpeed {
+					maxSpeed = speed
+				}
+			}
+		}
+		fmt.Printf("\n=== Generation Complete ===\n")
+		fmt.Printf("  Total time: %.2fs\n", time.Since(startTime).Seconds())
+		fmt.Printf("  Basins: %d\n", len(displayComponents))
+		fmt.Printf("  Vertices with currents: %d\n", nonZeroCount)
+		fmt.Printf("  Max speed: %.4f\n", maxSpeed)
+	}
+
+	return &OceanCurrentResult{
+		Currents:         smoothedCurrents,
+		BasinAssignments: displayAssignments,
 		Basins:           basins,
 	}, nil
 }

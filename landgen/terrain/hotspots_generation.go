@@ -6,6 +6,7 @@ package terrain
 import (
 	"math"
 	"math/rand"
+	"sort"
 )
 
 // PlaceHotspots creates hotspots and traces their island chains
@@ -151,30 +152,36 @@ func traceHotspotChain(
 
 	// Base spacing with variation range
 	baseSpacing := IslandSpacingRadians
-	minSpacing := baseSpacing * 0.5 // Clustered islands
-	maxSpacing := baseSpacing * 2.5 // Gaps in chain
+	minSpacing := baseSpacing * 0.45 // Clustered islands
+	maxSpacing := baseSpacing * 2.9  // Broad gaps in chain
 
-	// Orthogonal jitter - perpendicular displacement for natural wandering
-	// Amount scales with spacing to maintain proportions
-	jitterScale := baseSpacing * 0.3 // Up to 30% of spacing as sideways wander
-
-	// Direction change (bend) parameters
-	// Longer chains have higher probability of experiencing a plate motion change
-	// Hawaiian-Emperor bend is ~60°, we'll use 30-70° range
-	bendProbability := 0.0
-	if hotspotLifetime > 1.5 {
-		bendProbability = 0.4 // 40% chance for ancient chains
-	} else if hotspotLifetime > 1.0 {
-		bendProbability = 0.2 // 20% chance for mature chains
-	} else if hotspotLifetime > 0.7 {
-		bendProbability = 0.08 // 8% chance for middle-aged
+	// Orthogonal jitter - use correlated low-frequency wander instead of
+	// independent per-step offsets, so chains meander more naturally and avoid
+	// looking like evenly dotted bead strings.
+	jitterScale := baseSpacing * 0.45
+	lateralOffset := 0.0
+	lateralVelocity := (rng.Float64() - 0.5) * jitterScale * 0.4
+	spacingFactor := 0.85 + 0.5*rng.Float64()
+	spacingDrift := (rng.Float64() - 0.5) * 0.08
+	baselineActivity := 0.50 + 0.25*rng.Float64()
+	if hotspot.IsOceanic {
+		baselineActivity += 0.05
+	} else {
+		baselineActivity -= 0.05
 	}
-	hasBend := rng.Float64() < bendProbability
-	bendPosition := 0.3 + 0.4*rng.Float64() // Bend occurs 30-70% along chain
-	bendApplied := false
+	activity := baselineActivity
+	activityVelocity := (rng.Float64() - 0.5) * 0.06
+	quietStepsRemaining := 0
+	burstStepsRemaining := 0
+
+	// Some chains preserve a simple motion history, with one or two changes in
+	// direction and eruption regime rather than a single stationary process.
+	historyEvents := sampleHotspotHistoryEvents(hotspotLifetime, hotspot.IsOceanic, rng)
+	nextHistoryEvent := 0
 
 	chainLength := 0.0
 	stepsSinceLastIsland := 0
+	distanceSinceLastIsland := baseSpacing
 
 	for chainLength < maxChainLength {
 		// Find the nearest cell to current position
@@ -193,92 +200,124 @@ func traceHotspotChain(
 			break // Continental hotspot hit oceanic plate
 		}
 
-		// Random spacing for this step
-		thisSpacing := minSpacing + rng.Float64()*(maxSpacing-minSpacing)
+		// Let spacing and eruptive activity evolve gradually. This produces
+		// clustered bursts and quieter runs instead of a chain that drops one
+		// similarly sized island every roughly fixed interval.
+		spacingDrift += (rng.Float64() - 0.5) * 0.06
+		spacingDrift = Clamp(spacingDrift, -0.12, 0.12)
+		spacingFactor += spacingDrift
+		spacingFactor = Clamp(spacingFactor, 0.65, 1.9)
+
+		activityVelocity += (rng.Float64() - 0.5) * 0.10
+		activityVelocity *= 0.72
+		activityVelocity = Clamp(activityVelocity, -0.10, 0.10)
+		activity += activityVelocity + (baselineActivity-activity)*0.18
+
+		if quietStepsRemaining == 0 && burstStepsRemaining == 0 {
+			roll := rng.Float64()
+			switch {
+			case roll < 0.10:
+				quietStepsRemaining = 2 + rng.Intn(5)
+			case roll < 0.28:
+				burstStepsRemaining = 2 + rng.Intn(5)
+			}
+		}
+
+		thisSpacing := baseSpacing * spacingFactor
+		if quietStepsRemaining > 0 {
+			activity -= 0.16 + 0.12*rng.Float64()
+			thisSpacing *= 1.30 + 0.40*rng.Float64()
+			quietStepsRemaining--
+		} else if burstStepsRemaining > 0 {
+			activity += 0.18 + 0.12*rng.Float64()
+			thisSpacing *= 0.55 + 0.25*rng.Float64()
+			burstStepsRemaining--
+		}
+		activity = Clamp(activity, 0.12, 1.35)
+		thisSpacing *= Clamp(1.25-0.40*activity, 0.55, 1.55)
+		thisSpacing = Clamp(thisSpacing, minSpacing, maxSpacing)
 
 		// Skip if already visited
 		if visited[cellIdx] {
 			currentPos = backwardRotation.RotatePoint(currentPos, thisSpacing)
 			chainLength += thisSpacing
 			stepsSinceLastIsland++
+			distanceSinceLastIsland += thisSpacing
 			continue
 		}
 
 		// Probability of forming an island at this position
 		// Higher probability if we haven't had an island in a while (ensures some continuity)
 		// Lower probability allows for occasional gaps
-		formationProb := 0.75 + 0.08*float64(stepsSinceLastIsland) // 75% base, increases with gaps
+		minIslandSpacing := baseSpacing * Clamp(1.35-0.55*activity, 0.55, 1.60)
+		formationProb := 0.28 + 0.45*activity + 0.07*float64(stepsSinceLastIsland)
+		if distanceSinceLastIsland < 0.70*minIslandSpacing {
+			formationProb *= 0.35
+		}
+		if quietStepsRemaining > 0 {
+			formationProb -= 0.18
+		} else if burstStepsRemaining > 0 {
+			formationProb += 0.14
+		}
 		if formationProb > 0.98 {
 			formationProb = 0.98
 		}
+		if formationProb < 0.10 {
+			formationProb = 0.10
+		}
 
-		if rng.Float64() < formationProb {
+		if rng.Float64() < formationProb && (distanceSinceLastIsland >= 0.45*minIslandSpacing || stepsSinceLastIsland >= 2) {
 			visited[cellIdx] = true
 			stepsSinceLastIsland = 0
 
 			// Add island with age based on chain position
 			age := chainLength / maxChainLength
+			strength := 0.45 + 0.75*activity + (rng.Float64()-0.5)*0.25
+			strength = Clamp(strength, 0.35, 1.55)
 			chain.Islands = append(chain.Islands, HotspotIsland{
 				CellIndex: cellIdx,
 				Age:       age,
+				Strength:  strength,
 			})
+			distanceSinceLastIsland = 0
 		} else {
 			stepsSinceLastIsland++
 		}
 
-		// Check for direction change (bend) at this position
+		// Apply any motion-history changes reached at this point in the track.
 		chainProgress := chainLength / maxChainLength
-		if hasBend && !bendApplied && chainProgress >= bendPosition {
-			// Apply a significant change in pole direction (30-70 degrees)
-			bendAngle := (30.0 + 40.0*rng.Float64()) * math.Pi / 180.0
-
-			// Rotate the pole around the current position
-			// This simulates a change in plate motion direction
-			sinB, cosB := math.Sin(bendAngle), math.Cos(bendAngle)
-
-			// Create rotation around currentPos axis
-			oldPole := backwardRotation.Pole
-			// Rodrigues' rotation formula components
-			dot := oldPole.X*currentPos.X + oldPole.Y*currentPos.Y + oldPole.Z*currentPos.Z
-			crossX := currentPos.Y*oldPole.Z - currentPos.Z*oldPole.Y
-			crossY := currentPos.Z*oldPole.X - currentPos.X*oldPole.Z
-			crossZ := currentPos.X*oldPole.Y - currentPos.Y*oldPole.X
-
-			newPole := Vector3D{
-				X: oldPole.X*cosB + crossX*sinB + currentPos.X*dot*(1-cosB),
-				Y: oldPole.Y*cosB + crossY*sinB + currentPos.Y*dot*(1-cosB),
-				Z: oldPole.Z*cosB + crossZ*sinB + currentPos.Z*dot*(1-cosB),
-			}
-
-			// Normalize new pole
-			poleMag := math.Sqrt(newPole.X*newPole.X + newPole.Y*newPole.Y + newPole.Z*newPole.Z)
-			if poleMag > 0.1 {
-				backwardRotation.Pole = Vector3D{
-					X: newPole.X / poleMag,
-					Y: newPole.Y / poleMag,
-					Z: newPole.Z / poleMag,
-				}
-			}
-			bendApplied = true
+		for nextHistoryEvent < len(historyEvents) && chainProgress >= historyEvents[nextHistoryEvent].Progress {
+			event := historyEvents[nextHistoryEvent]
+			backwardRotation.Pole = rotatePoleAroundPoint(backwardRotation.Pole, currentPos, event.BendAngle)
+			backwardRotation.AngularVelocity *= event.VelocityScale
+			baselineActivity = Clamp(baselineActivity+event.ActivityShift, 0.18, 0.98)
+			activity = Clamp(activity+event.ActivityShift*0.75, 0.12, 1.35)
+			spacingFactor = Clamp(spacingFactor*(1.0-0.18*event.ActivityShift), 0.60, 2.10)
+			lateralVelocity *= 0.45
+			lateralOffset *= 0.55
+			nextHistoryEvent++
 		}
 
 		// Rotate backward around the Euler pole
 		currentPos = backwardRotation.RotatePoint(currentPos, thisSpacing)
 		chainLength += thisSpacing
 
-		// Apply orthogonal jitter - sideways displacement perpendicular to travel
-		// Find perpendicular direction by crossing current position with pole
+		// Apply correlated orthogonal wander - sideways displacement perpendicular
+		// to travel, with inertia so the chain bends gradually instead of hopping.
 		perpX := currentPos.Y*backwardRotation.Pole.Z - currentPos.Z*backwardRotation.Pole.Y
 		perpY := currentPos.Z*backwardRotation.Pole.X - currentPos.X*backwardRotation.Pole.Z
 		perpZ := currentPos.X*backwardRotation.Pole.Y - currentPos.Y*backwardRotation.Pole.X
 		perpMag := math.Sqrt(perpX*perpX + perpY*perpY + perpZ*perpZ)
 
 		if perpMag > 0.01 {
-			// Normalize and apply random jitter
-			jitterAmount := (rng.Float64() - 0.5) * 2 * jitterScale
-			currentPos.X += (perpX / perpMag) * jitterAmount
-			currentPos.Y += (perpY / perpMag) * jitterAmount
-			currentPos.Z += (perpZ / perpMag) * jitterAmount
+			lateralVelocity += (rng.Float64() - 0.5) * jitterScale * (0.10 + 0.08*activity)
+			lateralVelocity = Clamp(lateralVelocity, -jitterScale*(0.45+0.20*activity), jitterScale*(0.45+0.20*activity))
+			lateralOffset += lateralVelocity
+			lateralOffset = Clamp(lateralOffset, -jitterScale*(0.9+0.35*activity), jitterScale*(0.9+0.35*activity))
+
+			currentPos.X += (perpX / perpMag) * lateralOffset
+			currentPos.Y += (perpY / perpMag) * lateralOffset
+			currentPos.Z += (perpZ / perpMag) * lateralOffset
 		}
 
 		// Normalize to stay on unit sphere
@@ -288,6 +327,7 @@ func traceHotspotChain(
 			currentPos.Y /= mag
 			currentPos.Z /= mag
 		}
+		distanceSinceLastIsland += thisSpacing
 	}
 
 	return chain
@@ -322,4 +362,73 @@ func findNearestCell(sites []Vector3D, pos Vector3D) int {
 	}
 
 	return bestIdx
+}
+
+type hotspotHistoryEvent struct {
+	Progress      float64
+	BendAngle     float64
+	VelocityScale float64
+	ActivityShift float64
+}
+
+func sampleHotspotHistoryEvents(hotspotLifetime float64, isOceanic bool, rng *rand.Rand) []hotspotHistoryEvent {
+	events := make([]hotspotHistoryEvent, 0, 2)
+
+	firstChance := 0.0
+	secondChance := 0.0
+	switch {
+	case hotspotLifetime > 1.8:
+		firstChance, secondChance = 0.65, 0.35
+	case hotspotLifetime > 1.2:
+		firstChance, secondChance = 0.38, 0.15
+	case hotspotLifetime > 0.8:
+		firstChance = 0.16
+	}
+
+	if rng.Float64() < firstChance {
+		events = append(events, randomHistoryEvent(0.22, 0.58, isOceanic, rng))
+	}
+	if rng.Float64() < secondChance {
+		events = append(events, randomHistoryEvent(0.52, 0.84, isOceanic, rng))
+	}
+	sort.Slice(events, func(i, j int) bool { return events[i].Progress < events[j].Progress })
+	if len(events) == 2 && events[1].Progress-events[0].Progress < 0.12 {
+		events[1].Progress = Clamp(events[0].Progress+0.12, 0.58, 0.88)
+	}
+	return events
+}
+
+func randomHistoryEvent(minProgress, maxProgress float64, isOceanic bool, rng *rand.Rand) hotspotHistoryEvent {
+	bendDegrees := 12.0 + 26.0*rng.Float64()
+	if isOceanic {
+		bendDegrees += 8.0 * rng.Float64()
+	}
+	if rng.Float64() < 0.5 {
+		bendDegrees = -bendDegrees
+	}
+
+	return hotspotHistoryEvent{
+		Progress:      minProgress + (maxProgress-minProgress)*rng.Float64(),
+		BendAngle:     bendDegrees * math.Pi / 180.0,
+		VelocityScale: 0.75 + 0.55*rng.Float64(),
+		ActivityShift: (rng.Float64() - 0.5) * 0.45,
+	}
+}
+
+func rotatePoleAroundPoint(pole, axis Vector3D, angle float64) Vector3D {
+	sinA, cosA := math.Sin(angle), math.Cos(angle)
+	dot := pole.X*axis.X + pole.Y*axis.Y + pole.Z*axis.Z
+	crossX := axis.Y*pole.Z - axis.Z*pole.Y
+	crossY := axis.Z*pole.X - axis.X*pole.Z
+	crossZ := axis.X*pole.Y - axis.Y*pole.X
+
+	rotated := Vector3D{
+		X: pole.X*cosA + crossX*sinA + axis.X*dot*(1-cosA),
+		Y: pole.Y*cosA + crossY*sinA + axis.Y*dot*(1-cosA),
+		Z: pole.Z*cosA + crossZ*sinA + axis.Z*dot*(1-cosA),
+	}
+	if rotated.Length() < 1e-9 {
+		return pole
+	}
+	return rotated.Normalize()
 }

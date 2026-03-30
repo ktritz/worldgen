@@ -15,6 +15,7 @@ type Hotspot struct {
 type HotspotIsland struct {
 	CellIndex int     // Index of the cell containing this island
 	Age       float64 // Normalized age: 0 = newest (active), 1 = oldest
+	Strength  float64 // Relative eruption strength for this position in the chain
 }
 
 // HotspotChain represents a complete island chain from a hotspot

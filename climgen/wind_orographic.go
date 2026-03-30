@@ -16,10 +16,12 @@ import (
 
 // Slope effect constants
 const (
-	slopeUphillScale   = 0.5  // Speed reduction per unit elevation gain
-	slopeDownhillScale = 0.4  // Speed increase per unit elevation drop
-	slopeMinFactor     = 0.2  // Minimum speed factor from uphill
-	slopeMaxFactor     = 1.4  // Maximum speed factor from downhill (foehn/chinook)
+	earthRadiusKm            = 6371.0
+	slopeDeadbandMPerKm      = 0.8
+	slopeUphillResponse      = 0.022
+	slopeDownhillResponse    = 0.015
+	slopeUphillMaxFactor     = 0.78
+	slopeDownhillMaxFactor   = 1.12
 )
 
 // ApplyOrographicDeflection modifies wind field for mountain effects.
@@ -45,7 +47,7 @@ func ApplyOrographicDeflection(
 	for i := range vertices {
 		if isMountain[i] {
 			// Mountains have severely reduced surface wind (blocked)
-			deflectedWind[i] = Scale(wind[i], 0.1)
+			deflectedWind[i] = Scale(wind[i], 0.25)
 			continue
 		}
 
@@ -59,14 +61,13 @@ func ApplyOrographicDeflection(
 
 		// Check neighbors for mountains in the downwind direction
 		var blockingForce Vector3D
-		mountainNeighbors := 0
-		totalNeighbors := 0
+		var alignedWeight float64
+		var barrierWeight float64
 
 		for _, k := range adj.GetNeighbors(i) {
 			if k < 0 || k >= numVertices {
 				continue
 			}
-			totalNeighbors++
 
 			// Vector to neighbor in tangent plane
 			diff := Sub(vertices[k], vertices[i])
@@ -81,10 +82,20 @@ func ApplyOrographicDeflection(
 
 			// Is this neighbor downwind?
 			downwindness := Dot(tangentDir, windDir)
+			if downwindness <= 0.15 {
+				continue
+			}
+			alignedWeight += downwindness
 
-			if downwindness > 0.3 && isMountain[k] {
+			if isMountain[k] {
 				// Downwind mountain - contributes to blocking
-				mountainNeighbors++
+				mountainStrength := smoothRamp(
+					settings.BlockingThreshold,
+					settings.BlockingThreshold*2.5,
+					elevation[k],
+				)
+				barrier := downwindness * (0.35 + 0.65*mountainStrength)
+				barrierWeight += barrier
 
 				// Push perpendicular to wind direction (around the obstacle)
 				// Use cross product with normal to get perpendicular in tangent plane
@@ -101,33 +112,33 @@ func ApplyOrographicDeflection(
 						deflectDir = Scale(perpToWind, -1) // Deflect the other way
 					}
 
-					blockingForce = Add(blockingForce, Scale(deflectDir, downwindness))
+					blockingForce = Add(blockingForce, Scale(deflectDir, barrier))
 				}
 			}
 		}
 
-		// If partially surrounded by mountains, channel through gaps
-		var channelFactor float64 = 1.0
-		if totalNeighbors > 0 {
-			mountainRatio := float64(mountainNeighbors) / float64(totalNeighbors)
-			if mountainRatio > 0 && mountainRatio < 0.7 {
-				// Gap channeling: speed up through available space
-				channelFactor = 1.0 + (settings.ChannelSpeedup-1.0)*mountainRatio
-			} else if mountainRatio >= 0.7 {
-				// Nearly blocked - reduce speed significantly
-				channelFactor = 0.3
-			}
+		terrainResponse := smoothRamp(0.18, 0.55, windSpeed)
+		barrierFraction := 0.0
+		if alignedWeight > 1e-9 {
+			barrierFraction = Clamp(barrierWeight/alignedWeight, 0, 1)
 		}
+		effectiveBarrier := barrierFraction * (0.25 + 0.75*terrainResponse)
+		// Terrain should bend and modestly slow low-level flow, but not collapse it
+		// into numerical sinks because a few neighbors happen to be mountainous.
+		channelFactor := 1.0 - 0.18*effectiveBarrier
+		channelFactor += 0.08 * (settings.ChannelSpeedup - 1.0) * effectiveBarrier * (1.0 - effectiveBarrier)
+		channelFactor = Clamp(channelFactor, 0.78, settings.ChannelSpeedup)
 
 		// Apply deflection
 		blockingLen := Length(blockingForce)
 		if blockingLen > 1e-9 {
 			blockingForce = Scale(blockingForce, 1.0/blockingLen)
+			deflectStrength := settings.DeflectionStrength * (0.18 + 0.82*effectiveBarrier)
 
 			// Blend original direction with deflected direction
 			deflectedDir := Add(
-				Scale(windDir, 1.0-settings.DeflectionStrength),
-				Scale(blockingForce, settings.DeflectionStrength),
+				Scale(windDir, 1.0-deflectStrength),
+				Scale(blockingForce, deflectStrength),
 			)
 
 			// Renormalize
@@ -168,21 +179,6 @@ func ApplySlopeEffects(
 	result := make([]Vector3D, numVertices)
 	copy(result, wind)
 
-	// Normalize elevation to 0-1 range for consistent slope scaling
-	minElev, maxElev := elevation[0], elevation[0]
-	for _, e := range elevation {
-		if e < minElev {
-			minElev = e
-		}
-		if e > maxElev {
-			maxElev = e
-		}
-	}
-	elevRange := maxElev - minElev
-	if elevRange < 1e-9 {
-		return result // Flat world, no slope effects
-	}
-
 	for i := range vertices {
 		windSpeed := Length(wind[i])
 		if windSpeed < 1e-9 {
@@ -190,10 +186,8 @@ func ApplySlopeEffects(
 		}
 		windDir := Scale(wind[i], 1.0/windSpeed)
 		normal := vertices[i]
-
-		// Find the neighbor most aligned with wind direction (downwind)
-		bestDot := -1.0
-		bestNeighbor := -1
+		var totalWeight float64
+		var directionalSlope float64
 
 		for _, k := range adj.GetNeighbors(i) {
 			if k < 0 || k >= numVertices {
@@ -211,30 +205,44 @@ func ApplySlopeEffects(
 			}
 			tangentDir := Scale(tangentDiff, 1.0/tangentLen)
 
-			// How aligned is this neighbor with wind direction?
 			alignment := Dot(tangentDir, windDir)
-			if alignment > bestDot {
-				bestDot = alignment
-				bestNeighbor = k
+			if alignment <= 0 {
+				continue
 			}
+			angularDist := math.Acos(Clamp(Dot(vertices[i], vertices[k]), -1, 1))
+			distKm := angularDist * earthRadiusKm
+			if distKm < 1e-6 {
+				continue
+			}
+			localSlope := (elevation[k] - elevation[i]) / distKm
+			weight := alignment * alignment
+			directionalSlope += localSlope * weight
+			totalWeight += weight
 		}
 
-		// Apply slope effect if we found a reasonably aligned downwind neighbor
-		if bestNeighbor >= 0 && bestDot > 0.3 {
-			// Elevation difference normalized to 0-1 range
-			elevDiff := (elevation[bestNeighbor] - elevation[i]) / elevRange
-
-			var slopeFactor float64
-			if elevDiff > 0 {
-				// Going uphill (downwind is higher) - decelerate
-				slopeFactor = math.Max(slopeMinFactor, 1.0-elevDiff*slopeUphillScale*10)
-			} else {
-				// Going downhill (downwind is lower) - accelerate
-				slopeFactor = math.Min(slopeMaxFactor, 1.0-elevDiff*slopeDownhillScale*10)
-			}
-
-			result[i] = Scale(wind[i], slopeFactor)
+		if totalWeight < 1e-9 {
+			continue
 		}
+		directionalSlope /= totalWeight
+		if math.Abs(directionalSlope) <= slopeDeadbandMPerKm {
+			continue
+		}
+
+		slopeFactor := 1.0
+		if directionalSlope > 0 {
+			effectiveSlope := directionalSlope - slopeDeadbandMPerKm
+			slopeFactor = math.Max(
+				slopeUphillMaxFactor,
+				1.0-effectiveSlope*slopeUphillResponse,
+			)
+		} else {
+			effectiveSlope := -directionalSlope - slopeDeadbandMPerKm
+			slopeFactor = math.Min(
+				slopeDownhillMaxFactor,
+				1.0+effectiveSlope*slopeDownhillResponse,
+			)
+		}
+		result[i] = Scale(wind[i], slopeFactor)
 	}
 
 	return result

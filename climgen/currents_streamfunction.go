@@ -1,8 +1,6 @@
 package climgen
 
-import (
-	"math"
-)
+import "math"
 
 // =============================================================================
 // STREAMFUNCTION-BASED CURRENT GENERATION
@@ -29,10 +27,13 @@ func GenerateWindDrivenStreamfunction(
 	elevation []float64,
 	seaLevelThreshold float64,
 	adj *FlatAdjacency,
+	componentAssignments []int,
+	components []OceanComponent,
 	strength float64,
 ) []float64 {
 	numVertices := len(vertices)
 	psi := make([]float64, numVertices)
+	componentScale := BuildComponentScaleField(vertices, componentAssignments, components)
 
 	// Identify coastline vertices
 	isWater := make([]bool, numVertices)
@@ -52,7 +53,9 @@ func GenerateWindDrivenStreamfunction(
 
 	// Compute fetch from EASTERN boundary (proper Sverdrup dynamics)
 	// Ψ starts at 0 on eastern coast and builds westward
-	eastFetch := ComputeEasternBoundaryFetch(vertices, elevation, seaLevelThreshold, adj)
+	eastFetch := ComputeEasternBoundaryFetchByComponent(
+		vertices, elevation, seaLevelThreshold, adj, componentAssignments, components,
+	)
 
 	// Compute wind stress curl contribution to streamfunction
 	// Sverdrup balance: β * v = curl(τ) / ρH
@@ -81,7 +84,11 @@ func GenerateWindDrivenStreamfunction(
 
 		// Sverdrup streamfunction: Ψ ∝ curl(τ) / β * fetch_from_east
 		// This naturally gives Ψ=0 at eastern boundary, max Ψ in western interior
-		psi[i] = strength * windCurl / beta * eastFetch[i]
+		scale := 1.0
+		if len(componentScale) == len(vertices) {
+			scale = componentScale[i]
+		}
+		psi[i] = strength * windCurl / beta * eastFetch[i] * scale
 	}
 
 	return psi

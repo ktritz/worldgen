@@ -13,18 +13,19 @@ const (
 	BiomeOcean Biome = iota
 	BiomeIceCap
 	BiomeTundra
-	BiomeBorealForest      // Taiga
+	BiomeBorealForest // Taiga
 	BiomeTemperateRainforest
-	BiomeTemperateForest   // Deciduous
+	BiomeTemperateForest // Deciduous
 	BiomeTemperateGrassland
 	BiomeMediterranean
 	BiomeDesertCold
 	BiomeDesertHot
-	BiomeSemiArid          // Steppe
+	BiomeSemiArid // Steppe
 	BiomeSavanna
 	BiomeTropicalSeasonalForest
 	BiomeTropicalRainforest
-	BiomeAlpine            // High elevation
+	BiomeWetland
+	BiomeAlpine // High elevation
 )
 
 // BiomeName returns human-readable name for a biome
@@ -44,6 +45,7 @@ func BiomeName(b Biome) string {
 		"Savanna",
 		"Tropical Seasonal Forest",
 		"Tropical Rainforest",
+		"Wetland",
 		"Alpine",
 	}
 	if int(b) < len(names) {
@@ -54,7 +56,8 @@ func BiomeName(b Biome) string {
 
 // BiomeResult holds computed biomes for each cell
 type BiomeResult struct {
-	Biomes []Biome
+	Biomes      []Biome
+	Diagnostics *BiomeDiagnostics
 }
 
 // ClassifyBiomes assigns a biome to each cell based on temperature and precipitation.

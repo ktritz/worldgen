@@ -11,33 +11,33 @@ var earthHypsometry = []struct {
 	fraction  float64
 }{
 	{-10000, 0.00},
-	{-9000, 0.001},
-	{-8000, 0.004},
-	{-7000, 0.01},
-	{-6000, 0.04},
-	{-5500, 0.10},
-	{-5000, 0.20},
-	{-4500, 0.35},
-	{-4000, 0.50},
-	{-3500, 0.58},
-	{-3000, 0.62},
-	{-2500, 0.65},
-	{-2000, 0.67},
-	{-1500, 0.68},
-	{-1000, 0.69},
-	{-500, 0.70},
-	{-200, 0.705},
-	{0, 0.71},      // Sea level - 71% of Earth is ocean
-	{200, 0.78},
-	{500, 0.85},
-	{1000, 0.92},
-	{1500, 0.96},
-	{2000, 0.98},
-	{3000, 0.99},
-	{4000, 0.995},
-	{5000, 0.998},
+	{-9000, 0.0002},
+	{-8000, 0.0008},
+	{-7000, 0.003},
+	{-6000, 0.010},
+	{-5500, 0.065},
+	{-5000, 0.160},
+	{-4500, 0.285},
+	{-4000, 0.390},
+	{-3500, 0.465},
+	{-3000, 0.532},
+	{-2500, 0.585},
+	{-2000, 0.626},
+	{-1500, 0.642},
+	{-1000, 0.649},
+	{-500, 0.653},
+	{-200, 0.654},
+	{0, 0.708}, // Sea level - 70.8% of Earth is ocean
+	{200, 0.760},
+	{500, 0.825},
+	{1000, 0.902},
+	{1500, 0.940},
+	{2000, 0.960},
+	{3000, 0.980},
+	{4000, 0.989},
+	{5000, 0.996},
 	{6000, 0.999},
-	{8848, 1.00},   // Everest
+	{8848, 1.00}, // Everest
 }
 
 // ApplyEarthHypsometry remaps elevations to match Earth's hypsometric distribution
@@ -66,8 +66,8 @@ func ApplyEarthHypsometry(elevation []float64, targetLandFraction float64) []flo
 	}
 	seaLevel := sorted[seaLevelIdx]
 
-	// Earth's sea level is at 71% ocean (fraction 0.71)
-	earthOceanFraction := 0.71
+	// Earth's sea level is at 70.8% ocean.
+	earthOceanFraction := EarthOceanCoverage
 
 	// Map each elevation
 	for i, e := range elevation {

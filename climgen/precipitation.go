@@ -26,25 +26,40 @@ import (
 
 // PrecipitationSettings controls the precipitation calculation
 type PrecipitationSettings struct {
-	EvaporationRate    float64 // Moisture added per ocean cell (0-1)
-	OrographicStrength float64 // How strongly elevation limits moisture (0-1)
-	RainfallFraction   float64 // Fraction of moisture that falls as rain per km traveled
-	MinElevation       float64 // Elevation floor for normalization (meters, e.g., -10000)
-	MaxElevation       float64 // Elevation ceiling for normalization (meters, e.g., 8000)
-	TemperatureEffect  float64 // How much temperature affects evaporation (0-1)
-	PrecipitationScale float64 // Scale factor to convert to cm/year (0 = keep normalized)
+	EvaporationRate            float64   // Moisture added per ocean cell (0-1)
+	OrographicStrength         float64   // How strongly elevation limits moisture (0-1)
+	RainfallFraction           float64   // Fraction of moisture that falls as rain per km traveled
+	MinElevation               float64   // Elevation floor for normalization (meters, e.g., -10000)
+	MaxElevation               float64   // Elevation ceiling for normalization (meters, e.g., 8000)
+	TemperatureEffect          float64   // How much temperature affects land moisture capacity (0-1)
+	OceanEvaporationTempEffect float64   // How much ocean temperature modulates evaporation (0-1)
+	LandSourceScale            float64   // Global scale for direct land moisture source / recycling
+	LandRecyclingScale         float64   // Global scale for evapotranspiration-driven land recycling
+	LandSourceLocalScale       []float64 // Optional per-cell land-source modulation
+	LandRecyclingLocalScale    []float64 // Optional per-cell recycling modulation
+	TropicalSourceLocalScale   []float64 // Optional per-cell tropical/monsoon marine-source modulation
+	FrontalSourceLocalScale    []float64 // Optional per-cell frontal storm-moisture source modulation
+	FrontalRetentionLocalScale []float64 // Optional per-cell frontal storm-moisture retention modulation
+	FrontalTransportLocalScale []float64 // Optional per-cell broad storm-band transport modulation
+	LandSurfaceStorage         []float64 // Optional per-cell land-water storage for evapotranspiration
+	CondensationLocalScale     []float64 // Optional per-cell condensation modulation
+	LandRetentionLocalScale    []float64 // Optional per-cell moisture-retention modulation
+	PrecipitationScale         float64   // Scale factor to convert to cm/year (0 = keep normalized)
 }
 
 // DefaultPrecipitationSettings returns reasonable defaults
 func DefaultPrecipitationSettings() PrecipitationSettings {
 	return PrecipitationSettings{
-		EvaporationRate:    1.0,     // Full moisture saturation over ocean
-		OrographicStrength: 0.65,    // Moderate orographic effect (reduced from 0.8)
-		RainfallFraction:   0.001,   // Fraction per km - balance coast/interior rain
-		MinElevation:       -10000,  // Ocean floor
-		MaxElevation:       6000,    // High mountains
-		TemperatureEffect:  0.3,     // Reduced temp effect to ensure consistent moisture
-		PrecipitationScale: 2400.0,  // Scale to cm/year (target 100 cm avg with 20cm baseline)
+		EvaporationRate:            1.0,    // Full moisture saturation over ocean
+		OrographicStrength:         0.65,   // Moderate orographic effect (reduced from 0.8)
+		RainfallFraction:           0.001,  // Fraction per km - balance coast/interior rain
+		MinElevation:               -10000, // Ocean floor
+		MaxElevation:               6000,   // High mountains
+		TemperatureEffect:          0.3,    // Reduced temp effect to ensure consistent moisture
+		OceanEvaporationTempEffect: 0.18,   // Let warm/cold source waters modestly affect annual moisture supply
+		LandSourceScale:            1.0,
+		LandRecyclingScale:         1.0,
+		PrecipitationScale:         2400.0, // Scale to cm/year (target 100 cm avg with 20cm baseline)
 	}
 }
 
@@ -55,7 +70,83 @@ type PrecipitationResult struct {
 	Precipitation []float64
 
 	// Moisture is the atmospheric moisture at each cell after transport
-	Moisture []float64
+	Moisture        []float64
+	MarineMoisture  []float64
+	LandMoisture    []float64
+	FrontalMoisture []float64
+
+	// Rainfall and Snowfall partition total precipitation into liquid and
+	// solid-water equivalents using local temperature.
+	Rainfall             []float64
+	Snowfall             []float64
+	MarinePrecipitation  []float64
+	LandPrecipitation    []float64
+	FrontalPrecipitation []float64
+	Debug                *PrecipitationDebugFields
+}
+
+// PrecipitationDebugFields carries cell-level internal solver state so bad
+// climates can be explained without inferring causes from the final rain map.
+type PrecipitationDebugFields struct {
+	OceanFetch            []float64
+	CoastalOnshore        []float64
+	EffectiveFetch        []float64
+	EffectiveOnshore      []float64
+	FootprintOceanSupport []float64
+	NeighborOceanFraction []float64
+	MaritimeSignal        []float64
+	MaritimeGeomSupport   []float64
+	OceanAtmosphere       []float64
+	OceanDownwindLand     []float64
+	MarineEntryScale      []float64
+	MarineDonor           []float64
+	MarineDonorStrength   []float64
+	MarineDonorOutgoing   []float64
+	MarineDonorOceanAtm   []float64
+	MarineDonorDownwind   []float64
+	MarineRootSource      []float64
+	MarineRootStrength    []float64
+	MarineRootOceanAtm    []float64
+	MarineRootDownwind    []float64
+	MarineRootOceanSource []float64
+	MarineRootRetention   []float64
+	MarineRootPathSteps   []float64
+	UpwindParent          []float64
+	UpwindParentStrength  []float64
+	LandTravel            []float64
+	LandInterior          []float64
+	OrographicLift        []float64
+	OrographicLocalRise   []float64
+	OrographicFootprint   []float64
+	OrographicBarrier     []float64
+	OrographicWindFactor  []float64
+	Convergence           []float64
+	MoistureCapacity      []float64
+	LandSource            []float64
+	TropicalSource        []float64
+	FrontalSource         []float64
+	MarineIncoming        []float64
+	LandIncoming          []float64
+	FrontalIncoming       []float64
+	MarineToLand          []float64
+	MarineToFrontal       []float64
+	CondensedTotal        []float64
+	CondensedBase         []float64
+	CondensedSupersat     []float64
+	CondensedSupersatSupport []float64
+	CondensedTropicalCoast  []float64
+	CondensedCoastalPenalty []float64
+	CondensedAscent       []float64
+	CondensedConvective   []float64
+	CondensedMixing       []float64
+	CondensedEffCapacity  []float64
+	CondensedSupersatHum  []float64
+	RetainedHumidity      []float64
+	CondensationScale     []float64
+	LandRetentionScale    []float64
+	FrontalSourceScale    []float64
+	FrontalRetentionScale []float64
+	TropicalSourceScale   []float64
 }
 
 // ComputePrecipitation calculates precipitation using wind-driven moisture transport.
@@ -77,227 +168,48 @@ func ComputePrecipitation(
 	temperature []float64,
 	settings PrecipitationSettings,
 ) *PrecipitationResult {
-	n := len(vertices)
-	result := &PrecipitationResult{
-		Precipitation: make([]float64, n),
-		Moisture:      make([]float64, n),
-	}
+	return computePrecipitationBudget(vertices, elevation, seaLevel, adj, wind, temperature, settings)
+}
 
-	if wind == nil {
-		return result
-	}
+func seasonalOceanEvaporationFactor(tempK float64, strength float64) float64 {
+	tempC := tempK - 273.15
+	// Use a mild SST-based modulation around a temperate-ocean reference so
+	// seasonal runs can distinguish cold and warm source regions without
+	// collapsing the annual moisture budget.
+	anomaly := Clamp((tempC-15.0)/25.0, -0.8, 0.7)
+	factor := 1.0 + strength*anomaly
+	return Clamp(factor, 0.45, 1.45)
+}
 
-	// Compute average cell size for resolution-independent calculations
-	// Earth radius = 6371 km, sphere surface area = 4*pi*r^2
-	earthRadius := 6371.0
-	avgCellSizeKm := earthRadius * math.Sqrt(4*math.Pi/float64(n))
-
-	// Scale rainfall fraction by cell size (settings.RainfallFraction is per-km)
-	rainfallFractionPerCell := settings.RainfallFraction * avgCellSizeKm
-
-	// Scale iterations by mesh density (more cells need more iterations for same distance)
-	// Base: 20 iterations at level 6 (~70km cells), scale proportionally
-	baseCellSizeKm := 70.0
-	maxIterations := int(20.0 * baseCellSizeKm / avgCellSizeKm)
-	if maxIterations < 20 {
-		maxIterations = 20
-	}
-	if maxIterations > 100 {
-		maxIterations = 100
-	}
-
-	// Normalize elevation to 0-1 range for orographic calculation
-	elevRange := settings.MaxElevation - settings.MinElevation
-	if elevRange < 1 {
-		elevRange = 1
-	}
-
-	// Identify ocean and land cells
-	isOcean := make([]bool, n)
-	for i := 0; i < n; i++ {
-		isOcean[i] = elevation[i] < seaLevel
-	}
-
-	// Compute moisture capacity based on temperature (Clausius-Clapeyron)
-	// Warm air holds much more moisture than cold air
-	// Note: Real CC doubles every ~10°C, but for climate modeling we use a
-	// softer effect (every 15°C) because:
-	// 1. Air masses don't instantly equilibrate to local temperature
-	// 2. Precipitation from temperature change takes time
-	// 3. Weather systems transport moisture further before dumping it
-	moistureCap := make([]float64, n)
-	for i := 0; i < n; i++ {
-		if temperature != nil {
-			// Softened Clausius-Clapeyron: capacity doubles every ~15°C
-			// Normalize: 1.0 at 30°C, decreasing exponentially with cold
-			tempC := temperature[i] - 273.15
-			// Cap ranges from ~0.1 at -30°C to 1.0 at 30°C
-			moistureCap[i] = math.Pow(2, (tempC-30)/15.0)
-			moistureCap[i] = math.Max(0.1, math.Min(1.0, moistureCap[i]))
-		} else {
-			moistureCap[i] = 1.0
-		}
-	}
-
-	// Pass 1: Set ocean moisture based on evaporation
-	// Key insight: Ocean evaporation should NOT be limited by air temperature above it.
-	// The ocean surface evaporates based on water temperature (moderated by currents),
-	// and the moisture then moves with the air mass. Temperature limiting happens
-	// when the air reaches land and cools - that's when precipitation occurs.
-	// Use full evaporation rate for all oceans.
-	for i := 0; i < n; i++ {
-		if isOcean[i] {
-			evap := settings.EvaporationRate // Full evaporation regardless of temp
-			result.Moisture[i] = evap
-		}
-	}
-
-	// Pass 2+: Iterate moisture transport over land until stable
-	// This ensures moisture propagates inland regardless of processing order
-	//
-	// KEY INSIGHT: We track two things separately:
-	// 1. "moisture" - the actual moisture content (capped at capacity)
-	// 2. "moistureFlux" - total moisture that PASSED THROUGH (for precipitation)
-	//
-	// Cold regions should get precipitation when warm moist air arrives,
-	// even if local capacity is low. The excess precipitates.
-	moistureFlux := make([]float64, n) // Track total incoming moisture
-
-	// maxIterations was computed above based on cell size
-	for iter := 0; iter < maxIterations; iter++ {
-		maxChange := 0.0
-
-		for i := 0; i < n; i++ {
-			if isOcean[i] {
-				continue
-			}
-
-			// Pull moisture from ALL neighbors (weighted by wind alignment)
-			incoming := pullMoistureFromUpwind(i, vertices, adj, wind, result.Moisture)
-
-			// Track cumulative flux (first iteration only to avoid double counting)
-			if iter == 0 {
-				moistureFlux[i] = incoming
-			} else {
-				// Update flux with new incoming (weighted average with previous)
-				moistureFlux[i] = math.Max(moistureFlux[i], incoming)
-			}
-
-			// Temperature capacity limit (cold air holds less moisture)
-			tempCap := moistureCap[i]
-
-			// Orographic effect (high elevation also reduces capacity)
-			normElev := (elevation[i] - settings.MinElevation) / elevRange
-			normElev = math.Max(0, math.Min(1, normElev))
-			elevCap := 1.0 - settings.OrographicStrength*normElev
-			elevCap = math.Max(0.1, elevCap)
-
-			// Combined capacity: minimum of temperature and elevation limits
-			combinedCap := math.Min(tempCap, elevCap)
-
-			// Cap moisture at capacity (what remains in the air)
-			moisture := incoming
-			if moisture > combinedCap {
-				moisture = combinedCap
-			}
-
-			// Track change for convergence
-			change := math.Abs(moisture - result.Moisture[i])
-			if change > maxChange {
-				maxChange = change
-			}
-
-			result.Moisture[i] = moisture
-		}
-
-		// Check convergence
-		if maxChange < 0.001 {
-			break
-		}
-	}
-
-	// Convert flux to precipitation: excess over capacity precipitates
-	for i := 0; i < n; i++ {
-		if isOcean[i] {
+func partitionPrecipitationPhase(
+	result *PrecipitationResult,
+	elevation []float64,
+	seaLevel float64,
+	temperature []float64,
+) {
+	for i, total := range result.Precipitation {
+		if i >= len(elevation) || elevation[i] < seaLevel {
 			continue
 		}
-		tempCap := moistureCap[i]
-		normElev := (elevation[i] - settings.MinElevation) / elevRange
-		normElev = math.Max(0, math.Min(1, normElev))
-		elevCap := 1.0 - settings.OrographicStrength*normElev
-		elevCap = math.Max(0.1, elevCap)
-		combinedCap := math.Min(tempCap, elevCap)
-
-		// Precipitation = excess flux over capacity
-		if moistureFlux[i] > combinedCap {
-			result.Precipitation[i] += (moistureFlux[i] - combinedCap) * 0.5
-		}
+		snowFrac := precipitationSnowFraction(temperature, i)
+		result.Snowfall[i] = total * snowFrac
+		result.Rainfall[i] = total - result.Snowfall[i]
 	}
+}
 
-	// Final pass: Compute precipitation from final moisture values
-	for i := 0; i < n; i++ {
-		if isOcean[i] {
-			continue
-		}
-
-		moisture := result.Moisture[i]
-
-		// Temperature capacity (cold air dumps moisture)
-		tempCap := moistureCap[i]
-
-		// Orographic capacity (high elevation dumps moisture)
-		normElev := (elevation[i] - settings.MinElevation) / elevRange
-		normElev = math.Max(0, math.Min(1, normElev))
-		elevCap := 1.0 - settings.OrographicStrength*normElev
-		elevCap = math.Max(0.1, elevCap)
-
-		// Combined capacity
-		combinedCap := math.Min(tempCap, elevCap)
-
-		// Pull fresh moisture to see if we exceed capacity
-		// Excess moisture precipitates (cold front / orographic effect)
-		freshMoisture := pullMoistureFromUpwind(i, vertices, adj, wind, result.Moisture)
-		if freshMoisture > combinedCap {
-			result.Precipitation[i] += freshMoisture - combinedCap
-		}
-
-		// Regular precipitation: fraction of moisture falls as rain
-		// Uses resolution-scaled fraction (rainfallFractionPerCell)
-		rain := moisture * rainfallFractionPerCell
-		result.Precipitation[i] += rain
-
-		// ITCZ boost: enhance precipitation in tropics (0-15° latitude)
-		// This simulates the Intertropical Convergence Zone where trade winds meet
-		// Earth's ITCZ produces 200-400+ cm/yr in rainforests
-		lat := math.Asin(vertices[i].Y) * 180.0 / math.Pi
-		absLat := math.Abs(lat)
-		if absLat < 15 {
-			// Boost peaks at equator (3x), tapers to 1x at 15°
-			itczBoost := 1.0 + 2.0*(1.0-absLat/15.0)
-			result.Precipitation[i] *= itczBoost
-		}
-
-		// Subtropical dry zone (15-35°): Hadley cell descent suppresses rain
-		if absLat >= 15 && absLat < 35 {
-			// Minimum suppression at 25° (desert belt)
-			// 0.78 gives ~20-25% desert coverage (Earth-like)
-			distFrom25 := math.Abs(absLat - 25)
-			suppression := 0.78 + 0.22*(distFrom25/10.0) // 0.78 at 25°, 1.0 at 15° and 35°
-			suppression = math.Min(1.0, suppression)
-			result.Precipitation[i] *= suppression
-		}
-
-		// Apply scale to convert to cm/year
-		if settings.PrecipitationScale > 0 {
-			result.Precipitation[i] *= settings.PrecipitationScale
-		}
-
-		// Add baseline precipitation (even driest areas get some moisture)
-		// This creates realistic semi-arid transition zones
-		result.Precipitation[i] += 19.0
+func precipitationSnowFraction(temperature []float64, idx int) float64 {
+	if idx < 0 || idx >= len(temperature) {
+		return 0
 	}
-
-	return result
+	tempC := temperature[idx] - 273.15
+	switch {
+	case tempC <= -3.0:
+		return 1.0
+	case tempC >= 3.0:
+		return 0.0
+	default:
+		return 1.0 - smoothRamp(-3.0, 3.0, tempC)
+	}
 }
 
 // computeAverageWind computes the mean wind direction

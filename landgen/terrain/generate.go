@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"sort"
 )
 
 // GeneratePlanetElevation is the main entry point for tectonic planet generation
@@ -20,6 +19,19 @@ func GeneratePlanetElevation(
 	seed int64,
 	targetLandFraction float64,
 ) (elevation []float64, isLand []bool) {
+	elevation, isLand, _ = GeneratePlanetElevationWithDiagnostics(sites, cells, numPlates, seed, targetLandFraction)
+	return elevation, isLand
+}
+
+// GeneratePlanetElevationWithDiagnostics runs the full generator and returns
+// optional generation-side metadata useful for review tooling.
+func GeneratePlanetElevationWithDiagnostics(
+	sites []Vector3D,
+	cells []VoronoiCell,
+	numPlates int,
+	seed int64,
+	targetLandFraction float64,
+) (elevation []float64, isLand []bool, diagnostics PlanetGenerationDiagnostics) {
 	numRegions := len(sites)
 	rng := rand.New(rand.NewSource(seed))
 
@@ -28,36 +40,14 @@ func GeneratePlanetElevation(
 
 	// Step 1: Generate plates using randomized BFS
 	fmt.Println("Step 1: Generating plates...")
-	plateR, rPlate := GeneratePlates(sites, cells, numPlates, rng)
-	fmt.Printf("  Created %d plates\n", len(plateR))
-
-	// Smooth plate boundaries to eliminate single-cell protrusions
-	// This reduces isolated single-cell trenches while keeping coastlines irregular
-	smoothedCells := SmoothPlateBoundaries(cells, rPlate, 3)
-	if smoothedCells > 0 {
-		fmt.Printf("  Smoothed %d boundary cells\n", smoothedCells)
-	}
-
-	// Calculate plate sizes
-	plateSizes := make(map[int]int)
-	for _, plate := range rPlate {
-		plateSizes[plate]++
-	}
-
-	// Sort plates by size
-	var sortedPlates []PlateSize
-	for _, centerR := range plateR {
-		sortedPlates = append(sortedPlates, PlateSize{
-			Center: centerR,
-			Size:   plateSizes[centerR],
-		})
-	}
-	sort.Slice(sortedPlates, func(i, j int) bool {
-		return sortedPlates[i].Size > sortedPlates[j].Size
-	})
-
-	// Step 2: Find plate neighbors
-	plateNeighbors := FindPlateNeighbors(cells, rPlate, plateR)
+	layout := GenerateOptimizedPlateLayout(sites, cells, numPlates, seed, targetLandFraction)
+	plateR := layout.plateR
+	rPlate := layout.rPlate
+	plateSizes := layout.plateSizes
+	sortedPlates := layout.sortedPlates
+	plateNeighbors := layout.plateNeighbors
+	fmt.Printf("  Created %d active plates (selected layout attempt %d of up to %d)\n",
+		len(plateR), layout.attempt+1, plateLayoutSearchAttempts+plateLayoutSearchExtraAttempts)
 
 	// Step 3: Assign plates as oceanic/continental
 	fmt.Println("Step 2: Assigning plate types...")
@@ -87,28 +77,76 @@ func GeneratePlanetElevation(
 
 	// Step 5: Compute elevation
 	fmt.Println("Step 4: Computing elevation...")
-	elevation, coastlineR := ComputeElevation(sites, cells, plateIsOcean, rPlate, plateRot, seed)
+	elevation, coastlineR, mountainR, collisionR, arcR, ridgeR, trenchR := ComputeElevation(sites, cells, plateIsOcean, rPlate, plateRot, seed)
 
 	// Step 6: Compute distance from coast for continental slope
 	fmt.Println("  Computing continental distance from coast...")
 	distFromCoast := ComputeDistanceFromCoast(cells, coastlineR, rPlate, plateIsOcean)
+	oceanDistFromCoast := ComputeOceanDistanceFromCoast(cells, coastlineR, rPlate, plateIsOcean)
+	distFromRidge := ComputeOceanDistanceFromSeeds(cells, ridgeR, rPlate, plateIsOcean)
+	maxRidgeDist := ComputeOceanPlateMaxDistance(rPlate, plateIsOcean, distFromRidge)
+	distFromTrench := ComputeOceanDistanceFromSeeds(cells, trenchR, rPlate, plateIsOcean)
+	componentMaxDist := ComputeContinentalComponentMaxDistance(cells, rPlate, plateIsOcean, distFromCoast)
+	distFromMountain := ComputeDistanceFromMountainSeeds(cells, mountainR, rPlate, plateIsOcean)
+	componentMaxMountainDist := ComputeContinentalComponentMaxTectonicDistance(cells, rPlate, plateIsOcean, distFromMountain)
+	distFromCollision := ComputeDistanceFromMountainSeeds(cells, collisionR, rPlate, plateIsOcean)
+	componentMaxCollisionDist := ComputeContinentalComponentMaxTectonicDistance(cells, rPlate, plateIsOcean, distFromCollision)
+	distFromArc := ComputeDistanceFromMountainSeeds(cells, arcR, rPlate, plateIsOcean)
+	componentMaxArcDist := ComputeContinentalComponentMaxTectonicDistance(cells, rPlate, plateIsOcean, distFromArc)
 
 	// Find max distance for normalization
 	maxDist := 0.0
+	maxOceanDist := 0.0
 	for r := 0; r < numRegions; r++ {
 		if !plateIsOcean[rPlate[r]] && !math.IsInf(distFromCoast[r], 1) {
 			if distFromCoast[r] > maxDist {
 				maxDist = distFromCoast[r]
 			}
 		}
+		if plateIsOcean[rPlate[r]] && !math.IsInf(oceanDistFromCoast[r], 1) {
+			if oceanDistFromCoast[r] > maxOceanDist {
+				maxOceanDist = oceanDistFromCoast[r]
+			}
+		}
 	}
 	if maxDist == 0 {
 		maxDist = 1
 	}
+	if maxOceanDist == 0 {
+		maxOceanDist = 1
+	}
 
 	// Step 7: Apply bimodal elevation
 	fmt.Println("  Applying bimodal elevation (interior high, coast low)...")
-	ApplyBimodalElevation(elevation, distFromCoast, rPlate, plateIsOcean, maxDist)
+	ApplyBimodalElevation(
+		elevation,
+		distFromCoast,
+		oceanDistFromCoast,
+		componentMaxDist,
+		distFromMountain,
+		componentMaxMountainDist,
+		distFromCollision,
+		componentMaxCollisionDist,
+		distFromArc,
+		componentMaxArcDist,
+		rPlate,
+		plateIsOcean,
+		maxDist,
+		maxOceanDist,
+	)
+	ApplyOceanBasinStructure(
+		elevation,
+		sites,
+		rPlate,
+		plateIsOcean,
+		plateRot,
+		oceanDistFromCoast,
+		distFromRidge,
+		maxRidgeDist,
+		distFromTrench,
+		maxOceanDist,
+		seed,
+	)
 
 	// Step 8: Apply erosion to smooth sharp peaks
 	fmt.Println("Step 5: Applying erosion passes...")
@@ -117,6 +155,18 @@ func GeneratePlanetElevation(
 	// Step 9: Apply Earth hypsometric mapping
 	fmt.Printf("Step 6: Applying Earth hypsometry (target land: %.1f%%)...\n", targetLandFraction*100)
 	elevation = ApplyEarthHypsometry(elevation, targetLandFraction)
+	ReinforceTectonicMountains(
+		elevation,
+		rPlate,
+		plateIsOcean,
+		distFromMountain,
+		componentMaxMountainDist,
+		distFromCollision,
+		componentMaxCollisionDist,
+		distFromArc,
+		componentMaxArcDist,
+	)
+	ApplyFluvialErosion(sites, cells, elevation, distFromCoast, maxDist, seed)
 
 	// Step 9b: Apply elevation-scaled noise for terrain detail
 	// baseFrequency=64 gives ~625km largest features, ~10km smallest (6 octaves)
@@ -124,11 +174,13 @@ func GeneratePlanetElevation(
 	// - Mountains: ±800m (Himalayan peaks vary 1-2km within ranges)
 	// - Plains: ±80m (rolling hills, river terraces)
 	// - Ocean: ±150m (abyssal hills typically 50-300m)
-	ApplyElevationScaledNoise(sites, elevation, seed, 64.0, 800.0, 80.0, 150.0)
+	coastalExposure := ComputeCoastalExposure(cells, elevation, oceanDistFromCoast)
+	ApplyElevationScaledNoise(sites, cells, elevation, oceanDistFromCoast, seed, 64.0, 800.0, 80.0, 150.0)
+	RegularizeCoastlines(cells, elevation, coastalExposure, 2)
 
 	// Step 10: Apply landmass-aware erosion (caps peaks on small islands, in meters)
 	fmt.Println("  Applying landmass erosion (size + coastal proximity)...")
-	ApplyLandmassErosion(cells, elevation, rPlate, plateIsOcean, distFromCoast)
+	ApplyLandmassErosion(cells, elevation, rPlate, plateIsOcean, distFromCoast, distFromMountain)
 
 	// Step 11: Add hotspot island chains (AFTER hypsometry, works in meters)
 	// This slightly increases land percentage but creates realistic volcanic islands
@@ -175,6 +227,34 @@ func GeneratePlanetElevation(
 		fmt.Printf("  Applied minimum elevation to %d hotspot cells\n", floored)
 	}
 
+	// Step 12b: Rebalance mean land and ocean elevations toward Earth targets.
+	elevation = AdjustElevationForHypsometry(elevation)
+
+	// Preserve hotspot minimum elevations after the global rebalance.
+	refloored := 0
+	for cellIdx, info := range hotspotCells {
+		if elevation[cellIdx] < info.MinElevation {
+			elevation[cellIdx] = info.MinElevation
+			refloored++
+		}
+	}
+	if refloored > 0 {
+		fmt.Printf("  Restored %d hotspot cells after mean-elevation rebalance\n", refloored)
+	}
+
+	// Final drainage conditioning after late-stage terrain detail. This cleans
+	// up shallow synthetic traps introduced by noise/coast edits before any
+	// downstream hydrology consumes the final DEM.
+	postDetailBreaches := ApplyPostDetailDrainageConditioning(cells, elevation)
+	diagnostics.Hydrology = ComputeHydrologyDiagnostics(sites, cells, elevation, seed)
+	diagnostics.Hydrology.PostDetailBreachedSinks = postDetailBreaches
+	fmt.Printf("  Post-detail terrain-proxy drainage: breached %d shallow sinks, channels %.1f%%, endorheic %.1f%%, inland lakes %.2f%%\n",
+		postDetailBreaches,
+		diagnostics.Hydrology.FluvialChannelCoverage*100,
+		diagnostics.Hydrology.EndorheicCatchmentPct*100,
+		diagnostics.Hydrology.InlandLakeCoverage*100,
+	)
+
 	// Step 13: Determine land/ocean
 	isLand = make([]bool, numRegions)
 	landCount := 0
@@ -189,6 +269,7 @@ func GeneratePlanetElevation(
 		_ = plate
 	}
 	fmt.Printf("  Actual land coverage: %.1f%%\n", float64(landCount)/float64(numRegions)*100)
+	diagnostics.HotspotChains = hotspotChains
 
-	return elevation, isLand
+	return elevation, isLand, diagnostics
 }

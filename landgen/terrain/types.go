@@ -23,11 +23,11 @@ type VoronoiCell = icosphere.VoronoiCell
 
 const (
 	// Coverage metrics
-	EarthLandCoverage      = 0.292   // 29.2% of surface
-	EarthOceanCoverage     = 0.708   // 70.8% of surface
-	EarthMountainCoverage  = 0.020   // 2% above 3000m
-	EarthDeepOceanCoverage = 0.025   // 2.5% below -5000m
-	EarthShelfCoverage     = 0.080   // 8% between 0 and -200m
+	EarthLandCoverage      = 0.292 // 29.2% of surface
+	EarthOceanCoverage     = 0.708 // 70.8% of surface
+	EarthMountainCoverage  = 0.020 // 2% above 3000m
+	EarthDeepOceanCoverage = 0.160 // 16.0% below -5000m
+	EarthShelfCoverage     = 0.054 // 5.4% between 0 and -200m
 
 	// Elevation statistics
 	EarthMeanLandElevation = 840.0    // meters
@@ -42,24 +42,25 @@ const (
 	EarthBimodalPeakLand  = 300.0   // meters
 
 	// Coastline metrics
-	EarthCoastlineFractalD  = 1.30 // Fractal dimension (1.0 = smooth, 2.0 = space-filling)
-	EarthTortuosityRatio    = 3.0  // Actual length / straight-line distance
-	EarthMajorLandmasses    = 7    // Number of major continents
+	EarthCoastlineFractalD   = 1.30 // Fractal dimension (1.0 = smooth, 2.0 = space-filling)
+	EarthTortuosityRatio     = 3.0  // Actual length / straight-line distance
+	EarthMajorLandmasses     = 7    // Number of major continents
 	EarthLargestContinentPct = 0.30 // Eurasia as % of land
-	EarthContinentGini      = 0.45 // Size inequality measure
+	EarthContinentGini       = 0.45 // Size inequality measure
 )
 
 // HypsometricTargets contains Earth's cumulative elevation distribution at key thresholds.
 // Key: elevation threshold in meters, Value: cumulative percentage below that threshold.
 var HypsometricTargets = map[float64]float64{
-	-6000: 0.012, // 1.2% below -6000m
-	-5000: 0.025, // 2.5% below -5000m
-	-4000: 0.524, // 52.4% below -4000m
-	-3000: 0.682, // 68.2% below -3000m
+	-6000: 0.010, // 1.0% below -6000m
+	-5000: 0.160, // 16.0% below -5000m
+	-4000: 0.390, // 39.0% below -4000m
+	-3000: 0.532, // 53.2% below -3000m
+	-200:  0.654, // 65.4% below the shelf break
 	0:     0.708, // 70.8% below sea level
 	500:   0.825, // 82.5% below 500m
 	1000:  0.902, // 90.2% below 1000m
-	2000:  0.968, // 96.8% below 2000m
+	2000:  0.960, // 96.0% below 2000m
 	3000:  0.980, // 98.0% below 3000m
 }
 
@@ -152,12 +153,12 @@ func (s MaskSettings) Validate() error {
 func DefaultMaskSettings() MaskSettings {
 	return MaskSettings{
 		Seed:                 42,
-		ContinentalFrequency: 0.5,  // Very low frequency for large continents
-		WarpAmplitude:        0.1,  // Subtle warp for irregular coastlines
-		WarpFrequency:        2.0,  // Warp detail scale
-		Octaves:              2,    // Few octaves for coherent landmasses
+		ContinentalFrequency: 0.5, // Very low frequency for large continents
+		WarpAmplitude:        0.1, // Subtle warp for irregular coastlines
+		WarpFrequency:        2.0, // Warp detail scale
+		Octaves:              2,   // Few octaves for coherent landmasses
 		Lacunarity:           2.0,
-		Persistence:          0.4,  // Reduce high-frequency contribution
+		Persistence:          0.4, // Reduce high-frequency contribution
 		TargetLandCoverage:   EarthLandCoverage,
 		Verbose:              false,
 	}
@@ -165,14 +166,14 @@ func DefaultMaskSettings() MaskSettings {
 
 // ElevationSettings controls base elevation assignment (Stage 2).
 type ElevationSettings struct {
-	Seed                  int64   `json:"seed"`
-	ContinentalBase       float64 `json:"continentalBase"`       // Base continental height (m)
-	ContinentalVariation  float64 `json:"continentalVariation"`  // Max additional height based on inlandness
-	OceanicBase           float64 `json:"oceanicBase"`           // Base ocean depth (m, negative)
-	OceanicVariation      float64 `json:"oceanicVariation"`      // Max additional depth
-	ShelfWidth            float64 `json:"shelfWidth"`            // Mask range for shelf transition
-	ShelfDepth            float64 `json:"shelfDepth"`            // Max shelf depth (m, negative)
-	Verbose               bool    `json:"verbose"`
+	Seed                 int64   `json:"seed"`
+	ContinentalBase      float64 `json:"continentalBase"`      // Base continental height (m)
+	ContinentalVariation float64 `json:"continentalVariation"` // Max additional height based on inlandness
+	OceanicBase          float64 `json:"oceanicBase"`          // Base ocean depth (m, negative)
+	OceanicVariation     float64 `json:"oceanicVariation"`     // Max additional depth
+	ShelfWidth           float64 `json:"shelfWidth"`           // Mask range for shelf transition
+	ShelfDepth           float64 `json:"shelfDepth"`           // Max shelf depth (m, negative)
+	Verbose              bool    `json:"verbose"`
 }
 
 // Validate checks that all settings are within acceptable ranges.
@@ -202,8 +203,8 @@ func (s ElevationSettings) Validate() error {
 func DefaultElevationSettings() ElevationSettings {
 	return ElevationSettings{
 		Seed:                 42,
-		ContinentalBase:      400.0,  // Base height before mountains
-		ContinentalVariation: 500.0,  // Variation based on inlandness
+		ContinentalBase:      400.0,   // Base height before mountains
+		ContinentalVariation: 500.0,   // Variation based on inlandness
 		OceanicBase:          -3900.0, // Tuned for 95%+ score
 		OceanicVariation:     1800.0,  // Variation for trenches
 		ShelfWidth:           0.08,    // Shelf transition width
@@ -244,7 +245,7 @@ func DefaultMountainSettings() MountainSettings {
 	return MountainSettings{
 		Seed:              42,
 		MountainFrequency: 5.0,
-		MountainThreshold: 0.75,  // Tuned for ~2% mountain coverage
+		MountainThreshold: 0.75, // Tuned for ~2% mountain coverage
 		MaxMountainHeight: 7000.0,
 		TargetCoverage:    EarthMountainCoverage,
 		Verbose:           false,
@@ -253,15 +254,15 @@ func DefaultMountainSettings() MountainSettings {
 
 // DetailSettings controls terrain detail generation (Stage 3).
 type DetailSettings struct {
-	Seed                  int64   `json:"seed"`
-	DetailFrequency       float64 `json:"detailFrequency"`       // Base frequency for detail noise
-	DetailOctaves         int     `json:"detailOctaves"`         // Number of FBM octaves
-	Lacunarity            float64 `json:"lacunarity"`            // Frequency multiplier per octave
-	Persistence           float64 `json:"persistence"`           // Amplitude multiplier per octave
-	BaseAmplitude         float64 `json:"baseAmplitude"`         // Base amplitude for detail (m)
-	MountainDetailScale   float64 `json:"mountainDetailScale"`   // Multiplier for mountain areas
-	DeepOceanDetailScale  float64 `json:"deepOceanDetailScale"`  // Multiplier for deep ocean
-	Verbose               bool    `json:"verbose"`
+	Seed                 int64   `json:"seed"`
+	DetailFrequency      float64 `json:"detailFrequency"`      // Base frequency for detail noise
+	DetailOctaves        int     `json:"detailOctaves"`        // Number of FBM octaves
+	Lacunarity           float64 `json:"lacunarity"`           // Frequency multiplier per octave
+	Persistence          float64 `json:"persistence"`          // Amplitude multiplier per octave
+	BaseAmplitude        float64 `json:"baseAmplitude"`        // Base amplitude for detail (m)
+	MountainDetailScale  float64 `json:"mountainDetailScale"`  // Multiplier for mountain areas
+	DeepOceanDetailScale float64 `json:"deepOceanDetailScale"` // Multiplier for deep ocean
+	Verbose              bool    `json:"verbose"`
 }
 
 // Validate checks that all settings are within acceptable ranges.
@@ -307,7 +308,7 @@ func DefaultDetailSettings() DetailSettings {
 
 // TerrainSettings is the composite settings for full terrain generation.
 type TerrainSettings struct {
-	Seed      int64             `json:"seed"`      // Master seed (overrides individual seeds if non-zero)
+	Seed      int64             `json:"seed"` // Master seed (overrides individual seeds if non-zero)
 	Mask      MaskSettings      `json:"mask"`
 	Elevation ElevationSettings `json:"elevation"`
 	Mountain  MountainSettings  `json:"mountain"`
@@ -364,7 +365,8 @@ func (s *TerrainSettings) ApplyMasterSeed() {
 // --- Metrics Structs ---
 
 // TerrainMetrics contains all computed metrics for terrain evaluation.
-// Use ComputeMetrics() to calculate these from elevation data.
+// Use ComputeMetricsWithCells() when mesh topology is available so coastline,
+// continent, and relief metrics are populated as well.
 type TerrainMetrics struct {
 	// Primary coverage metrics (fraction of total surface)
 	LandCoverage      float64 `json:"landCoverage"`
@@ -380,6 +382,9 @@ type TerrainMetrics struct {
 	GlobalStdDev      float64 `json:"globalStdDev"`
 	MaxElevation      float64 `json:"maxElevation"`
 	MinElevation      float64 `json:"minElevation"`
+	MeanLocalRelief   float64 `json:"meanLocalRelief"`
+	P95LocalRelief    float64 `json:"p95LocalRelief"`
+	MountainClustered float64 `json:"mountainClustered"`
 
 	// Hypsometric curve (cumulative % at thresholds)
 	// Key: elevation threshold, Value: fraction below that elevation
@@ -393,6 +398,18 @@ type TerrainMetrics struct {
 	NumMajorLandmasses  int     `json:"numMajorLandmasses"`
 	LargestContinentPct float64 `json:"largestContinentPct"`
 	ContinentGini       float64 `json:"continentGini"`
+
+	// Drainage / fluvial structure
+	FluvialChannelCoverage  float64 `json:"fluvialChannelCoverage"`
+	EndorheicCatchmentPct   float64 `json:"endorheicCatchmentPct"`
+	InlandLakeCoverage      float64 `json:"inlandLakeCoverage"`
+	NumMajorEndorheicBasins int     `json:"numMajorEndorheicBasins"`
+
+	// Hotspot track metrics
+	HotspotChainCount   int     `json:"hotspotChainCount"`
+	HotspotSpacingCV    float64 `json:"hotspotSpacingCV"`
+	HotspotBurstiness   float64 `json:"hotspotBurstiness"`
+	HotspotBendFraction float64 `json:"hotspotBendFraction"`
 }
 
 // EvaluationResult contains the scoring output from terrain evaluation.
@@ -403,14 +420,126 @@ type EvaluationResult struct {
 	Passed        bool           `json:"passed"`        // True if score >= target and no critical failures
 }
 
+// HydrologyDiagnostics captures final DEM drainage-readiness signals after the
+// terrain pipeline has applied detail noise and other late-stage edits.
+type HydrologyDiagnostics struct {
+	PostDetailBreachedSinks int                        `json:"postDetailBreachedSinks"`
+	FluvialChannelCoverage  float64                    `json:"fluvialChannelCoverage"`
+	EndorheicCatchmentPct   float64                    `json:"endorheicCatchmentPct"`
+	InlandLakeCoverage      float64                    `json:"inlandLakeCoverage"`
+	NumMajorEndorheicBasins int                        `json:"numMajorEndorheicBasins"`
+	Regions                 []HydrologyRegionSummary   `json:"regions,omitempty"`
+	Classes                 []HydrologyClassSummary    `json:"classes,omitempty"`
+	Scaffold                *HydrologyScaffold         `json:"scaffold,omitempty"`
+	TerrainRefinement       *TerrainRefinementScaffold `json:"terrainRefinement,omitempty"`
+}
+
+// HydrologyRegionSummary groups land cells by broad runoff regime so we can
+// verify that wetter regions actually carry denser drainage than drier ones.
+type HydrologyRegionSummary struct {
+	Name                  string  `json:"name"`
+	CellCount             int     `json:"cellCount"`
+	MeanRunoff            float64 `json:"meanRunoff"`
+	MeanAccumulation      float64 `json:"meanAccumulation"`
+	ChannelCoverage       float64 `json:"channelCoverage"`
+	EndorheicCatchmentPct float64 `json:"endorheicCatchmentPct"`
+	InlandLakeReachPct    float64 `json:"inlandLakeReachPct"`
+}
+
+// HydrologyClassSummary counts coarse hydrology roles so review tooling can
+// see whether a world is dominated by plausible headwaters/trunks/outlets
+// rather than everything collapsing into one generic river cell type.
+type HydrologyClassSummary struct {
+	Class     string `json:"class"`
+	CellCount int    `json:"cellCount"`
+}
+
+// HydrologyBoundaryFlow describes coarse water crossings through a cell
+// boundary. These are the contracts a later high-resolution local generator
+// must preserve so neighboring zoomed cells agree on where rivers enter/leave.
+type HydrologyBoundaryFlow struct {
+	InflowNeighbors   []int     `json:"inflowNeighbors,omitempty"`
+	InflowBearingDeg  []float64 `json:"inflowBearingDeg,omitempty"`
+	InflowStrength    []float64 `json:"inflowStrength,omitempty"`
+	OutflowNeighbor   int       `json:"outflowNeighbor"`
+	OutflowBearingDeg float64   `json:"outflowBearingDeg"`
+	OutflowStrength   float64   `json:"outflowStrength"`
+}
+
+// HydrologyBoundarySideFlow aggregates gross flow by directional sector around
+// a cell boundary. Fine-grained local mapping can split one sector into
+// multiple concrete river crossings while preserving total coarse flow.
+type HydrologyBoundarySideFlow struct {
+	Sector           string  `json:"sector"`
+	BearingCenterDeg float64 `json:"bearingCenterDeg"`
+	InflowStrength   float64 `json:"inflowStrength"`
+	OutflowStrength  float64 `json:"outflowStrength"`
+}
+
+// HydrologyScaffold stores the coarse routing graph and related fields that a
+// later high-resolution local generator can use to deterministically synthesize
+// rivers, lakes, floodplains, and outlet geometry inside a coarse cell.
+type HydrologyScaffold struct {
+	Receivers        []int                         `json:"receivers"`
+	TerminalSinks    []int                         `json:"terminalSinks"`
+	Runoff           []float64                     `json:"runoff"`
+	Accumulation     []float64                     `json:"accumulation"`
+	ChannelStrength  []float64                     `json:"channelStrength"`
+	WaterBodyLabel   []int                         `json:"waterBodyLabel"`
+	CellClass        []string                      `json:"cellClass,omitempty"`
+	OutletMode       []string                      `json:"outletMode,omitempty"`
+	MaxOutflows      []int                         `json:"maxOutflows,omitempty"`
+	BoundaryFlow     []HydrologyBoundaryFlow       `json:"boundaryFlow,omitempty"`
+	BoundarySideFlow [][]HydrologyBoundarySideFlow `json:"boundarySideFlow,omitempty"`
+}
+
+// TerrainBoundaryConstraint describes the coarse terrain state at a boundary to
+// a neighboring cell. A later local DEM refinement should honor these anchors
+// before adding subcell detail.
+type TerrainBoundaryConstraint struct {
+	Neighbor          int     `json:"neighbor"`
+	BearingDeg        float64 `json:"bearingDeg"`
+	BoundaryElevation float64 `json:"boundaryElevation"`
+	NeighborElevation float64 `json:"neighborElevation"`
+	CrossingClass     string  `json:"crossingClass,omitempty"`
+	CrossingStrength  float64 `json:"crossingStrength,omitempty"`
+}
+
+// TerrainRefinementCellConstraint captures the low-frequency terrain contract
+// for refining a single coarse cell into a higher-resolution local patch.
+type TerrainRefinementCellConstraint struct {
+	BaseElevation         float64                     `json:"baseElevation"`
+	MeanNeighborElevation float64                     `json:"meanNeighborElevation"`
+	LocalRelief           float64                     `json:"localRelief"`
+	DownslopeBearingDeg   float64                     `json:"downslopeBearingDeg"`
+	DownslopeStrength     float64                     `json:"downslopeStrength"`
+	ChannelBearingDeg     float64                     `json:"channelBearingDeg"`
+	ChannelStrength       float64                     `json:"channelStrength"`
+	Boundary              []TerrainBoundaryConstraint `json:"boundary,omitempty"`
+}
+
+// TerrainRefinementScaffold holds per-cell terrain-shape constraints for local
+// elevation synthesis. It complements, rather than replaces, the hydrology
+// scaffold.
+type TerrainRefinementScaffold struct {
+	Cells []TerrainRefinementCellConstraint `json:"cells"`
+}
+
+// PlanetGenerationDiagnostics carries optional generator-side metadata useful
+// for review tooling and higher-fidelity evaluation.
+type PlanetGenerationDiagnostics struct {
+	HotspotChains []HotspotChain       `json:"hotspotChains"`
+	Hydrology     HydrologyDiagnostics `json:"hydrology"`
+}
+
 // --- Scoring Weights ---
 
 // ScoringWeights defines the relative importance of each metric category.
 type ScoringWeights struct {
-	PrimaryMetrics    float64 `json:"primaryMetrics"`    // Coverage and mean elevation
-	HypsometricCurve  float64 `json:"hypsometricCurve"`  // Distribution shape
-	CoastlineMetrics  float64 `json:"coastlineMetrics"`  // Irregularity
-	ContinentMetrics  float64 `json:"continentMetrics"`  // Distribution of landmasses
+	PrimaryMetrics   float64 `json:"primaryMetrics"`   // Coverage and mean elevation
+	HypsometricCurve float64 `json:"hypsometricCurve"` // Distribution shape
+	CoastlineMetrics float64 `json:"coastlineMetrics"` // Irregularity
+	ContinentMetrics float64 `json:"continentMetrics"` // Distribution of landmasses
 }
 
 // DefaultScoringWeights returns standard weights that sum to 100.
@@ -427,13 +556,29 @@ func DefaultScoringWeights() ScoringWeights {
 
 const (
 	// Plate tectonics simulation
-	CollisionThreshold = 0.5  // Threshold for normalized plate collision detection
-	DeltaTime          = 1e-2 // Time step for velocity simulation
-	NoiseAmplitude     = 0.1  // Amplitude of elevation noise
+	CollisionThreshold  = 0.5  // Threshold for normalized plate collision detection
+	DivergenceThreshold = 0.15 // Threshold for normalized divergent motion at continental rifts
+	DeltaTime           = 1e-2 // Time step for velocity simulation
+	NoiseAmplitude      = 0.1  // Amplitude of elevation noise
 	// VolcanoDistanceRadians is the angular distance (in radians) from trench to volcanic arc
 	// Real Earth: ~100-300km, on unit sphere ~0.016-0.047 radians
 	// We use 0.03 radians (~190km on Earth-sized planet)
 	VolcanoDistanceRadians = 0.03
+	// ArcSeedSpacingRadians keeps volcanic-arc seeds dense enough to form belts
+	// instead of isolated peaks while avoiding overpainting every trench cell.
+	ArcSeedSpacingRadians = 0.02
+	// ArcHalfWidthRadians widens volcanic arcs into a narrow belt rather than a
+	// single-cell thread.
+	ArcHalfWidthRadians = 0.012
+	// CollisionBeltDistanceRadians expands continent-continent sutures inland on
+	// both sides, approximating broad fold-and-thrust belts.
+	CollisionBeltDistanceRadians = 0.04
+	// CollisionLinkDistanceRadians links nearby collision seeds along strike so
+	// sutures read as continuous mountain systems instead of broken patches.
+	CollisionLinkDistanceRadians = 0.035
+	// ArcLinkDistanceRadians connects nearby volcanic-arc seeds into longer
+	// coast-parallel chains on the overriding plate.
+	ArcLinkDistanceRadians = 0.09
 )
 
 // PlateRotation represents a plate's rotational motion around an Euler pole.
@@ -494,12 +639,13 @@ func (pr PlateRotation) RotatePoint(pos Vector3D, angle float64) Vector3D {
 type BoundaryType int
 
 const (
-	BoundaryNone BoundaryType = iota
-	BoundaryMountain  // Continental collision / volcanic arc
-	BoundaryCoastline // Ocean-land boundary
-	BoundaryOcean     // Generic ocean
-	BoundaryRidge     // Mid-ocean spreading ridge
-	BoundaryTrench    // Subduction trench
+	BoundaryNone      BoundaryType = iota
+	BoundaryMountain               // Continental collision / volcanic arc
+	BoundaryCoastline              // Ocean-land boundary
+	BoundaryOcean                  // Generic ocean
+	BoundaryRidge                  // Mid-ocean spreading ridge
+	BoundaryTrench                 // Subduction trench
+	BoundaryRift                   // Divergent continental boundary / inland sea
 )
 
 // --- Helper Functions ---

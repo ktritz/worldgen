@@ -6,25 +6,39 @@ package terrain
 import (
 	"math"
 	"math/rand"
+	"sort"
 )
+
+const (
+	plateLayoutSearchAttempts      = 12
+	plateLayoutSearchExtraAttempts = 28
+)
+
+type plateLayout struct {
+	plateR        []int
+	rPlate        []int
+	plateSizes    map[int]int
+	sortedPlates  []PlateSize
+	plateNeighbors map[int]map[int]bool
+	attempt       int
+}
 
 // GeneratePlates creates plates using weighted BFS for power law size distribution
 // Returns: plateR (list of plate center region indices), rPlate (region -> plate center mapping)
 func GeneratePlates(sites []Vector3D, cells []VoronoiCell, numPlates int, rng *rand.Rand) ([]int, []int) {
 	numRegions := len(sites)
 
-	// Pick random regions as plate centers
-	plateR := pickRandomRegions(numRegions, numPlates, rng)
+	// Pick well-spaced regions as plate centers to avoid superplates caused by clustered seeds.
+	plateR := pickSpacedRegions(sites, numPlates, rng)
 
 	// Assign power law growth weights to each plate
-	// Higher weight = grows faster = ends up larger
+	// Higher weight = grows faster = ends up larger.
+	// Use a bounded skew so we still get a few large plates without a single plate
+	// swallowing most of the sphere.
 	plateWeight := make(map[int]float64)
-	exponent := 1.5 // Controls how skewed the distribution is
 	for _, centerR := range plateR {
-		// Power law: weight = (1/uniform_random)^exponent
-		// This gives few large values, many small values
-		u := rng.Float64()*0.9 + 0.1 // Avoid 0, range [0.1, 1.0]
-		plateWeight[centerR] = math.Pow(1.0/u, exponent)
+		u := rng.Float64()
+		plateWeight[centerR] = 0.8 + 3.2*math.Pow(u, 3.0)
 	}
 
 	// Initialize r_plate: maps each region to its plate's center region
@@ -81,6 +95,67 @@ func GeneratePlates(sites []Vector3D, cells []VoronoiCell, numPlates int, rng *r
 	}
 
 	return plateR, rPlate
+}
+
+func pickSpacedRegions(sites []Vector3D, n int, rng *rand.Rand) []int {
+	numRegions := len(sites)
+	if n <= 0 || numRegions == 0 {
+		return nil
+	}
+
+	chosen := make(map[int]bool, n)
+	result := make([]int, 0, n)
+	first := rng.Intn(numRegions)
+	chosen[first] = true
+	result = append(result, first)
+
+	sampleCount := 64
+	if numRegions < sampleCount {
+		sampleCount = numRegions
+	}
+
+	for len(result) < n && len(result) < numRegions {
+		bestIdx := -1
+		bestDistance := -1.0
+
+		for sample := 0; sample < sampleCount; sample++ {
+			candidate := rng.Intn(numRegions)
+			if chosen[candidate] {
+				continue
+			}
+
+			minDistance := math.Inf(1)
+			for _, existing := range result {
+				distance := angularDistance(sites[candidate], sites[existing])
+				if distance < minDistance {
+					minDistance = distance
+				}
+			}
+
+			if minDistance > bestDistance {
+				bestDistance = minDistance
+				bestIdx = candidate
+			}
+		}
+
+		if bestIdx == -1 {
+			for candidate := 0; candidate < numRegions; candidate++ {
+				if !chosen[candidate] {
+					bestIdx = candidate
+					break
+				}
+			}
+		}
+
+		if bestIdx == -1 {
+			break
+		}
+
+		chosen[bestIdx] = true
+		result = append(result, bestIdx)
+	}
+
+	return result
 }
 
 // SmoothPlateBoundaries eliminates single-cell plate protrusions
@@ -143,67 +218,449 @@ func AssignPlateTypes(
 		plateIsOcean[ps.Center] = true
 	}
 
-	// Target continental fraction based on desired land coverage
-	// Continental shelf floods ~30% of continental area, so target = landFraction / 0.7
-	targetContinentalFraction := targetLandFraction / 0.7
-	if targetContinentalFraction > 0.6 {
-		targetContinentalFraction = 0.6 // Cap at 60%
+	bestAssignment, ok := findBestPlateTypeAssignment(sortedPlates, plateSizes, plateNeighbors, totalRegions, targetLandFraction)
+	if ok {
+		return bestAssignment
 	}
-	targetContinentalRegions := int(float64(totalRegions) * targetContinentalFraction)
 
-	// Pick 2-3 separate continental seeds to create multiple continents
-	// Largest plate stays oceanic (Pacific), pick spread-out plates as seeds
+	// Fallback for larger plate counts where exhaustive search is too expensive.
+	targetContinentalRegions := int(float64(totalRegions) * targetContinentalFraction(targetLandFraction))
 	continentalRegions := 0
-	expanded := make(map[int]bool)
-
-	// Select seeds: 2nd, 4th, and 6th largest plates (spread out by size)
-	seedIndices := []int{1, 3, 5}
-	var seeds []int
-	for _, idx := range seedIndices {
-		if idx < len(sortedPlates) {
-			seedPlate := sortedPlates[idx].Center
-			if !expanded[seedPlate] {
-				plateIsOcean[seedPlate] = false
-				continentalRegions += plateSizes[seedPlate]
-				seeds = append(seeds, seedPlate)
-				expanded[seedPlate] = true
-			}
-		}
+	targetLargestContinent := int(float64(targetContinentalRegions) * 0.55)
+	if targetLargestContinent < 1 {
+		targetLargestContinent = 1
 	}
 
-	// BFS grow from all seeds simultaneously until we hit target
-	queue := make([]int, len(seeds))
-	copy(queue, seeds)
-
-	for len(queue) > 0 && continentalRegions < targetContinentalRegions {
-		current := queue[0]
-		queue = queue[1:]
-
-		for neighborPlate := range plateNeighbors[current] {
-			if expanded[neighborPlate] {
-				continue
-			}
-			expanded[neighborPlate] = true
-
-			if plateIsOcean[neighborPlate] {
-				plateIsOcean[neighborPlate] = false
-				continentalRegions += plateSizes[neighborPlate]
-				queue = append(queue, neighborPlate)
-
-				if continentalRegions >= targetContinentalRegions {
-					break
-				}
-			}
+	for i, ps := range sortedPlates {
+		if i == 0 {
+			continue // keep the largest plate oceanic to preserve a major ocean basin
 		}
+		if continentalRegions >= targetContinentalRegions {
+			break
+		}
+		if ps.Size > targetLargestContinent {
+			continue
+		}
+		plateIsOcean[ps.Center] = false
+		continentalRegions += ps.Size
 	}
 
 	return plateIsOcean
+}
+
+func generatePlateLayout(
+	sites []Vector3D,
+	cells []VoronoiCell,
+	numPlates int,
+	rng *rand.Rand,
+	attempt int,
+) plateLayout {
+	plateR, rPlate := GeneratePlates(sites, cells, numPlates, rng)
+	SmoothPlateBoundaries(cells, rPlate, 3)
+
+	plateSizes := make(map[int]int)
+	for _, plate := range rPlate {
+		plateSizes[plate]++
+	}
+
+	activePlateR := make([]int, 0, len(plateR))
+	for _, center := range plateR {
+		if plateSizes[center] > 0 {
+			activePlateR = append(activePlateR, center)
+		}
+	}
+
+	sortedPlates := make([]PlateSize, 0, len(activePlateR))
+	for _, centerR := range activePlateR {
+		sortedPlates = append(sortedPlates, PlateSize{
+			Center: centerR,
+			Size:   plateSizes[centerR],
+		})
+	}
+	sortPlateSizes(sortedPlates)
+
+	return plateLayout{
+		plateR:         activePlateR,
+		rPlate:         rPlate,
+		plateSizes:     plateSizes,
+		sortedPlates:   sortedPlates,
+		plateNeighbors: FindPlateNeighbors(cells, rPlate, activePlateR),
+		attempt:        attempt,
+	}
+}
+
+func GenerateOptimizedPlateLayout(
+	sites []Vector3D,
+	cells []VoronoiCell,
+	numPlates int,
+	seed int64,
+	targetLandFraction float64,
+) plateLayout {
+	bestScore := math.Inf(1)
+	var bestLayout plateLayout
+	var bestCandidate plateAssignmentCandidate
+	found := false
+
+	maxAttempts := plateLayoutSearchAttempts + plateLayoutSearchExtraAttempts
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		rng := rand.New(rand.NewSource(seed + int64(attempt)*7919))
+		layout := generatePlateLayout(sites, cells, numPlates, rng, attempt)
+		candidate, ok := findBestPlateTypeAssignmentCandidate(
+			layout.sortedPlates,
+			layout.plateSizes,
+			layout.plateNeighbors,
+			len(sites),
+			targetLandFraction,
+		)
+		if !ok {
+			continue
+		}
+		if !found || candidate.score < bestScore {
+			bestScore = candidate.score
+			bestLayout = layout
+			bestCandidate = candidate
+			found = true
+		}
+		// After the baseline search budget, stop once the layout is broadly
+		// plausible. We do not need every seed to converge to an Earth-like
+		// continent histogram if the tectonic structure still makes sense.
+		if attempt+1 >= plateLayoutSearchAttempts && found &&
+			bestCandidate.stats.majorContinents >= 3 &&
+			bestCandidate.stats.largestContinentShare <= 0.48 &&
+			bestCandidate.stats.continentSizeGini >= 0.14 {
+			break
+		}
+	}
+
+	if found {
+		return bestLayout
+	}
+
+	// Fallback to the first deterministic layout if scoring failed.
+	rng := rand.New(rand.NewSource(seed))
+	return generatePlateLayout(sites, cells, numPlates, rng, 0)
 }
 
 // PlateSize holds plate center and size for sorting
 type PlateSize struct {
 	Center int
 	Size   int
+}
+
+type plateAssignmentStats struct {
+	continentalRegions    int
+	continentalComponents int
+	majorContinents       int
+	oceanComponents       int
+	continentalPlateCount int
+	oceanPlateCount       int
+	largestContinentShare float64
+	continentSizeGini     float64
+	includesLargestPlate  bool
+}
+
+type plateAssignmentCandidate struct {
+	mask  uint64
+	stats plateAssignmentStats
+	score float64
+}
+
+func targetContinentalFraction(targetLandFraction float64) float64 {
+	fraction := targetLandFraction + 0.02
+	if fraction < 0.28 {
+		return 0.28
+	}
+	if fraction > 0.36 {
+		return 0.36
+	}
+	return fraction
+}
+
+func minimumContinentalFraction(targetLandFraction float64) float64 {
+	fraction := targetLandFraction - 0.005
+	if fraction < 0.24 {
+		return 0.24
+	}
+	return fraction
+}
+
+func desiredContinentComponents(numPlates int) float64 {
+	switch {
+	case numPlates <= 8:
+		return 3.5
+	case numPlates <= 14:
+		return 4.0
+	default:
+		return 4.5
+	}
+}
+
+func findBestPlateTypeAssignment(
+	sortedPlates []PlateSize,
+	plateSizes map[int]int,
+	plateNeighbors map[int]map[int]bool,
+	totalRegions int,
+	targetLandFraction float64,
+) (map[int]bool, bool) {
+	bestCandidate, ok := findBestPlateTypeAssignmentCandidate(
+		sortedPlates,
+		plateSizes,
+		plateNeighbors,
+		totalRegions,
+		targetLandFraction,
+	)
+	if !ok {
+		return nil, false
+	}
+
+	plateIsOcean := make(map[int]bool, len(sortedPlates))
+	for i, ps := range sortedPlates {
+		plateIsOcean[ps.Center] = (bestCandidate.mask & (uint64(1) << i)) == 0
+	}
+	return plateIsOcean, true
+}
+
+func findBestPlateTypeAssignmentCandidate(
+	sortedPlates []PlateSize,
+	plateSizes map[int]int,
+	plateNeighbors map[int]map[int]bool,
+	totalRegions int,
+	targetLandFraction float64,
+) (plateAssignmentCandidate, bool) {
+	numPlates := len(sortedPlates)
+	if numPlates == 0 || numPlates > 18 {
+		return plateAssignmentCandidate{}, false
+	}
+
+	targetRegions := int(float64(totalRegions) * targetContinentalFraction(targetLandFraction))
+	targetFraction := float64(targetRegions) / float64(totalRegions)
+	minFraction := minimumContinentalFraction(targetLandFraction)
+
+	candidates := make([]plateAssignmentCandidate, 0)
+	maxMask := uint64(1) << numPlates
+	for mask := uint64(1); mask < maxMask-1; mask++ {
+		stats := evaluatePlateAssignment(mask, sortedPlates, plateSizes, plateNeighbors, totalRegions)
+		if stats.continentalPlateCount < 2 || stats.oceanPlateCount < 2 {
+			continue
+		}
+
+		continentalFraction := float64(stats.continentalRegions) / float64(totalRegions)
+		if continentalFraction < minFraction || continentalFraction > 0.46 {
+			continue
+		}
+
+		score := scorePlateAssignment(stats, continentalFraction, targetFraction, numPlates)
+		candidates = append(candidates, plateAssignmentCandidate{
+			mask:  mask,
+			stats: stats,
+			score: score,
+		})
+	}
+
+	bestScore := math.Inf(1)
+	var bestCandidate plateAssignmentCandidate
+	bestFound := false
+	tolerances := []float64{0.025, 0.04, 0.06}
+	for _, tolerance := range tolerances {
+		for _, candidate := range candidates {
+			continentalFraction := float64(candidate.stats.continentalRegions) / float64(totalRegions)
+			if math.Abs(continentalFraction-targetFraction) > tolerance {
+				continue
+			}
+			if candidate.score < bestScore {
+				bestScore = candidate.score
+				bestCandidate = candidate
+				bestFound = true
+			}
+		}
+		if bestFound {
+			break
+		}
+	}
+
+	if !bestFound {
+		for _, candidate := range candidates {
+			if candidate.score < bestScore {
+				bestScore = candidate.score
+				bestCandidate = candidate
+				bestFound = true
+			}
+		}
+	}
+
+	if !bestFound {
+		return plateAssignmentCandidate{}, false
+	}
+
+	return bestCandidate, true
+}
+
+func scorePlateAssignment(
+	stats plateAssignmentStats,
+	continentalFraction float64,
+	targetFraction float64,
+	numPlates int,
+) float64 {
+	minMajorContinents := 3.0
+	targetMajorContinents := desiredContinentComponents(numPlates)
+	if numPlates <= 8 {
+		minMajorContinents = 3.0
+	}
+	if numPlates >= 14 {
+		minMajorContinents = 4.0
+	}
+
+	score := 0.0
+	if continentalFraction < targetFraction {
+		score += (targetFraction - continentalFraction) * 24.0
+	} else {
+		score += (continentalFraction - targetFraction) * 12.0
+	}
+
+	score += math.Abs(float64(stats.continentalComponents)-targetMajorContinents) * 1.25
+
+	if float64(stats.majorContinents) < minMajorContinents {
+		score += (minMajorContinents - float64(stats.majorContinents)) * 5.0
+	} else if float64(stats.majorContinents) > targetMajorContinents+2 {
+		score += (float64(stats.majorContinents) - (targetMajorContinents + 2)) * 0.75
+	}
+
+	if stats.oceanComponents == 0 {
+		score += 10.0
+	} else {
+		score += math.Abs(float64(stats.oceanComponents)-1.0) * 1.25
+	}
+
+	if stats.includesLargestPlate {
+		score += 2.0
+	}
+
+	// Oversized supercontinents are still a failure, but a single somewhat large
+	// continent is acceptable if the overall tectonic layout is coherent.
+	if stats.largestContinentShare > 0.42 {
+		score += (stats.largestContinentShare - 0.42) * 10.0
+	}
+	if stats.largestContinentShare > 0.45 {
+		score += (stats.largestContinentShare - 0.45) * 22.0
+	}
+	if stats.largestContinentShare > 0.55 {
+		score += (stats.largestContinentShare - 0.55) * 70.0
+	}
+	if stats.largestContinentShare > 0.65 {
+		score += (stats.largestContinentShare - 0.65) * 120.0
+	}
+
+	// Low inequality is acceptable; only very uniform continent sizes are suspect.
+	if stats.continentSizeGini > 0.60 {
+		score += (stats.continentSizeGini - 0.60) * 10.0
+	}
+	if stats.continentSizeGini < 0.18 {
+		score += (0.18 - stats.continentSizeGini) * 12.0
+	}
+	if stats.continentSizeGini < 0.10 {
+		score += (0.10 - stats.continentSizeGini) * 18.0
+	}
+
+	return score
+}
+
+func evaluatePlateAssignment(
+	mask uint64,
+	sortedPlates []PlateSize,
+	plateSizes map[int]int,
+	plateNeighbors map[int]map[int]bool,
+	totalRegions int,
+) plateAssignmentStats {
+	stats := plateAssignmentStats{}
+	plateIndexByCenter := make(map[int]int, len(sortedPlates))
+	for i, ps := range sortedPlates {
+		plateIndexByCenter[ps.Center] = i
+		if (mask & (uint64(1) << i)) != 0 {
+			stats.continentalRegions += plateSizes[ps.Center]
+			stats.continentalPlateCount++
+			if i == 0 {
+				stats.includesLargestPlate = true
+			}
+		} else {
+			stats.oceanPlateCount++
+		}
+	}
+
+	continentSizes := componentSizesForMask(mask, sortedPlates, plateSizes, plateNeighbors, plateIndexByCenter, true)
+	oceanSizes := componentSizesForMask(mask, sortedPlates, plateSizes, plateNeighbors, plateIndexByCenter, false)
+	stats.continentalComponents = len(continentSizes)
+	stats.oceanComponents = len(oceanSizes)
+
+	if stats.continentalRegions > 0 && len(continentSizes) > 0 {
+		majorThreshold := math.Ceil(majorLandmassFraction * float64(totalRegions))
+		majorSizes := make([]float64, 0, len(continentSizes))
+		largest := 0.0
+		for _, size := range continentSizes {
+			if size > largest {
+				largest = size
+			}
+			if size >= majorThreshold {
+				majorSizes = append(majorSizes, size)
+			}
+		}
+		stats.largestContinentShare = largest / float64(stats.continentalRegions)
+		stats.majorContinents = len(majorSizes)
+		stats.continentSizeGini = computeGini(majorSizes)
+	}
+
+	return stats
+}
+
+func componentSizesForMask(
+	mask uint64,
+	sortedPlates []PlateSize,
+	plateSizes map[int]int,
+	plateNeighbors map[int]map[int]bool,
+	plateIndexByCenter map[int]int,
+	wantContinental bool,
+) []float64 {
+	visited := make([]bool, len(sortedPlates))
+	sizes := make([]float64, 0)
+
+	for i, ps := range sortedPlates {
+		isContinental := (mask & (uint64(1) << i)) != 0
+		if visited[i] || isContinental != wantContinental {
+			continue
+		}
+
+		size := 0.0
+		queue := []int{ps.Center}
+		visited[i] = true
+
+		for len(queue) > 0 {
+			current := queue[0]
+			queue = queue[1:]
+			size += float64(plateSizes[current])
+
+			for neighbor := range plateNeighbors[current] {
+				neighborIdx, ok := plateIndexByCenter[neighbor]
+				if !ok || visited[neighborIdx] {
+					continue
+				}
+				neighborIsContinental := (mask & (uint64(1) << neighborIdx)) != 0
+				if neighborIsContinental != wantContinental {
+					continue
+				}
+				visited[neighborIdx] = true
+				queue = append(queue, neighbor)
+			}
+		}
+
+		sizes = append(sizes, size)
+	}
+
+	return sizes
+}
+
+func sortPlateSizes(sortedPlates []PlateSize) {
+	sort.Slice(sortedPlates, func(i, j int) bool {
+		return sortedPlates[i].Size > sortedPlates[j].Size
+	})
 }
 
 // FindConnectedOceanGroups finds groups of oceanic plates that are connected to each other
@@ -415,4 +872,3 @@ func randomUnitVector(rng *rand.Rand) Vector3D {
 		Z: z,
 	}
 }
-

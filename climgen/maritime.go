@@ -24,19 +24,27 @@ import (
 
 // MaritimeSettings controls the maritime influence calculation
 type MaritimeSettings struct {
-	DecayDistanceKm float64 // Distance at which influence drops to 1/e (~37%)
-	MaxDistanceKm   float64 // Maximum distance influence can spread inland
-	MinWindSpeed    float64 // Minimum wind speed to carry maritime air (0-1 normalized)
-	BlendStrength   float64 // How much to blend toward ocean temp (0-1)
+	DecayDistanceKm      float64 // Distance at which influence drops to 1/e (~37%)
+	MaxDistanceKm        float64 // Maximum distance influence can spread inland
+	MinWindSpeed         float64 // Minimum wind speed to carry maritime air (0-1 normalized)
+	BlendStrength        float64 // How much to blend toward ocean temp (0-1)
+	BaseCoastalInfluence float64 // Baseline coastal moderation even with weak onshore flow
+	OnshoreInfluenceGain float64 // Extra influence from onshore marine flow
+	OffshoreLeakScale    float64 // Residual influence allowed with offshore/side-shore flow
+	AnomalyBlendStrength float64 // Additional blend applied to current-driven SST anomalies
 }
 
 // DefaultMaritimeSettings returns reasonable defaults
 func DefaultMaritimeSettings() MaritimeSettings {
 	return MaritimeSettings{
-		DecayDistanceKm: 300.0,  // Influence at ~37% by 300km inland
-		MaxDistanceKm:   1500.0, // Maritime effects can reach 1500km inland
-		MinWindSpeed:    0.05,   // Very light winds still carry some maritime air
-		BlendStrength:   0.5,    // Blend 50% toward ocean temp at full influence
+		DecayDistanceKm:      320.0, // Influence at ~37% by 320km inland
+		MaxDistanceKm:        1800.0,
+		MinWindSpeed:         0.04,
+		BlendStrength:        0.32,
+		BaseCoastalInfluence: 0.08,
+		OnshoreInfluenceGain: 1.10,
+		OffshoreLeakScale:    0.12,
+		AnomalyBlendStrength: 1.80,
 	}
 }
 
@@ -159,7 +167,7 @@ func initializeCoastalCells(
 				// 2. Wind-driven bonus (onshore wind adds more)
 				var oceanTempSum float64
 				var oceanWeightSum float64
-				var onshoreBonus float64
+				var influenceSum float64
 				oceanCount := 0
 
 				for _, k := range adj.GetNeighbors(i) {
@@ -171,10 +179,6 @@ func initializeCoastalCells(
 					}
 
 					oceanCount++
-					// Always capture ocean temperature (weighted equally for base)
-					oceanTempSum += oceanTemp[k]
-					oceanWeightSum += 1.0
-
 					// Direction FROM ocean neighbor TO this land cell
 					fromOcean := Sub(vertices[i], vertices[k])
 					fromOcean = Normalize(fromOcean)
@@ -183,19 +187,20 @@ func initializeCoastalCells(
 					// Positive = wind blowing from ocean onto land
 					onshore := Dot(windDir, fromOcean)
 
+					weight := settings.OffshoreLeakScale * windSpeed
 					if onshore > 0 {
-						// Add wind-driven bonus
-						onshoreBonus += onshore * windSpeed
+						weight += settings.OnshoreInfluenceGain * onshore * windSpeed
 					}
+					oceanTempSum += oceanTemp[k] * weight
+					oceanWeightSum += weight
+					influenceSum += weight
 				}
 
 				if oceanCount > 0 {
-					// Base influence: 0.3 for any coastal cell (islands get this on all sides)
-					// Wind bonus: up to ~1.0 additional for strong onshore wind
-					baseInfluence := 0.3
-					windInfluence := onshoreBonus / float64(oceanCount)
-					result.Influence[i] = baseInfluence + windInfluence
-					result.SourceTemp[i] = oceanTempSum / oceanWeightSum
+					result.Influence[i] = settings.BaseCoastalInfluence + influenceSum/float64(oceanCount)
+					if oceanWeightSum > 1e-9 {
+						result.SourceTemp[i] = oceanTempSum / oceanWeightSum
+					}
 				}
 			}
 		}(start, end)
