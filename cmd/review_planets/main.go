@@ -30,6 +30,7 @@ func main() {
 	climateSettlements := flag.Bool("climate-settlements", true, "report coarse settlement suitability from climate, hydrology, soils, vegetation, and resources")
 	climatePopulation := flag.Bool("climate-population", true, "report coarse population support and urban potential from settlement, food, water, access, and resources")
 	climateSettlementNetwork := flag.Bool("climate-settlement-network", true, "extract coarse settlement nodes and connectivity corridors from support fields")
+	climateProtoCivilizations := flag.Bool("climate-proto-civilizations", true, "derive coarse proto-civilization seeds and hinterlands from settlement regions")
 	settlementProfiles := flag.Bool("settlement-profiles", true, "report fantasy settlement preference overlays")
 	profileCatalogFile := flag.String("profile-catalog-file", "config/profile_catalog_fantasy.json", "JSON profile catalog describing ancestry/culture modifiers")
 	agricultureFile := flag.String("agriculture-productivity-file", "config/agriculture_productivity_earthlike.json", "JSON agriculture/pastoral productivity configuration")
@@ -219,6 +220,11 @@ func main() {
 						printSettlementNetworkSummary(networkResult)
 						renderSettlementNetworkMap(sites, elevation, index, networkResult, prefix+"_settlement_network.png", width, height)
 						renderSettlementRegionMap(sites, elevation, index, networkResult, prefix+"_settlement_regions.png", width, height)
+						if *climateProtoCivilizations {
+							protoResult := computeProtoCivilizations(climateCells, networkResult, settlementResult, populationResult, biomeResult, soilResult, elevation)
+							printProtoCivilizationSummary(protoResult)
+							renderProtoCivilizationMap(sites, elevation, index, protoResult, networkResult, prefix+"_proto_civilizations.png", width, height)
+						}
 					}
 				}
 			}

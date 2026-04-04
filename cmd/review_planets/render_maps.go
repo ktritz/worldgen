@@ -373,6 +373,45 @@ func renderSettlementRegionMap(
 	saveMapPNG(filename, img, "settlement region map")
 }
 
+func renderProtoCivilizationMap(
+	sites []terrain.Vector3D,
+	elevation []float64,
+	index *terrain.SpatialIndex,
+	result *climgen.ProtoCivilizationResult,
+	network *climgen.SettlementNetworkResult,
+	filename string,
+	width, height int,
+) {
+	if result == nil || result.Diagnostics == nil || network == nil || index == nil {
+		return
+	}
+	centerCells := make(map[int]struct{}, len(result.Civilizations))
+	for _, civ := range result.Civilizations {
+		if civ.CenterNode >= 0 && civ.CenterNode < len(network.Nodes) {
+			centerCells[network.Nodes[civ.CenterNode].CellIndex] = struct{}{}
+		}
+	}
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	for py := 0; py < height; py++ {
+		lat := 90 - float64(py)/float64(height)*180
+		for px := 0; px < width; px++ {
+			lon := float64(px)/float64(width)*360 - 180
+			cellIdx := index.FindNearest(lat, lon, sites)
+			out := terrain.HypsometricColor(elevation[cellIdx])
+			if cellIdx >= 0 && cellIdx < len(result.Diagnostics.CivilizationByCell) {
+				if civIdx := result.Diagnostics.CivilizationByCell[cellIdx]; civIdx >= 0 {
+					out = blendReviewColor(out, climgen.ProtoCivilizationColor(civIdx), 0.58)
+				}
+			}
+			if _, ok := centerCells[cellIdx]; ok {
+				out = blendReviewColor(out, color.RGBA{248, 236, 176, 255}, 0.75)
+			}
+			img.Set(px, py, out)
+		}
+	}
+	saveMapPNG(filename, img, "proto-civilization map")
+}
+
 func renderSettlementPreferenceMap(
 	sites []terrain.Vector3D,
 	index *terrain.SpatialIndex,

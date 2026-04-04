@@ -416,6 +416,28 @@ func computeSettlementNetwork(
 	)
 }
 
+func computeProtoCivilizations(
+	cells []climgen.VoronoiCell,
+	network *climgen.SettlementNetworkResult,
+	settlements *climgen.SettlementResult,
+	population *climgen.PopulationResult,
+	biomes *climgen.BiomeResult,
+	soils *climgen.SoilResult,
+	elevation []float64,
+) *climgen.ProtoCivilizationResult {
+	return climgen.BuildProtoCivilizations(
+		cells,
+		network,
+		settlements,
+		population,
+		biomes,
+		soils,
+		elevation,
+		0.0,
+		climgen.DefaultProtoCivilizationSettings(),
+	)
+}
+
 func computeSettlementPreferences(
 	biomes *climgen.BiomeResult,
 	soils *climgen.SoilResult,
