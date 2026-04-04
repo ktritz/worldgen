@@ -63,6 +63,18 @@ func printSettlementNetworkSummary(result *climgen.SettlementNetworkResult) {
 	for _, entry := range sorted {
 		fmt.Printf("      node[%s]=%d\n", climgen.SettlementNodeKindName(entry.kind), entry.count)
 	}
+	for _, region := range topSettlementRegions(result, 4) {
+		center := result.Nodes[region.CenterNode]
+		fmt.Printf(
+			"      region[%d]: anchors=%d center=%s coastal=%v river=%v meanScore=%.2f\n",
+			region.ID,
+			len(region.NodeIndices),
+			climgen.SettlementNodeKindName(center.Kind),
+			region.Coastal,
+			region.River,
+			region.MeanScore,
+		)
+	}
 }
 
 func meanFloat(values []float64) float64 {
@@ -109,4 +121,21 @@ func nearestNeighborCosts(result *climgen.SettlementNetworkResult) []float64 {
 		}
 	}
 	return nearest
+}
+
+func topSettlementRegions(result *climgen.SettlementNetworkResult, limit int) []climgen.SettlementRegion {
+	if result == nil || len(result.Regions) == 0 {
+		return nil
+	}
+	sorted := append([]climgen.SettlementRegion(nil), result.Regions...)
+	sort.Slice(sorted, func(i, j int) bool {
+		if len(sorted[i].NodeIndices) != len(sorted[j].NodeIndices) {
+			return len(sorted[i].NodeIndices) > len(sorted[j].NodeIndices)
+		}
+		return sorted[i].MeanScore > sorted[j].MeanScore
+	})
+	if len(sorted) < limit {
+		limit = len(sorted)
+	}
+	return sorted[:limit]
 }

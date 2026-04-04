@@ -44,11 +44,13 @@ type SettlementLink struct {
 type SettlementNetworkDiagnostics struct {
 	MovementCost []float64
 	NodeByCell   []int
+	RegionByNode []int
 }
 
 type SettlementNetworkResult struct {
 	Nodes       []SettlementNode
 	Links       []SettlementLink
+	Regions     []SettlementRegion
 	Diagnostics *SettlementNetworkDiagnostics
 }
 
@@ -127,6 +129,7 @@ func BuildSettlementNetwork(
 	}
 	out.Links = buildSettlementLinks(cells, out.Nodes, out.Diagnostics.MovementCost, settlements, resources, settings)
 	out.Nodes, out.Links, out.Diagnostics.NodeByCell = pruneIsolatedNodes(out.Nodes, out.Links, out.Diagnostics.NodeByCell, settlements, resources)
+	assignSettlementRegions(out)
 	return out
 }
 

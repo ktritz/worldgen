@@ -218,6 +218,7 @@ func main() {
 						networkResult := computeSettlementNetwork(climateSites, climateCells, settlementResult, populationResult, biomeResult, soilResult, resourceResult, elevation)
 						printSettlementNetworkSummary(networkResult)
 						renderSettlementNetworkMap(sites, elevation, index, networkResult, prefix+"_settlement_network.png", width, height)
+						renderSettlementRegionMap(sites, elevation, index, networkResult, prefix+"_settlement_regions.png", width, height)
 					}
 				}
 			}

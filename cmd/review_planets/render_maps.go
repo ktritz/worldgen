@@ -335,6 +335,44 @@ func renderSettlementNetworkMap(
 	saveMapPNG(filename, img, "settlement network map")
 }
 
+func renderSettlementRegionMap(
+	sites []terrain.Vector3D,
+	elevation []float64,
+	index *terrain.SpatialIndex,
+	result *climgen.SettlementNetworkResult,
+	filename string,
+	width, height int,
+) {
+	if result == nil || index == nil {
+		return
+	}
+	nodeRegion := map[int]int{}
+	centerCells := map[int]struct{}{}
+	for _, region := range result.Regions {
+		for _, nodeIdx := range region.NodeIndices {
+			nodeRegion[result.Nodes[nodeIdx].CellIndex] = region.ID
+		}
+		centerCells[result.Nodes[region.CenterNode].CellIndex] = struct{}{}
+	}
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	for py := 0; py < height; py++ {
+		lat := 90 - float64(py)/float64(height)*180
+		for px := 0; px < width; px++ {
+			lon := float64(px)/float64(width)*360 - 180
+			cellIdx := index.FindNearest(lat, lon, sites)
+			out := terrain.HypsometricColor(elevation[cellIdx])
+			if regionID, ok := nodeRegion[cellIdx]; ok {
+				out = blendReviewColor(out, settlementRegionColor(regionID), 0.62)
+			}
+			if _, ok := centerCells[cellIdx]; ok {
+				out = blendReviewColor(out, color.RGBA{248, 236, 176, 255}, 0.72)
+			}
+			img.Set(px, py, out)
+		}
+	}
+	saveMapPNG(filename, img, "settlement region map")
+}
+
 func renderSettlementPreferenceMap(
 	sites []terrain.Vector3D,
 	index *terrain.SpatialIndex,
@@ -388,4 +426,19 @@ func blendReviewColor(base, over color.RGBA, alpha float64) color.RGBA {
 		B: uint8(float64(base.B)*(1-alpha) + float64(over.B)*alpha),
 		A: 255,
 	}
+}
+
+func settlementRegionColor(regionID int) color.RGBA {
+	palette := []color.RGBA{
+		{176, 112, 88, 255},
+		{104, 148, 102, 255},
+		{90, 128, 174, 255},
+		{168, 148, 86, 255},
+		{136, 108, 162, 255},
+		{88, 150, 156, 255},
+	}
+	if len(palette) == 0 {
+		return color.RGBA{0, 0, 0, 255}
+	}
+	return palette[regionID%len(palette)]
 }
