@@ -28,6 +28,8 @@ func main() {
 	climateWaterResources := flag.Bool("climate-water-resources", true, "report coarse freshwater resource access from climate, soils, and hydrology")
 	climateResources := flag.Bool("climate-resources", true, "report coarse geological resource provinces")
 	climateSettlements := flag.Bool("climate-settlements", true, "report coarse settlement suitability from climate, hydrology, soils, vegetation, and resources")
+	climatePopulation := flag.Bool("climate-population", true, "report coarse population support and urban potential from settlement, food, water, access, and resources")
+	climateSettlementNetwork := flag.Bool("climate-settlement-network", true, "extract coarse settlement nodes and connectivity corridors from support fields")
 	settlementProfiles := flag.Bool("settlement-profiles", true, "report fantasy settlement preference overlays")
 	profileCatalogFile := flag.String("profile-catalog-file", "config/profile_catalog_fantasy.json", "JSON profile catalog describing ancestry/culture modifiers")
 	agricultureFile := flag.String("agriculture-productivity-file", "config/agriculture_productivity_earthlike.json", "JSON agriculture/pastoral productivity configuration")
@@ -35,6 +37,7 @@ func main() {
 	coastalResourceFile := flag.String("coastal-resources-file", "config/coastal_resources_earthlike.json", "JSON coastal resource productivity configuration")
 	waterResourceFile := flag.String("water-resources-file", "config/water_resources_earthlike.json", "JSON freshwater resource productivity configuration")
 	resourceAbundanceFile := flag.String("resource-abundance-file", "config/resource_abundance_earthlike.json", "JSON resource abundance/scarcity configuration")
+	populationSupportFile := flag.String("population-support-file", "config/population_support_earthlike.json", "JSON population support configuration")
 	useCache := flag.Bool("cache", true, "reuse cached terrain and seasonal climate artifacts under the review output directory")
 	flag.Parse()
 
@@ -100,6 +103,7 @@ func main() {
 	wildlifeSettings := loadWildlifeSettings(*wildlifeFile)
 	coastalResourceSettings := loadCoastalResourceSettings(*coastalResourceFile)
 	waterResourceSettings := loadWaterResourceSettings(*waterResourceFile)
+	populationSettings := loadPopulationSupportSettings(*populationSupportFile)
 	baselineRecords := make([]baselineSeedMetrics, 0, len(seeds))
 
 	for _, seed := range seeds {
@@ -135,6 +139,9 @@ func main() {
 			var soilResult *climgen.SoilResult
 			var vegetationResult *climgen.VegetationResult
 			var waterResourceResult *climgen.WaterResourceResult
+			var agricultureResult *climgen.AgricultureResult
+			var wildlifeResult *climgen.WildlifeResult
+			var coastalResourceResult *climgen.CoastalResourceResult
 			if *climateSoils || *climateVegetation {
 				soilResult = computeSoils(climateCells, seasonalClimate, biomeResult, elevation, diagnostics.Hydrology.Scaffold)
 			}
@@ -149,13 +156,13 @@ func main() {
 				renderSoilMap(sites, index, soilResult, prefix+"_soils.png", width, height)
 			}
 			if *climateAgriculture && soilResult != nil {
-				agricultureResult := computeAgriculture(biomeResult, soilResult, elevation, diagnostics.Hydrology.Scaffold, agricultureSettings)
+				agricultureResult = computeAgriculture(biomeResult, soilResult, elevation, diagnostics.Hydrology.Scaffold, agricultureSettings)
 				record.Crop, record.Pasture = collectAgricultureMetrics(agricultureResult)
 				printAgricultureSummary(agricultureResult)
 				renderAgricultureMap(sites, index, agricultureResult, prefix+"_agriculture.png", width, height)
 			}
 			if *climateWildlife && vegetationResult != nil {
-				wildlifeResult := computeWildlife(biomeResult, vegetationResult, soilResult, elevation, diagnostics.Hydrology.Scaffold, wildlifeSettings)
+				wildlifeResult = computeWildlife(biomeResult, vegetationResult, soilResult, elevation, diagnostics.Hydrology.Scaffold, wildlifeSettings)
 				record.Game, record.Timber = collectWildlifeMetrics(wildlifeResult)
 				printWildlifeSummary(wildlifeResult)
 				renderWildlifeMap(sites, index, wildlifeResult, prefix+"_wildlife.png", width, height)
@@ -167,7 +174,7 @@ func main() {
 				renderWaterResourceMap(sites, index, waterResourceResult, prefix+"_water_resources.png", width, height)
 			}
 			if *climateCoastalResources && vegetationResult != nil && soilResult != nil {
-				coastalResourceResult := computeCoastalResources(climateSites, climateCells, seasonalClimate, biomeResult, soilResult, vegetationResult, elevation, diagnostics.Hydrology.Scaffold, coastalResourceSettings)
+				coastalResourceResult = computeCoastalResources(climateSites, climateCells, seasonalClimate, biomeResult, soilResult, vegetationResult, elevation, diagnostics.Hydrology.Scaffold, coastalResourceSettings)
 				record.Fishery, record.Shellfish = collectCoastalMetrics(coastalResourceResult)
 				printCoastalResourceSummary(coastalResourceResult)
 				renderCoastalResourceMap(sites, index, coastalResourceResult, prefix+"_coastal_resources.png", width, height)
@@ -192,6 +199,26 @@ func main() {
 					preferences := computeSettlementPreferences(biomeResult, soilResult, vegetationResult, settlementResult, elevation, profiles)
 					printSettlementPreferenceSummary(preferences)
 					renderSettlementPreferenceMap(sites, index, preferences, prefix+"_settlement_preferences.png", width, height)
+				}
+				if *climatePopulation {
+					populationResult := computePopulation(
+						settlementResult,
+						agricultureResult,
+						wildlifeResult,
+						waterResourceResult,
+						coastalResourceResult,
+						resourceResult,
+						elevation,
+						populationSettings,
+					)
+					record.Frontier, record.Settled, record.DensePop, record.UrbanPop = collectPopulationMetrics(populationResult)
+					printPopulationSummary(populationResult)
+					renderPopulationMap(sites, index, populationResult, prefix+"_population.png", width, height)
+					if *climateSettlementNetwork {
+						networkResult := computeSettlementNetwork(climateSites, climateCells, settlementResult, populationResult, biomeResult, soilResult, resourceResult, elevation)
+						printSettlementNetworkSummary(networkResult)
+						renderSettlementNetworkMap(sites, elevation, index, networkResult, prefix+"_settlement_network.png", width, height)
+					}
 				}
 			}
 		}

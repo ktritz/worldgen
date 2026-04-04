@@ -104,6 +104,17 @@ func loadWaterResourceSettings(path string) climgen.WaterResourceSettings {
 	return settings
 }
 
+func loadPopulationSupportSettings(path string) climgen.PopulationSupportSettings {
+	settings := climgen.DefaultPopulationSupportSettings()
+	if loaded, err := climgen.LoadPopulationSupportSettings(path); err != nil {
+		fmt.Printf("Using built-in population support settings, failed to load %s: %v\n", path, err)
+	} else {
+		settings = loaded
+		fmt.Printf("Loaded population support settings from %s\n", path)
+	}
+	return settings
+}
+
 func loadOrGenerateTerrain(
 	cacheStore *reviewCacheStore,
 	terrainKey string,
@@ -356,6 +367,53 @@ func computeSettlement(
 	hydro := hydrologyBiomeInputsFromScaffold(scaffold)
 	coastalExposure := climgen.ComputeCoastalExposure(cells, elevation, 0.0)
 	return climgen.ClassifySettlementSuitability(climate, biomes, soils, vegetation, waterResources, resources, elevation, 0.0, hydro, coastalExposure)
+}
+
+func computePopulation(
+	settlements *climgen.SettlementResult,
+	agriculture *climgen.AgricultureResult,
+	wildlife *climgen.WildlifeResult,
+	waterResources *climgen.WaterResourceResult,
+	coastalResources *climgen.CoastalResourceResult,
+	resources *climgen.ResourceResult,
+	elevation []float64,
+	settings climgen.PopulationSupportSettings,
+) *climgen.PopulationResult {
+	return climgen.ClassifyPopulationSupport(
+		settlements,
+		agriculture,
+		wildlife,
+		waterResources,
+		coastalResources,
+		resources,
+		elevation,
+		0.0,
+		settings,
+	)
+}
+
+func computeSettlementNetwork(
+	sites []climgen.Vector3D,
+	cells []climgen.VoronoiCell,
+	settlements *climgen.SettlementResult,
+	population *climgen.PopulationResult,
+	biomes *climgen.BiomeResult,
+	soils *climgen.SoilResult,
+	resources *climgen.ResourceResult,
+	elevation []float64,
+) *climgen.SettlementNetworkResult {
+	return climgen.BuildSettlementNetwork(
+		sites,
+		cells,
+		settlements,
+		population,
+		biomes,
+		soils,
+		resources,
+		elevation,
+		0.0,
+		climgen.DefaultSettlementNetworkSettings(),
+	)
 }
 
 func computeSettlementPreferences(

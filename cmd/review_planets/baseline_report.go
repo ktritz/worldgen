@@ -32,6 +32,10 @@ type baselineSeedMetrics struct {
 	Luxury      float64
 	Favorable   float64
 	Prime       float64
+	Frontier    float64
+	Settled     float64
+	DensePop    float64
+	UrbanPop    float64
 }
 
 func newBaselineSeedMetrics(seed int64) baselineSeedMetrics {
@@ -58,6 +62,10 @@ func newBaselineSeedMetrics(seed int64) baselineSeedMetrics {
 		Luxury:      na,
 		Favorable:   na,
 		Prime:       na,
+		Frontier:    na,
+		Settled:     na,
+		DensePop:    na,
+		UrbanPop:    na,
 	}
 }
 
@@ -280,6 +288,42 @@ func collectSettlementMetrics(result *climgen.SettlementResult) (favorablePct, p
 		100 * float64(primeCount) / float64(landCells)
 }
 
+func collectPopulationMetrics(result *climgen.PopulationResult) (frontierPct, settledPct, densePct, urbanPct float64) {
+	if result == nil {
+		return math.NaN(), math.NaN(), math.NaN(), math.NaN()
+	}
+	landCells := 0
+	frontierCount := 0
+	settledCount := 0
+	denseCount := 0
+	urbanCount := 0
+	for _, class := range result.Classes {
+		if class == climgen.PopulationOcean {
+			continue
+		}
+		landCells++
+		if class == climgen.PopulationSparseFrontier {
+			frontierCount++
+		}
+		if class == climgen.PopulationRural || class == climgen.PopulationDenseRural || class == climgen.PopulationUrban {
+			settledCount++
+		}
+		if class == climgen.PopulationDenseRural || class == climgen.PopulationUrban {
+			denseCount++
+		}
+		if class == climgen.PopulationUrban {
+			urbanCount++
+		}
+	}
+	if landCells == 0 {
+		return math.NaN(), math.NaN(), math.NaN(), math.NaN()
+	}
+	return 100 * float64(frontierCount) / float64(landCells),
+		100 * float64(settledCount) / float64(landCells),
+		100 * float64(denseCount) / float64(landCells),
+		100 * float64(urbanCount) / float64(landCells)
+}
+
 func writeBaselineReport(outputDir string, records []baselineSeedMetrics) error {
 	if len(records) == 0 {
 		return nil
@@ -287,9 +331,9 @@ func writeBaselineReport(outputDir string, records []baselineSeedMetrics) error 
 	path := filepath.Join(outputDir, "baseline_summary.txt")
 	var b strings.Builder
 	fmt.Fprintln(&b, "Baseline review summary")
-	fmt.Fprintln(&b, "columns: seed score drain endo arid forest wetland woody crop pasture game timber fishery shellfish reliable groundwater metallic fuel luxury favorable prime")
+	fmt.Fprintln(&b, "columns: seed score drain endo arid forest wetland woody crop pasture game timber fishery shellfish reliable groundwater metallic fuel luxury favorable prime frontierSupport settledSupport denseSupport urbanSupport")
 	for _, r := range records {
-		fmt.Fprintf(&b, "%5d %6s %6s %6s %6s %6s %7s %6s %6s %7s %6s %6s %7s %8s %8s %11s %8s %5s %7s %9s %5s\n",
+		fmt.Fprintf(&b, "%5d %6s %6s %6s %6s %6s %7s %6s %6s %7s %6s %6s %7s %8s %8s %11s %8s %5s %7s %9s %5s %8s %7s %5s %5s\n",
 			r.Seed,
 			formatMetric(r.Score),
 			formatMetric(r.Drain),
@@ -311,6 +355,10 @@ func writeBaselineReport(outputDir string, records []baselineSeedMetrics) error 
 			formatMetric(r.Luxury),
 			formatMetric(r.Favorable),
 			formatMetric(r.Prime),
+			formatMetric(r.Frontier),
+			formatMetric(r.Settled),
+			formatMetric(r.DensePop),
+			formatMetric(r.UrbanPop),
 		)
 	}
 
@@ -328,6 +376,9 @@ func writeBaselineReport(outputDir string, records []baselineSeedMetrics) error 
 		{"fishery", collectMetricSeries(records, func(r baselineSeedMetrics) float64 { return r.Fishery })},
 		{"metallic", collectMetricSeries(records, func(r baselineSeedMetrics) float64 { return r.Metallic })},
 		{"favorable", collectMetricSeries(records, func(r baselineSeedMetrics) float64 { return r.Favorable })},
+		{"settledSupport", collectMetricSeries(records, func(r baselineSeedMetrics) float64 { return r.Settled })},
+		{"denseSupport", collectMetricSeries(records, func(r baselineSeedMetrics) float64 { return r.DensePop })},
+		{"urbanSupport", collectMetricSeries(records, func(r baselineSeedMetrics) float64 { return r.UrbanPop })},
 	}
 	fmt.Fprintln(&b)
 	fmt.Fprintln(&b, "ranges:")

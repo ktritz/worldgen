@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"math"
 	"os"
 
 	"worldgen/climgen"
@@ -265,6 +266,75 @@ func renderSettlementMap(
 	saveMapPNG(filename, img, "settlement map")
 }
 
+func renderPopulationMap(
+	sites []terrain.Vector3D,
+	index *terrain.SpatialIndex,
+	result *climgen.PopulationResult,
+	filename string,
+	width, height int,
+) {
+	if result == nil || index == nil {
+		return
+	}
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	for py := 0; py < height; py++ {
+		lat := 90 - float64(py)/float64(height)*180
+		for px := 0; px < width; px++ {
+			lon := float64(px)/float64(width)*360 - 180
+			cellIdx := index.FindNearest(lat, lon, sites)
+			if cellIdx >= 0 && cellIdx < len(result.Classes) {
+				img.Set(px, py, climgen.PopulationColor(result.Classes[cellIdx]))
+			}
+		}
+	}
+	saveMapPNG(filename, img, "population map")
+}
+
+func renderSettlementNetworkMap(
+	sites []terrain.Vector3D,
+	elevation []float64,
+	index *terrain.SpatialIndex,
+	result *climgen.SettlementNetworkResult,
+	filename string,
+	width, height int,
+) {
+	if result == nil || index == nil {
+		return
+	}
+	pathCells := make(map[int]float64)
+	for _, link := range result.Links {
+		for _, cellIdx := range link.Path {
+			if link.TravelCost > pathCells[cellIdx] {
+				pathCells[cellIdx] = link.TravelCost
+			}
+		}
+	}
+	nodeByCell := make(map[int]climgen.SettlementNodeKind, len(result.Nodes))
+	for _, node := range result.Nodes {
+		nodeByCell[node.CellIndex] = node.Kind
+	}
+
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	for py := 0; py < height; py++ {
+		lat := 90 - float64(py)/float64(height)*180
+		for px := 0; px < width; px++ {
+			lon := float64(px)/float64(width)*360 - 180
+			cellIdx := index.FindNearest(lat, lon, sites)
+			base := terrain.HypsometricColor(elevation[cellIdx])
+			out := base
+			if pathCost, ok := pathCells[cellIdx]; ok {
+				blend := 0.18 + 0.22*math.Min(pathCost/12.0, 1.0)
+				out = blendReviewColor(out, color.RGBA{112, 92, 70, 255}, blend)
+			}
+			if kind, ok := nodeByCell[cellIdx]; ok {
+				out = blendReviewColor(out, climgen.SettlementNodeColor(kind), 0.72)
+			}
+			img.Set(px, py, out)
+		}
+	}
+	saveMapPNG(filename, img, "settlement network map")
+}
+
 func renderSettlementPreferenceMap(
 	sites []terrain.Vector3D,
 	index *terrain.SpatialIndex,
@@ -303,4 +373,19 @@ func saveMapPNG(filename string, img image.Image, label string) {
 		return
 	}
 	fmt.Printf("  Saved %s\n", filename)
+}
+
+func blendReviewColor(base, over color.RGBA, alpha float64) color.RGBA {
+	if alpha < 0 {
+		alpha = 0
+	}
+	if alpha > 1 {
+		alpha = 1
+	}
+	return color.RGBA{
+		R: uint8(float64(base.R)*(1-alpha) + float64(over.R)*alpha),
+		G: uint8(float64(base.G)*(1-alpha) + float64(over.G)*alpha),
+		B: uint8(float64(base.B)*(1-alpha) + float64(over.B)*alpha),
+		A: 255,
+	}
 }
