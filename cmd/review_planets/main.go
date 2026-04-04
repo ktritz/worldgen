@@ -100,9 +100,11 @@ func main() {
 	wildlifeSettings := loadWildlifeSettings(*wildlifeFile)
 	coastalResourceSettings := loadCoastalResourceSettings(*coastalResourceFile)
 	waterResourceSettings := loadWaterResourceSettings(*waterResourceFile)
+	baselineRecords := make([]baselineSeedMetrics, 0, len(seeds))
 
 	for _, seed := range seeds {
 		fmt.Printf("\nseed=%d\n", seed)
+		record := newBaselineSeedMetrics(seed)
 		terrainKey := terrainCacheKey(*level, *numPlates, *landFrac, seed)
 		elevation, isLand, diagnostics := loadOrGenerateTerrain(cacheStore, terrainKey, sites, cells, *numPlates, seed, *landFrac)
 		seasonalClimate := loadOrGenerateClimate(cacheStore, terrainKey, climateSites, climateCells, elevation, climateAdj, seed, *climateHydrology || *climateBiomes)
@@ -119,11 +121,15 @@ func main() {
 		}
 
 		result := terrain.EvaluateTerrainWithHotspots(sites, cells, elevation, diagnostics.HotspotChains)
+		record.Score = result.Score
+		record.Drain = result.Metrics.FluvialChannelCoverage * 100
+		record.Endo = result.Metrics.EndorheicCatchmentPct * 100
 		printSummary(result, diagnostics)
 		prefix := filepath.Join(*outputDir, fmt.Sprintf("seed_%d", seed))
 
 		if *climateBiomes && seasonalClimate != nil {
 			biomeResult := computeHydrologyAwareBiomes(seasonalClimate, elevation, diagnostics.Hydrology.Scaffold)
+			record.Arid, record.Forest, record.Wetland = collectBiomeMetrics(biomeResult)
 			printBiomeSummary(biomeResult)
 
 			var soilResult *climgen.SoilResult
@@ -134,6 +140,7 @@ func main() {
 			}
 			if *climateVegetation {
 				vegetationResult = computeVegetation(climateCells, seasonalClimate, biomeResult, elevation, diagnostics.Hydrology.Scaffold, soilResult)
+				record.Woody = collectVegetationMetrics(vegetationResult)
 				printVegetationSummary(vegetationResult)
 				renderVegetationMap(sites, index, vegetationResult, prefix+"_vegetation.png", width, height)
 			}
@@ -143,21 +150,25 @@ func main() {
 			}
 			if *climateAgriculture && soilResult != nil {
 				agricultureResult := computeAgriculture(biomeResult, soilResult, elevation, diagnostics.Hydrology.Scaffold, agricultureSettings)
+				record.Crop, record.Pasture = collectAgricultureMetrics(agricultureResult)
 				printAgricultureSummary(agricultureResult)
 				renderAgricultureMap(sites, index, agricultureResult, prefix+"_agriculture.png", width, height)
 			}
 			if *climateWildlife && vegetationResult != nil {
 				wildlifeResult := computeWildlife(biomeResult, vegetationResult, soilResult, elevation, diagnostics.Hydrology.Scaffold, wildlifeSettings)
+				record.Game, record.Timber = collectWildlifeMetrics(wildlifeResult)
 				printWildlifeSummary(wildlifeResult)
 				renderWildlifeMap(sites, index, wildlifeResult, prefix+"_wildlife.png", width, height)
 			}
 			if *climateWaterResources && soilResult != nil {
 				waterResourceResult = computeWaterResources(biomeResult, soilResult, elevation, diagnostics.Hydrology.Scaffold, waterResourceSettings)
+				record.Reliable, record.Groundwater = collectWaterMetrics(waterResourceResult)
 				printWaterResourceSummary(waterResourceResult)
 				renderWaterResourceMap(sites, index, waterResourceResult, prefix+"_water_resources.png", width, height)
 			}
 			if *climateCoastalResources && vegetationResult != nil && soilResult != nil {
 				coastalResourceResult := computeCoastalResources(climateSites, climateCells, seasonalClimate, biomeResult, soilResult, vegetationResult, elevation, diagnostics.Hydrology.Scaffold, coastalResourceSettings)
+				record.Fishery, record.Shellfish = collectCoastalMetrics(coastalResourceResult)
 				printCoastalResourceSummary(coastalResourceResult)
 				renderCoastalResourceMap(sites, index, coastalResourceResult, prefix+"_coastal_resources.png", width, height)
 				renderCoastalUpwellingMap(sites, index, coastalResourceResult, prefix+"_coastal_upwelling.png", width, height)
@@ -165,6 +176,7 @@ func main() {
 			var resourceResult *climgen.ResourceResult
 			if *climateResources && soilResult != nil {
 				resourceResult = computeResources(seasonalClimate, biomeResult, soilResult, elevation, diagnostics.Hydrology.Scaffold, diagnostics.HotspotChains, resourceSettings)
+				record.Metallic, record.Fuel, record.Luxury = collectResourceMetrics(resourceResult)
 				printResourceSummary(resourceResult, len(sites))
 				renderResourceMap(sites, index, resourceResult, prefix+"_resources.png", width, height)
 				renderResourcePotentialMap(sites, index, resourceResult, climgen.ResourceGoldOre, prefix+"_resource_gold_potential.png", width, height)
@@ -173,6 +185,7 @@ func main() {
 			}
 			if *climateSettlements && soilResult != nil {
 				settlementResult := computeSettlement(climateCells, seasonalClimate, biomeResult, soilResult, vegetationResult, waterResourceResult, resourceResult, elevation, diagnostics.Hydrology.Scaffold)
+				record.Favorable, record.Prime = collectSettlementMetrics(settlementResult)
 				printSettlementSummary(settlementResult)
 				renderSettlementMap(sites, index, settlementResult, prefix+"_settlements.png", width, height)
 				if *settlementProfiles {
@@ -189,5 +202,12 @@ func main() {
 			terrain.RenderHydrologyOverlayMap(sites, elevation, diagnostics.Hydrology.Scaffold, index, prefix+"_hydrology.png", width, height)
 		}
 		terrain.RenderOrthoView(sites, elevation, index, 0, 0, prefix+"_globe.png")
+		baselineRecords = append(baselineRecords, record)
+	}
+
+	if err := writeBaselineReport(*outputDir, baselineRecords); err != nil {
+		fmt.Fprintf(os.Stderr, "write baseline report: %v\n", err)
+	} else if len(baselineRecords) > 0 {
+		fmt.Printf("\nSaved %s\n", filepath.Join(*outputDir, "baseline_summary.txt"))
 	}
 }
