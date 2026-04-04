@@ -32,6 +32,7 @@ type SeasonalClimateResult struct {
 	Snapshots                                []SeasonalClimateSnapshot
 	TemperatureEquilibriumSnapshots          []SeasonalTemperatureSnapshot
 	TemperatureReferenceEquilibriumSnapshots []SeasonalTemperatureSnapshot
+	Currents                                 []Vector3D
 	AnnualPrecipitation                      []float64
 	WettestSeason                            []int
 	DriestSeason                             []int
@@ -209,11 +210,16 @@ func GenerateSeasonalClimate(
 	}
 
 	wettest, driest, precipRange := summarizeSeasonalPrecipitation(snapshots)
+	var copiedCurrents []Vector3D
+	if currents != nil && len(currents.Currents) == len(vertices) {
+		copiedCurrents = append([]Vector3D(nil), currents.Currents...)
+	}
 	return &SeasonalClimateResult{
 		AnnualMean:                               seasonalTemps.AnnualMean,
 		Snapshots:                                snapshots,
 		TemperatureEquilibriumSnapshots:          seasonalTemps.EquilibriumSnapshots,
 		TemperatureReferenceEquilibriumSnapshots: seasonalTemps.ReferenceEquilibriumSnapshots,
+		Currents:                                 copiedCurrents,
 		AnnualPrecipitation:                      annualPrecip,
 		WettestSeason:                            wettest,
 		DriestSeason:                             driest,

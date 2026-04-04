@@ -3,13 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
-	"image"
-	"image/png"
 	"os"
 	"path/filepath"
-	"sort"
-	"strconv"
-	"strings"
 
 	"worldgen/climgen"
 	"worldgen/icosphere"
@@ -26,6 +21,19 @@ func main() {
 	climateHydrology := flag.Bool("climate-hydrology", true, "use climate-driven runoff for hydrology diagnostics")
 	climateBiomes := flag.Bool("climate-biomes", true, "report seasonal hydrology-aware biome summaries")
 	climateVegetation := flag.Bool("climate-vegetation", true, "report vegetation summaries from seasonal climate, hydrology, and biomes")
+	climateSoils := flag.Bool("climate-soils", true, "report coarse soil summaries from seasonal climate, hydrology, and relief")
+	climateAgriculture := flag.Bool("climate-agriculture", true, "report coarse agricultural and pastoral productivity from climate, soils, terrain, and hydrology")
+	climateWildlife := flag.Bool("climate-wildlife", true, "report coarse biological resources from climate, vegetation, hydrology, and soils")
+	climateCoastalResources := flag.Bool("climate-coastal-resources", true, "report coarse coastal and marine-adjacent resource access from climate, hydrology, soils, and vegetation")
+	climateResources := flag.Bool("climate-resources", true, "report coarse geological resource provinces")
+	climateSettlements := flag.Bool("climate-settlements", true, "report coarse settlement suitability from climate, hydrology, soils, vegetation, and resources")
+	settlementProfiles := flag.Bool("settlement-profiles", true, "report fantasy settlement preference overlays")
+	profileCatalogFile := flag.String("profile-catalog-file", "config/profile_catalog_fantasy.json", "JSON profile catalog describing ancestry/culture modifiers")
+	agricultureFile := flag.String("agriculture-productivity-file", "config/agriculture_productivity_earthlike.json", "JSON agriculture/pastoral productivity configuration")
+	wildlifeFile := flag.String("wildlife-productivity-file", "config/wildlife_productivity_earthlike.json", "JSON wildlife/biological productivity configuration")
+	coastalResourceFile := flag.String("coastal-resources-file", "config/coastal_resources_earthlike.json", "JSON coastal resource productivity configuration")
+	resourceAbundanceFile := flag.String("resource-abundance-file", "config/resource_abundance_earthlike.json", "JSON resource abundance/scarcity configuration")
+	useCache := flag.Bool("cache", true, "reuse cached terrain and seasonal climate artifacts under the review output directory")
 	flag.Parse()
 
 	seeds, err := parseSeeds(*seedsFlag)
@@ -77,21 +85,25 @@ func main() {
 		}
 	}
 	climateAdj := climgen.BuildFlatAdjacency(climateCells)
-
 	index := terrain.BuildSpatialIndex(sites)
+
+	var cacheStore *reviewCacheStore
+	if *useCache {
+		cacheStore = newReviewCacheStore(*outputDir)
+	}
+
+	profiles := loadSettlementProfiles(*settlementProfiles, *profileCatalogFile)
+	resourceSettings := loadResourceAbundanceSettings(*resourceAbundanceFile)
+	agricultureSettings := loadAgricultureSettings(*agricultureFile)
+	wildlifeSettings := loadWildlifeSettings(*wildlifeFile)
+	coastalResourceSettings := loadCoastalResourceSettings(*coastalResourceFile)
 
 	for _, seed := range seeds {
 		fmt.Printf("\nseed=%d\n", seed)
-		elevation, isLand, diagnostics := terrain.GeneratePlanetElevationWithDiagnostics(sites, cells, *numPlates, seed, *landFrac)
-		var seasonalClimate *climgen.SeasonalClimateResult
-		if *climateHydrology || *climateBiomes {
-			climate, err := computeSeasonalClimate(climateSites, climateCells, elevation, climateAdj, seed)
-			if err != nil {
-				fmt.Printf("  seasonal climate failed, keeping terrain-only review: %v\n", err)
-			} else {
-				seasonalClimate = climate
-			}
-		}
+		terrainKey := terrainCacheKey(*level, *numPlates, *landFrac, seed)
+		elevation, isLand, diagnostics := loadOrGenerateTerrain(cacheStore, terrainKey, sites, cells, *numPlates, seed, *landFrac)
+		seasonalClimate := loadOrGenerateClimate(cacheStore, terrainKey, climateSites, climateCells, elevation, climateAdj, seed, *climateHydrology || *climateBiomes)
+
 		if *climateHydrology {
 			if seasonalClimate == nil {
 				fmt.Printf("  climate hydrology unavailable, keeping proxy runoff\n")
@@ -102,16 +114,63 @@ func main() {
 				fmt.Println("  Hydrology diagnostics: climate-driven runoff override enabled")
 			}
 		}
+
 		result := terrain.EvaluateTerrainWithHotspots(sites, cells, elevation, diagnostics.HotspotChains)
 		printSummary(result, diagnostics)
 		prefix := filepath.Join(*outputDir, fmt.Sprintf("seed_%d", seed))
+
 		if *climateBiomes && seasonalClimate != nil {
 			biomeResult := computeHydrologyAwareBiomes(seasonalClimate, elevation, diagnostics.Hydrology.Scaffold)
 			printBiomeSummary(biomeResult)
+
+			var soilResult *climgen.SoilResult
+			var vegetationResult *climgen.VegetationResult
+			if *climateSoils || *climateVegetation {
+				soilResult = computeSoils(climateCells, seasonalClimate, biomeResult, elevation, diagnostics.Hydrology.Scaffold)
+			}
 			if *climateVegetation {
-				vegetationResult := computeVegetation(climateCells, seasonalClimate, biomeResult, elevation, diagnostics.Hydrology.Scaffold)
+				vegetationResult = computeVegetation(climateCells, seasonalClimate, biomeResult, elevation, diagnostics.Hydrology.Scaffold, soilResult)
 				printVegetationSummary(vegetationResult)
 				renderVegetationMap(sites, index, vegetationResult, prefix+"_vegetation.png", width, height)
+			}
+			if *climateSoils && soilResult != nil {
+				printSoilSummary(soilResult)
+				renderSoilMap(sites, index, soilResult, prefix+"_soils.png", width, height)
+			}
+			if *climateAgriculture && soilResult != nil {
+				agricultureResult := computeAgriculture(biomeResult, soilResult, elevation, diagnostics.Hydrology.Scaffold, agricultureSettings)
+				printAgricultureSummary(agricultureResult)
+				renderAgricultureMap(sites, index, agricultureResult, prefix+"_agriculture.png", width, height)
+			}
+			if *climateWildlife && vegetationResult != nil {
+				wildlifeResult := computeWildlife(biomeResult, vegetationResult, soilResult, elevation, diagnostics.Hydrology.Scaffold, wildlifeSettings)
+				printWildlifeSummary(wildlifeResult)
+				renderWildlifeMap(sites, index, wildlifeResult, prefix+"_wildlife.png", width, height)
+			}
+			if *climateCoastalResources && vegetationResult != nil && soilResult != nil {
+				coastalResourceResult := computeCoastalResources(climateSites, climateCells, seasonalClimate, biomeResult, soilResult, vegetationResult, elevation, diagnostics.Hydrology.Scaffold, coastalResourceSettings)
+				printCoastalResourceSummary(coastalResourceResult)
+				renderCoastalResourceMap(sites, index, coastalResourceResult, prefix+"_coastal_resources.png", width, height)
+				renderCoastalUpwellingMap(sites, index, coastalResourceResult, prefix+"_coastal_upwelling.png", width, height)
+			}
+			var resourceResult *climgen.ResourceResult
+			if *climateResources && soilResult != nil {
+				resourceResult = computeResources(seasonalClimate, biomeResult, soilResult, elevation, diagnostics.Hydrology.Scaffold, diagnostics.HotspotChains, resourceSettings)
+				printResourceSummary(resourceResult, len(sites))
+				renderResourceMap(sites, index, resourceResult, prefix+"_resources.png", width, height)
+				renderResourcePotentialMap(sites, index, resourceResult, climgen.ResourceGoldOre, prefix+"_resource_gold_potential.png", width, height)
+				renderResourcePotentialMap(sites, index, resourceResult, climgen.ResourceLeadSilverOre, prefix+"_resource_leadsilver_potential.png", width, height)
+				renderResourcePotentialMap(sites, index, resourceResult, climgen.ResourceGemstones, prefix+"_resource_gems_potential.png", width, height)
+			}
+			if *climateSettlements && soilResult != nil {
+				settlementResult := computeSettlement(climateCells, seasonalClimate, biomeResult, soilResult, vegetationResult, resourceResult, elevation, diagnostics.Hydrology.Scaffold)
+				printSettlementSummary(settlementResult)
+				renderSettlementMap(sites, index, settlementResult, prefix+"_settlements.png", width, height)
+				if *settlementProfiles {
+					preferences := computeSettlementPreferences(biomeResult, soilResult, vegetationResult, settlementResult, elevation, profiles)
+					printSettlementPreferenceSummary(preferences)
+					renderSettlementPreferenceMap(sites, index, preferences, prefix+"_settlement_preferences.png", width, height)
+				}
 			}
 		}
 
@@ -122,287 +181,4 @@ func main() {
 		}
 		terrain.RenderOrthoView(sites, elevation, index, 0, 0, prefix+"_globe.png")
 	}
-}
-
-func computeSeasonalClimate(
-	sites []climgen.Vector3D,
-	cells []climgen.VoronoiCell,
-	elevation []float64,
-	adj *climgen.FlatAdjacency,
-	seed int64,
-) (*climgen.SeasonalClimateResult, error) {
-	currentSettings := climgen.DefaultOceanCurrentSettings()
-	currentSettings.Seed = seed
-	currentResult, err := climgen.GenerateOceanCurrents(sites, cells, elevation, 0.0, currentSettings)
-	if err != nil {
-		return nil, fmt.Errorf("generate currents: %w", err)
-	}
-
-	tempSettings := climgen.DefaultTemperatureSettings()
-	tempSettings.Seed = seed
-	tempSettings.Solar.AxialTilt = 23.5
-	tempSettings.Balance.MaxIterations = 500
-
-	seasonalSettings := climgen.DefaultSeasonalTemperatureSettings()
-	seasonalSettings.NumSeasons = 4
-	seasonalSettings.NumCycles = 3
-	seasonalSettings.ReferenceEquilibrium = true
-
-	windSettings := climgen.DefaultWindSettings()
-	windSettings.Seed = seed
-	precipSettings := climgen.DefaultPrecipitationSettings()
-
-	climate, err := climgen.GenerateSeasonalClimate(
-		sites,
-		elevation,
-		0.0,
-		adj,
-		windSettings,
-		currentResult,
-		tempSettings,
-		precipSettings,
-		seasonalSettings,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("generate seasonal climate: %w", err)
-	}
-	return climate, nil
-}
-
-func computeClimateDrivenHydrologyFromClimate(
-	sites []climgen.Vector3D,
-	cells []climgen.VoronoiCell,
-	elevation []float64,
-	climate *climgen.SeasonalClimateResult,
-) terrain.HydrologyDiagnostics {
-	runoff := climgen.ComputeSeasonalRunoff(climate, elevation)
-	terrainSites := make([]terrain.Vector3D, len(sites))
-	terrainCells := make([]terrain.VoronoiCell, len(cells))
-	for i, v := range sites {
-		terrainSites[i] = terrain.Vector3D{X: v.X, Y: v.Y, Z: v.Z}
-		terrainCells[i] = terrain.VoronoiCell{
-			SiteIndex:           cells[i].SiteIndex,
-			NeighborSiteIndices: append([]int32(nil), cells[i].NeighborSiteIndices...),
-		}
-	}
-	return terrain.ComputeHydrologyDiagnosticsFromRunoff(terrainSites, terrainCells, elevation, runoff.AnnualRunoff)
-}
-
-func parseSeeds(raw string) ([]int64, error) {
-	parts := strings.Split(raw, ",")
-	seeds := make([]int64, 0, len(parts))
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		value, err := strconv.ParseInt(part, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("%q: %w", part, err)
-		}
-		seeds = append(seeds, value)
-	}
-	if len(seeds) == 0 {
-		return nil, fmt.Errorf("no seeds provided")
-	}
-	return seeds, nil
-}
-
-func printSummary(result terrain.EvaluationResult, diagnostics terrain.PlanetGenerationDiagnostics) {
-	m := result.Metrics
-	fmt.Printf("  score=%.1f passed=%v landMean=%.0f oceanMean=%.0f deep=%.3f shelf=%.3f mountains=%.3f major=%d largest=%.3f gini=%.3f fractal=%.3f tort=%.3f drain=%.3f endo=%.3f lakes=%.4f basins=%d hotspotCV=%.3f burst=%.3f bend=%.3f failed=%v\n",
-		result.Score, result.Passed, m.MeanLandElevation, m.MeanOceanDepth, m.DeepOceanCoverage, m.ShelfCoverage,
-		m.MountainCoverage, m.NumMajorLandmasses, m.LargestContinentPct, m.ContinentGini,
-		m.FractalDimension, m.TortuosityRatio, m.FluvialChannelCoverage, m.EndorheicCatchmentPct,
-		m.InlandLakeCoverage, m.NumMajorEndorheicBasins, m.HotspotSpacingCV, m.HotspotBurstiness,
-		m.HotspotBendFraction, result.FailedMetrics)
-	for _, region := range diagnostics.Hydrology.Regions {
-		fmt.Printf("    hydro[%s]: cells=%d runoff=%.3f accum=%.2f channels=%.1f%% endo=%.1f%% lakes=%.1f%%\n",
-			region.Name, region.CellCount, region.MeanRunoff, region.MeanAccumulation,
-			region.ChannelCoverage*100, region.EndorheicCatchmentPct*100, region.InlandLakeReachPct*100)
-	}
-	for _, class := range diagnostics.Hydrology.Classes {
-		fmt.Printf("    hydroClass[%s]=%d\n", class.Class, class.CellCount)
-	}
-}
-
-func computeHydrologyAwareBiomes(
-	climate *climgen.SeasonalClimateResult,
-	elevation []float64,
-	scaffold *terrain.HydrologyScaffold,
-) *climgen.BiomeResult {
-	hydro := hydrologyBiomeInputsFromScaffold(scaffold)
-	return climgen.ClassifyBiomesSeasonalWithHydrology(climate, elevation, 0.0, hydro)
-}
-
-func computeVegetation(
-	cells []climgen.VoronoiCell,
-	climate *climgen.SeasonalClimateResult,
-	biomes *climgen.BiomeResult,
-	elevation []float64,
-	scaffold *terrain.HydrologyScaffold,
-) *climgen.VegetationResult {
-	coastalExposure := climgen.ComputeCoastalExposure(cells, elevation, 0.0)
-	hydro := hydrologyBiomeInputsFromScaffold(scaffold)
-	return climgen.ClassifyVegetation(climate, biomes, elevation, 0.0, hydro, coastalExposure)
-}
-
-func hydrologyBiomeInputsFromScaffold(scaffold *terrain.HydrologyScaffold) *climgen.HydrologyBiomeInputs {
-	if scaffold == nil {
-		return nil
-	}
-	return &climgen.HydrologyBiomeInputs{
-		Runoff:          append([]float64(nil), scaffold.Runoff...),
-		ChannelStrength: append([]float64(nil), scaffold.ChannelStrength...),
-		CellClass:       append([]string(nil), scaffold.CellClass...),
-		WaterBodyLabel:  append([]int(nil), scaffold.WaterBodyLabel...),
-	}
-}
-
-func printBiomeSummary(result *climgen.BiomeResult) {
-	if result == nil {
-		return
-	}
-	stats := climgen.GetBiomeStats(result)
-	landCells := 0
-	for _, biome := range result.Biomes {
-		if biome != climgen.BiomeOcean {
-			landCells++
-		}
-	}
-	if landCells == 0 {
-		return
-	}
-	aridCount := stats[climgen.BiomeDesertHot] + stats[climgen.BiomeDesertCold] + stats[climgen.BiomeSemiArid]
-	forestCount := stats[climgen.BiomeTemperateRainforest] +
-		stats[climgen.BiomeTemperateForest] +
-		stats[climgen.BiomeBorealForest] +
-		stats[climgen.BiomeTropicalSeasonalForest] +
-		stats[climgen.BiomeTropicalRainforest]
-	wetlandCount := stats[climgen.BiomeWetland]
-	fmt.Printf("    biomeMetrics: arid=%.1f%% forest=%.1f%% wetland=%.1f%%\n",
-		100*float64(aridCount)/float64(landCells),
-		100*float64(forestCount)/float64(landCells),
-		100*float64(wetlandCount)/float64(landCells),
-	)
-
-	type biomeCount struct {
-		biome climgen.Biome
-		count int
-	}
-	var sorted []biomeCount
-	for biome, count := range stats {
-		sorted = append(sorted, biomeCount{biome: biome, count: count})
-	}
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i].count > sorted[j].count })
-	limit := 5
-	if len(sorted) < limit {
-		limit = len(sorted)
-	}
-	fmt.Println("    biome summary:")
-	for i := 0; i < limit; i++ {
-		entry := sorted[i]
-		fmt.Printf("      biome[%s]=%d (%.1f%%)\n",
-			climgen.BiomeName(entry.biome),
-			entry.count,
-			100*float64(entry.count)/float64(landCells),
-		)
-	}
-}
-
-func printVegetationSummary(result *climgen.VegetationResult) {
-	if result == nil {
-		return
-	}
-	counts := make(map[climgen.VegetationType]int)
-	landCells := 0
-	for _, veg := range result.Types {
-		if veg == climgen.VegetationOcean {
-			continue
-		}
-		landCells++
-		counts[veg]++
-	}
-	if landCells == 0 {
-		return
-	}
-	woodyCount := counts[climgen.VegetationWoodland] +
-		counts[climgen.VegetationForest] +
-		counts[climgen.VegetationRainforest] +
-		counts[climgen.VegetationRiparianForest] +
-		counts[climgen.VegetationCloudForest] +
-		counts[climgen.VegetationMangrove]
-	openCount := counts[climgen.VegetationDesertSparse] +
-		counts[climgen.VegetationShrubland] +
-		counts[climgen.VegetationGrassland]
-	wetCount := counts[climgen.VegetationWetland] +
-		counts[climgen.VegetationSaltMarsh] +
-		counts[climgen.VegetationPeatland] +
-		counts[climgen.VegetationMangrove]
-	riparianCount := counts[climgen.VegetationRiparianForest]
-	coastalSpecialCount := counts[climgen.VegetationMangrove] + counts[climgen.VegetationSaltMarsh]
-	fmt.Printf("    vegetationMetrics: woody=%.1f%% open=%.1f%% wet=%.1f%% riparian=%.1f%% coastalSpecial=%.1f%%\n",
-		100*float64(woodyCount)/float64(landCells),
-		100*float64(openCount)/float64(landCells),
-		100*float64(wetCount)/float64(landCells),
-		100*float64(riparianCount)/float64(landCells),
-		100*float64(coastalSpecialCount)/float64(landCells),
-	)
-
-	type vegetationCount struct {
-		veg   climgen.VegetationType
-		count int
-	}
-	var sorted []vegetationCount
-	for veg, count := range counts {
-		sorted = append(sorted, vegetationCount{veg: veg, count: count})
-	}
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i].count > sorted[j].count })
-	limit := 5
-	if len(sorted) < limit {
-		limit = len(sorted)
-	}
-	fmt.Println("    vegetation summary:")
-	for i := 0; i < limit; i++ {
-		entry := sorted[i]
-		fmt.Printf("      vegetation[%s]=%d (%.1f%%)\n",
-			climgen.VegetationName(entry.veg),
-			entry.count,
-			100*float64(entry.count)/float64(landCells),
-		)
-	}
-}
-
-func renderVegetationMap(
-	sites []terrain.Vector3D,
-	index *terrain.SpatialIndex,
-	result *climgen.VegetationResult,
-	filename string,
-	width, height int,
-) {
-	if result == nil || index == nil {
-		return
-	}
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
-	for py := 0; py < height; py++ {
-		lat := 90 - float64(py)/float64(height)*180
-		for px := 0; px < width; px++ {
-			lon := float64(px)/float64(width)*360 - 180
-			cellIdx := index.FindNearest(lat, lon, sites)
-			if cellIdx >= 0 && cellIdx < len(result.Types) {
-				img.Set(px, py, climgen.VegetationColor(result.Types[cellIdx]))
-			}
-		}
-	}
-	f, err := os.Create(filename)
-	if err != nil {
-		fmt.Printf("  create vegetation map %s: %v\n", filename, err)
-		return
-	}
-	defer f.Close()
-	if err := png.Encode(f, img); err != nil {
-		fmt.Printf("  encode vegetation map %s: %v\n", filename, err)
-		return
-	}
-	fmt.Printf("  Saved %s\n", filename)
 }

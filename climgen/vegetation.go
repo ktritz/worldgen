@@ -53,6 +53,12 @@ type VegetationDiagnostics struct {
 	ColdStress           []float64
 	Waterlogging         []float64
 	CoastalExposure      []float64
+	SoilFertility        []float64
+	SoilDrainage         []float64
+	SoilOrganic          []float64
+	SoilRockiness        []float64
+	SoilSalinity         []float64
+	SoilAlluvial         []float64
 	TreeCover            []float64
 	GrassCover           []float64
 	ShrubCover           []float64
@@ -123,6 +129,7 @@ func ClassifyVegetation(
 	seaLevel float64,
 	hydro *HydrologyBiomeInputs,
 	coastalExposure []float64,
+	soils *SoilResult,
 ) *VegetationResult {
 	n := len(elevation)
 	out := &VegetationResult{
@@ -134,6 +141,12 @@ func ClassifyVegetation(
 			ColdStress:           make([]float64, n),
 			Waterlogging:         make([]float64, n),
 			CoastalExposure:      append([]float64(nil), coastalExposure...),
+			SoilFertility:        make([]float64, n),
+			SoilDrainage:         make([]float64, n),
+			SoilOrganic:          make([]float64, n),
+			SoilRockiness:        make([]float64, n),
+			SoilSalinity:         make([]float64, n),
+			SoilAlluvial:         make([]float64, n),
 			TreeCover:            make([]float64, n),
 			GrassCover:           make([]float64, n),
 			ShrubCover:           make([]float64, n),
@@ -198,26 +211,102 @@ func ClassifyVegetation(
 		if hydro != nil && i < len(hydro.ChannelStrength) {
 			channel = hydro.ChannelStrength[i]
 		}
+		lowlandWetClass := 0.0
+		if hydro != nil && i < len(hydro.CellClass) {
+			switch hydro.CellClass[i] {
+			case "floodplain":
+				lowlandWetClass = 1.0
+			case "delta":
+				lowlandWetClass = 0.95
+			case "lake_reach":
+				lowlandWetClass = 0.85
+			case "lake_complex":
+				lowlandWetClass = 0.80
+			case "coast_outlet":
+				lowlandWetClass = 0.55
+			case "confluence":
+				lowlandWetClass = 0.45
+			}
+		}
 		riparianSupport := clamp01(
 			smoothstep01(0.7, 2.2, channel) *
 				smoothstep01(0.25, 1.8, diag.AridityRatio[i]),
 		)
+		soilFertility := 0.5
+		soilDrainage := 0.5
+		soilOrganic := 0.0
+		soilRockiness := 0.0
+		soilSalinity := 0.0
+		soilAlluvial := 0.0
+		if soils != nil && soils.Diagnostics != nil {
+			if i < len(soils.Diagnostics.Fertility) {
+				soilFertility = soils.Diagnostics.Fertility[i]
+			}
+			if i < len(soils.Diagnostics.Drainage) {
+				soilDrainage = soils.Diagnostics.Drainage[i]
+			}
+			if i < len(soils.Diagnostics.Organic) {
+				soilOrganic = soils.Diagnostics.Organic[i]
+			}
+			if i < len(soils.Diagnostics.Rockiness) {
+				soilRockiness = soils.Diagnostics.Rockiness[i]
+			}
+			if i < len(soils.Diagnostics.Salinity) {
+				soilSalinity = soils.Diagnostics.Salinity[i]
+			}
+			if i < len(soils.Diagnostics.Alluvial) {
+				soilAlluvial = soils.Diagnostics.Alluvial[i]
+			}
+		}
+		out.Diagnostics.SoilFertility[i] = soilFertility
+		out.Diagnostics.SoilDrainage[i] = soilDrainage
+		out.Diagnostics.SoilOrganic[i] = soilOrganic
+		out.Diagnostics.SoilRockiness[i] = soilRockiness
+		out.Diagnostics.SoilSalinity[i] = soilSalinity
+		out.Diagnostics.SoilAlluvial[i] = soilAlluvial
 
 		treePotential := clamp01(
 			0.50*diag.ForestAffinity[i] +
 				0.30*diag.TropicalWetAffinity[i] +
 				0.18*diag.BorealAffinity[i] +
-				0.20*riparianSupport,
+				0.20*riparianSupport +
+				0.18*soilFertility +
+				0.15*soilAlluvial,
 		)
-		grassPotential := clamp01(0.55*diag.GrasslandAffinity[i] + 0.25*smoothstep01(0.6, 1.4, diag.AridityRatio[i]) + 0.20*smoothstep01(10, 28, diag.WarmestSeasonTempC[i]))
-		shrubPotential := clamp01(0.45*diag.DesertAffinity[i] + 0.30*diag.GrasslandAffinity[i] + 0.20*out.Diagnostics.DryStress[i])
-		wetlandPotential := clamp01(0.65*diag.WetlandAffinity[i] + 0.35*out.Diagnostics.Waterlogging[i])
-		barePotential := clamp01(math.Max(diag.IceAffinity[i], diag.DesertAffinity[i]*(0.55+0.45*out.Diagnostics.DryStress[i])))
+		grassPotential := clamp01(
+			0.50*diag.GrasslandAffinity[i] +
+				0.25*smoothstep01(0.6, 1.4, diag.AridityRatio[i]) +
+				0.15*smoothstep01(10, 28, diag.WarmestSeasonTempC[i]) +
+				0.15*soilFertility,
+		)
+		shrubPotential := clamp01(
+			0.40*diag.DesertAffinity[i] +
+				0.28*diag.GrasslandAffinity[i] +
+				0.18*out.Diagnostics.DryStress[i] +
+				0.18*soilRockiness +
+				0.12*soilSalinity,
+		)
+		floodplainWetSupport := clamp01(
+			0.40*diag.WetlandAffinity[i] +
+				0.20*out.Diagnostics.Waterlogging[i] +
+				0.20*soilAlluvial +
+				0.10*riparianSupport +
+				0.20*lowlandWetClass,
+		)
+		organicWetSupport := clamp01(
+			0.35*diag.WetlandAffinity[i] +
+				0.30*out.Diagnostics.Waterlogging[i] +
+				0.25*soilOrganic +
+				0.10*(1-soilDrainage),
+		)
+		wetlandPotential := clamp01(math.Max(floodplainWetSupport, organicWetSupport))
+		barePotential := clamp01(math.Max(diag.IceAffinity[i], diag.DesertAffinity[i]*(0.45+0.55*out.Diagnostics.DryStress[i])) + 0.18*soilRockiness)
 
 		treeDryPenalty := 1 - 0.45*out.Diagnostics.DryStress[i]*(1-0.40*out.Diagnostics.MoistureAvailability[i])
 		treeColdPenalty := 1 - 0.55*out.Diagnostics.ColdStress[i]
-		treeWetPenalty := 1 - 0.25*smoothstep01(0.65, 1.0, out.Diagnostics.Waterlogging[i])
-		treeMoisture := clamp01(0.55 + 0.45*out.Diagnostics.MoistureAvailability[i] + 0.20*riparianSupport)
+		treeWetPenalty := 1 - 0.22*smoothstep01(0.70, 1.0, out.Diagnostics.Waterlogging[i])*(1-0.60*soilOrganic)
+		treeMoisture := clamp01(0.50 + 0.40*out.Diagnostics.MoistureAvailability[i] + 0.20*riparianSupport + 0.18*soilDrainage + 0.18*soilAlluvial)
+		treeSoilPenalty := (1 - 0.32*soilRockiness) * (1 - 0.38*soilSalinity)
 
 		out.Diagnostics.TreeCover[i] = clamp01(
 			treePotential *
@@ -225,27 +314,32 @@ func ClassifyVegetation(
 				treeMoisture *
 				treeDryPenalty *
 				treeColdPenalty *
-				treeWetPenalty,
+				treeWetPenalty *
+				treeSoilPenalty,
 		)
 		out.Diagnostics.WetlandCover[i] = clamp01(
 			wetlandPotential *
 				(0.45 + 0.55*math.Max(out.Diagnostics.MoistureAvailability[i], out.Diagnostics.Waterlogging[i])) *
-				(1 - 0.35*out.Diagnostics.ColdStress[i]),
+				(0.70 + 0.30*math.Max(soilAlluvial, soilOrganic)) *
+				(0.70 + 0.30*lowlandWetClass) *
+				(1 - 0.20*out.Diagnostics.ColdStress[i]),
 		)
 		out.Diagnostics.GrassCover[i] = clamp01(
 			grassPotential *
 				(0.35 + 0.65*out.Diagnostics.GrowingHeat[i]) *
 				(0.35 + 0.65*(1-out.Diagnostics.ColdStress[i])) *
+				(0.60 + 0.40*soilDrainage) *
 				(1 - 0.55*out.Diagnostics.TreeCover[i]),
 		)
 		out.Diagnostics.ShrubCover[i] = clamp01(
 			shrubPotential *
 				(0.25 + 0.75*out.Diagnostics.GrowingHeat[i]) *
 				(1 - 0.40*out.Diagnostics.ColdStress[i]) *
+				(0.70 + 0.30*math.Max(soilRockiness, 1-soilDrainage)) *
 				(1 - 0.35*out.Diagnostics.TreeCover[i]),
 		)
 		out.Diagnostics.BareCover[i] = clamp01(
-			barePotential * math.Max(1-0.55*out.Diagnostics.MoistureAvailability[i], 0.25+0.75*out.Diagnostics.ColdStress[i]),
+			barePotential * math.Max(1-0.50*out.Diagnostics.MoistureAvailability[i], 0.25+0.75*out.Diagnostics.ColdStress[i]) * (0.70 + 0.30*math.Max(soilRockiness, soilSalinity)),
 		)
 
 		tropicalSupport := 0.0
@@ -256,7 +350,8 @@ func ClassifyVegetation(
 			}
 		}
 		coastalWetSupport := clamp01(
-			0.45*wetlandPotential +
+			0.35*floodplainWetSupport +
+				0.20*organicWetSupport +
 				0.20*out.Diagnostics.Waterlogging[i] +
 				0.20*out.Diagnostics.MoistureAvailability[i] +
 				0.15*riparianSupport,
@@ -266,25 +361,30 @@ func ClassifyVegetation(
 				coastalWetSupport *
 				smoothstep01(12, 24, diag.ColdestSeasonTempC[i]) *
 				smoothstep01(50, 180, diag.AnnualPrecipCm[i]) *
+				(0.70 + 0.30*soilSalinity) *
 				(0.45 + 0.55*tropicalSupport),
 		)
 		out.Diagnostics.SaltMarshAffinity[i] = clamp01(
 			coastalValue(coastalExposure, i) *
 				coastalWetSupport *
 				smoothstep01(-6, 12, diag.AnnualMeanTempC[i]) *
+				(0.70 + 0.30*soilSalinity) *
 				(1 - smoothstep01(16, 24, diag.ColdestSeasonTempC[i])),
 		)
 		out.Diagnostics.PeatlandAffinity[i] = clamp01(
-			out.Diagnostics.WetlandCover[i] *
+			organicWetSupport *
 				smoothstep01(-2, 10, diag.AnnualMeanTempC[i]) *
 				smoothstep01(60, 160, diag.AnnualPrecipCm[i]) *
 				smoothstep01(0.45, 0.95, diag.DrySeasonRatio[i]) *
+				smoothstep01(0.25, 0.65, soilOrganic) *
+				smoothstep01(0.55, 0.15, soilDrainage) *
 				(1 - coastalValue(coastalExposure, i)),
 		)
 		out.Diagnostics.RiparianAffinity[i] = clamp01(
 			smoothstep01(0.7, 2.2, channel) *
 				peak01(diag.AridityRatio[i], 0.15, 0.9, 2.2) *
 				smoothstep01(6, 20, diag.WarmestSeasonTempC[i]) *
+				(0.60 + 0.40*soilAlluvial) *
 				(0.55 + 0.45*smoothstep01(25, 120, diag.AnnualPrecipCm[i])),
 		)
 		out.Diagnostics.CloudForestAffinity[i] = clamp01(
