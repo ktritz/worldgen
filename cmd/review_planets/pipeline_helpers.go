@@ -93,6 +93,17 @@ func loadCoastalResourceSettings(path string) climgen.CoastalResourceSettings {
 	return settings
 }
 
+func loadWaterResourceSettings(path string) climgen.WaterResourceSettings {
+	settings := climgen.DefaultWaterResourceSettings()
+	if loaded, err := climgen.LoadWaterResourceSettings(path); err != nil {
+		fmt.Printf("Using built-in water resource settings, failed to load %s: %v\n", path, err)
+	} else {
+		settings = loaded
+		fmt.Printf("Loaded water resource settings from %s\n", path)
+	}
+	return settings
+}
+
 func loadOrGenerateTerrain(
 	cacheStore *reviewCacheStore,
 	terrainKey string,
@@ -306,6 +317,17 @@ func computeCoastalResources(
 	return climgen.ClassifyCoastalResources(sites, cells, climate, biomes, soils, vegetation, elevation, 0.0, hydro, coastalExposure, settings)
 }
 
+func computeWaterResources(
+	biomes *climgen.BiomeResult,
+	soils *climgen.SoilResult,
+	elevation []float64,
+	scaffold *terrain.HydrologyScaffold,
+	settings climgen.WaterResourceSettings,
+) *climgen.WaterResourceResult {
+	hydro := hydrologyBiomeInputsFromScaffold(scaffold)
+	return climgen.ClassifyWaterResources(biomes, soils, elevation, 0.0, hydro, settings)
+}
+
 func computeResources(
 	climate *climgen.SeasonalClimateResult,
 	biomes *climgen.BiomeResult,
@@ -326,13 +348,14 @@ func computeSettlement(
 	biomes *climgen.BiomeResult,
 	soils *climgen.SoilResult,
 	vegetation *climgen.VegetationResult,
+	waterResources *climgen.WaterResourceResult,
 	resources *climgen.ResourceResult,
 	elevation []float64,
 	scaffold *terrain.HydrologyScaffold,
 ) *climgen.SettlementResult {
 	hydro := hydrologyBiomeInputsFromScaffold(scaffold)
 	coastalExposure := climgen.ComputeCoastalExposure(cells, elevation, 0.0)
-	return climgen.ClassifySettlementSuitability(climate, biomes, soils, vegetation, resources, elevation, 0.0, hydro, coastalExposure)
+	return climgen.ClassifySettlementSuitability(climate, biomes, soils, vegetation, waterResources, resources, elevation, 0.0, hydro, coastalExposure)
 }
 
 func computeSettlementPreferences(

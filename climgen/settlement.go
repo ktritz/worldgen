@@ -47,6 +47,7 @@ func ClassifySettlementSuitability(
 	biomes *BiomeResult,
 	soils *SoilResult,
 	vegetation *VegetationResult,
+	waterResources *WaterResourceResult,
 	resources *ResourceResult,
 	elevation []float64,
 	seaLevel float64,
@@ -93,12 +94,14 @@ func ClassifySettlementSuitability(
 		if vegetation != nil && vegetation.Diagnostics != nil && i < len(vegetation.Diagnostics.Waterlogging) {
 			waterlogging = vegetation.Diagnostics.Waterlogging[i]
 		}
+		waterResourceScore := settlementWaterResourceScore(waterResources, i)
 		riverBonus := clamp01(0.55*smoothstep01(0.50, 2.20, channel) + 0.45*smoothstep01(10, 95, runoff))
 		out.Diagnostics.RiverBonus[i] = riverBonus
 		out.Diagnostics.WaterScore[i] = clamp01(
-			0.42*peak01(runoff, 6, 28, 95) +
-				0.38*riverBonus +
-				0.20*peak01(bdiag.AnnualPrecipCm[i], 30, 90, 200) -
+			0.28*peak01(runoff, 6, 28, 95) +
+				0.26*riverBonus +
+				0.18*peak01(bdiag.AnnualPrecipCm[i], 30, 90, 200) +
+				0.28*waterResourceScore -
 				0.14*smoothstep01(0.72, 1.00, waterlogging),
 		)
 
@@ -122,9 +125,10 @@ func ClassifySettlementSuitability(
 		)
 
 		out.Diagnostics.AccessScore[i] = clamp01(
-			0.45*out.Diagnostics.CoastalBonus[i] +
-				0.40*riverBonus +
-				0.15*sdiag.Alluvial[i],
+			0.36*out.Diagnostics.CoastalBonus[i] +
+				0.28*riverBonus +
+				0.18*sdiag.Alluvial[i] +
+				0.18*waterResourceScore,
 		)
 
 		out.Diagnostics.ResourceScore[i] = settlementResourceScore(resources, i)
@@ -226,6 +230,36 @@ func settlementResourceScore(resources *ResourceResult, idx int) float64 {
 		score += 0.08
 	case ResourceEvaporite:
 		score += 0.04
+	}
+	return clamp01(score)
+}
+
+func settlementWaterResourceScore(waterResources *WaterResourceResult, idx int) float64 {
+	if waterResources == nil || waterResources.Diagnostics == nil || idx < 0 || idx >= len(waterResources.Types) {
+		return 0
+	}
+	score := 0.0
+	if idx < len(waterResources.Diagnostics.SurfaceReliability) {
+		score += 0.42 * waterResources.Diagnostics.SurfaceReliability[idx]
+	}
+	if idx < len(waterResources.Diagnostics.SeasonalAvailability) {
+		score += 0.20 * waterResources.Diagnostics.SeasonalAvailability[idx]
+	}
+	if idx < len(waterResources.Diagnostics.GroundwaterPotential) {
+		score += 0.26 * waterResources.Diagnostics.GroundwaterPotential[idx]
+	}
+	if idx < len(waterResources.Diagnostics.LakeAccess) {
+		score += 0.22 * waterResources.Diagnostics.LakeAccess[idx]
+	}
+	switch waterResources.Types[idx] {
+	case WaterResourceReliableSurface:
+		score += 0.18
+	case WaterResourceGroundwater:
+		score += 0.14
+	case WaterResourceLakeOasis:
+		score += 0.12
+	case WaterResourceSeasonal:
+		score += 0.08
 	}
 	return clamp01(score)
 }

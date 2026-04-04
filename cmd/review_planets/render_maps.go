@@ -163,6 +163,30 @@ func renderCoastalUpwellingMap(
 	saveMapPNG(filename, img, "coastal upwelling map")
 }
 
+func renderWaterResourceMap(
+	sites []terrain.Vector3D,
+	index *terrain.SpatialIndex,
+	result *climgen.WaterResourceResult,
+	filename string,
+	width, height int,
+) {
+	if result == nil || index == nil {
+		return
+	}
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	for py := 0; py < height; py++ {
+		lat := 90 - float64(py)/float64(height)*180
+		for px := 0; px < width; px++ {
+			lon := float64(px)/float64(width)*360 - 180
+			cellIdx := index.FindNearest(lat, lon, sites)
+			if cellIdx >= 0 && cellIdx < len(result.Types) {
+				img.Set(px, py, climgen.WaterResourceColor(result.Types[cellIdx]))
+			}
+		}
+	}
+	saveMapPNG(filename, img, "water resource map")
+}
+
 func renderResourceMap(
 	sites []terrain.Vector3D,
 	index *terrain.SpatialIndex,

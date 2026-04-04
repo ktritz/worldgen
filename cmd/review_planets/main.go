@@ -25,6 +25,7 @@ func main() {
 	climateAgriculture := flag.Bool("climate-agriculture", true, "report coarse agricultural and pastoral productivity from climate, soils, terrain, and hydrology")
 	climateWildlife := flag.Bool("climate-wildlife", true, "report coarse biological resources from climate, vegetation, hydrology, and soils")
 	climateCoastalResources := flag.Bool("climate-coastal-resources", true, "report coarse coastal and marine-adjacent resource access from climate, hydrology, soils, and vegetation")
+	climateWaterResources := flag.Bool("climate-water-resources", true, "report coarse freshwater resource access from climate, soils, and hydrology")
 	climateResources := flag.Bool("climate-resources", true, "report coarse geological resource provinces")
 	climateSettlements := flag.Bool("climate-settlements", true, "report coarse settlement suitability from climate, hydrology, soils, vegetation, and resources")
 	settlementProfiles := flag.Bool("settlement-profiles", true, "report fantasy settlement preference overlays")
@@ -32,6 +33,7 @@ func main() {
 	agricultureFile := flag.String("agriculture-productivity-file", "config/agriculture_productivity_earthlike.json", "JSON agriculture/pastoral productivity configuration")
 	wildlifeFile := flag.String("wildlife-productivity-file", "config/wildlife_productivity_earthlike.json", "JSON wildlife/biological productivity configuration")
 	coastalResourceFile := flag.String("coastal-resources-file", "config/coastal_resources_earthlike.json", "JSON coastal resource productivity configuration")
+	waterResourceFile := flag.String("water-resources-file", "config/water_resources_earthlike.json", "JSON freshwater resource productivity configuration")
 	resourceAbundanceFile := flag.String("resource-abundance-file", "config/resource_abundance_earthlike.json", "JSON resource abundance/scarcity configuration")
 	useCache := flag.Bool("cache", true, "reuse cached terrain and seasonal climate artifacts under the review output directory")
 	flag.Parse()
@@ -97,6 +99,7 @@ func main() {
 	agricultureSettings := loadAgricultureSettings(*agricultureFile)
 	wildlifeSettings := loadWildlifeSettings(*wildlifeFile)
 	coastalResourceSettings := loadCoastalResourceSettings(*coastalResourceFile)
+	waterResourceSettings := loadWaterResourceSettings(*waterResourceFile)
 
 	for _, seed := range seeds {
 		fmt.Printf("\nseed=%d\n", seed)
@@ -125,6 +128,7 @@ func main() {
 
 			var soilResult *climgen.SoilResult
 			var vegetationResult *climgen.VegetationResult
+			var waterResourceResult *climgen.WaterResourceResult
 			if *climateSoils || *climateVegetation {
 				soilResult = computeSoils(climateCells, seasonalClimate, biomeResult, elevation, diagnostics.Hydrology.Scaffold)
 			}
@@ -147,6 +151,11 @@ func main() {
 				printWildlifeSummary(wildlifeResult)
 				renderWildlifeMap(sites, index, wildlifeResult, prefix+"_wildlife.png", width, height)
 			}
+			if *climateWaterResources && soilResult != nil {
+				waterResourceResult = computeWaterResources(biomeResult, soilResult, elevation, diagnostics.Hydrology.Scaffold, waterResourceSettings)
+				printWaterResourceSummary(waterResourceResult)
+				renderWaterResourceMap(sites, index, waterResourceResult, prefix+"_water_resources.png", width, height)
+			}
 			if *climateCoastalResources && vegetationResult != nil && soilResult != nil {
 				coastalResourceResult := computeCoastalResources(climateSites, climateCells, seasonalClimate, biomeResult, soilResult, vegetationResult, elevation, diagnostics.Hydrology.Scaffold, coastalResourceSettings)
 				printCoastalResourceSummary(coastalResourceResult)
@@ -163,7 +172,7 @@ func main() {
 				renderResourcePotentialMap(sites, index, resourceResult, climgen.ResourceGemstones, prefix+"_resource_gems_potential.png", width, height)
 			}
 			if *climateSettlements && soilResult != nil {
-				settlementResult := computeSettlement(climateCells, seasonalClimate, biomeResult, soilResult, vegetationResult, resourceResult, elevation, diagnostics.Hydrology.Scaffold)
+				settlementResult := computeSettlement(climateCells, seasonalClimate, biomeResult, soilResult, vegetationResult, waterResourceResult, resourceResult, elevation, diagnostics.Hydrology.Scaffold)
 				printSettlementSummary(settlementResult)
 				renderSettlementMap(sites, index, settlementResult, prefix+"_settlements.png", width, height)
 				if *settlementProfiles {
