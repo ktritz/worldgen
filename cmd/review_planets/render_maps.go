@@ -460,6 +460,45 @@ func renderTradeNetworkMap(
 	saveMapPNG(filename, img, "trade network map")
 }
 
+func renderPolitySphereMap(
+	sites []terrain.Vector3D,
+	elevation []float64,
+	index *terrain.SpatialIndex,
+	result *climgen.PolitySphereResult,
+	network *climgen.SettlementNetworkResult,
+	filename string,
+	width, height int,
+) {
+	if result == nil || result.Diagnostics == nil || network == nil || index == nil {
+		return
+	}
+	capitalCells := make(map[int]struct{}, len(result.Spheres))
+	for _, sphere := range result.Spheres {
+		if sphere.CapitalNode >= 0 && sphere.CapitalNode < len(network.Nodes) {
+			capitalCells[network.Nodes[sphere.CapitalNode].CellIndex] = struct{}{}
+		}
+	}
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	for py := 0; py < height; py++ {
+		lat := 90 - float64(py)/float64(height)*180
+		for px := 0; px < width; px++ {
+			lon := float64(px)/float64(width)*360 - 180
+			cellIdx := index.FindNearest(lat, lon, sites)
+			out := terrain.HypsometricColor(elevation[cellIdx])
+			if cellIdx >= 0 && cellIdx < len(result.Diagnostics.PolityByCell) {
+				if polityIdx := result.Diagnostics.PolityByCell[cellIdx]; polityIdx >= 0 {
+					out = blendReviewColor(out, climgen.PolitySphereColor(polityIdx), 0.56)
+				}
+			}
+			if _, ok := capitalCells[cellIdx]; ok {
+				out = blendReviewColor(out, color.RGBA{246, 232, 168, 255}, 0.8)
+			}
+			img.Set(px, py, out)
+		}
+	}
+	saveMapPNG(filename, img, "polity sphere map")
+}
+
 func renderSettlementPreferenceMap(
 	sites []terrain.Vector3D,
 	index *terrain.SpatialIndex,

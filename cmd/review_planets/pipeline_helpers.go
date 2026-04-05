@@ -446,6 +446,28 @@ func computeTradeNetwork(
 	return climgen.BuildTradeNetwork(cells, network, proto, climgen.DefaultTradeNetworkSettings())
 }
 
+func computePolitySpheres(
+	cells []climgen.VoronoiCell,
+	network *climgen.SettlementNetworkResult,
+	proto *climgen.ProtoCivilizationResult,
+	trade *climgen.TradeNetworkResult,
+	population *climgen.PopulationResult,
+	settlements *climgen.SettlementResult,
+	elevation []float64,
+) *climgen.PolitySphereResult {
+	return climgen.BuildPolitySpheres(
+		cells,
+		network,
+		proto,
+		trade,
+		population,
+		settlements,
+		elevation,
+		0.0,
+		climgen.DefaultPolitySphereSettings(),
+	)
+}
+
 func computeSettlementPreferences(
 	biomes *climgen.BiomeResult,
 	soils *climgen.SoilResult,

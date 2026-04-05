@@ -32,6 +32,7 @@ func main() {
 	climateSettlementNetwork := flag.Bool("climate-settlement-network", true, "extract coarse settlement nodes and connectivity corridors from support fields")
 	climateProtoCivilizations := flag.Bool("climate-proto-civilizations", true, "derive coarse proto-civilization seeds and hinterlands from settlement regions")
 	climateTradeNetwork := flag.Bool("climate-trade-network", true, "derive coarse trade corridors and hub hierarchy from proto-civilizations and settlement links")
+	climatePolitySpheres := flag.Bool("climate-polity-spheres", true, "derive coarse polity spheres from proto-civilization capitals and trade hubs")
 	settlementProfiles := flag.Bool("settlement-profiles", true, "report fantasy settlement preference overlays")
 	profileCatalogFile := flag.String("profile-catalog-file", "config/profile_catalog_fantasy.json", "JSON profile catalog describing ancestry/culture modifiers")
 	agricultureFile := flag.String("agriculture-productivity-file", "config/agriculture_productivity_earthlike.json", "JSON agriculture/pastoral productivity configuration")
@@ -229,6 +230,11 @@ func main() {
 								tradeResult := computeTradeNetwork(climateCells, networkResult, protoResult)
 								printTradeNetworkSummary(tradeResult, networkResult)
 								renderTradeNetworkMap(sites, elevation, index, tradeResult, networkResult, prefix+"_trade_network.png", width, height)
+								if *climatePolitySpheres {
+									polityResult := computePolitySpheres(climateCells, networkResult, protoResult, tradeResult, populationResult, settlementResult, elevation)
+									printPolitySphereSummary(polityResult, networkResult)
+									renderPolitySphereMap(sites, elevation, index, polityResult, networkResult, prefix+"_polity_spheres.png", width, height)
+								}
 							}
 						}
 					}
