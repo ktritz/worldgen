@@ -412,6 +412,54 @@ func renderProtoCivilizationMap(
 	saveMapPNG(filename, img, "proto-civilization map")
 }
 
+func renderTradeNetworkMap(
+	sites []terrain.Vector3D,
+	elevation []float64,
+	index *terrain.SpatialIndex,
+	result *climgen.TradeNetworkResult,
+	network *climgen.SettlementNetworkResult,
+	filename string,
+	width, height int,
+) {
+	if result == nil || result.Diagnostics == nil || network == nil || index == nil {
+		return
+	}
+	cellTier := make(map[int]climgen.TradeCorridorTier)
+	cellFlow := make(map[int]float64)
+	for _, corridor := range result.Corridors {
+		for _, cellIdx := range corridor.CellPath {
+			if flow, ok := cellFlow[cellIdx]; !ok || corridor.Flow > flow {
+				cellFlow[cellIdx] = corridor.Flow
+				cellTier[cellIdx] = corridor.Tier
+			}
+		}
+	}
+	hubCells := make(map[int]struct{}, len(result.MajorHubs))
+	for _, nodeIdx := range result.MajorHubs {
+		if nodeIdx >= 0 && nodeIdx < len(network.Nodes) {
+			hubCells[network.Nodes[nodeIdx].CellIndex] = struct{}{}
+		}
+	}
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	for py := 0; py < height; py++ {
+		lat := 90 - float64(py)/float64(height)*180
+		for px := 0; px < width; px++ {
+			lon := float64(px)/float64(width)*360 - 180
+			cellIdx := index.FindNearest(lat, lon, sites)
+			out := terrain.HypsometricColor(elevation[cellIdx])
+			if tier, ok := cellTier[cellIdx]; ok {
+				alpha := 0.18 + 0.28*math.Min(cellFlow[cellIdx]/0.8, 1.0)
+				out = blendReviewColor(out, climgen.TradeCorridorTierColor(tier), alpha)
+			}
+			if _, ok := hubCells[cellIdx]; ok {
+				out = blendReviewColor(out, color.RGBA{242, 226, 164, 255}, 0.78)
+			}
+			img.Set(px, py, out)
+		}
+	}
+	saveMapPNG(filename, img, "trade network map")
+}
+
 func renderSettlementPreferenceMap(
 	sites []terrain.Vector3D,
 	index *terrain.SpatialIndex,

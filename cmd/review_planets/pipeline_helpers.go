@@ -438,6 +438,14 @@ func computeProtoCivilizations(
 	)
 }
 
+func computeTradeNetwork(
+	cells []climgen.VoronoiCell,
+	network *climgen.SettlementNetworkResult,
+	proto *climgen.ProtoCivilizationResult,
+) *climgen.TradeNetworkResult {
+	return climgen.BuildTradeNetwork(cells, network, proto, climgen.DefaultTradeNetworkSettings())
+}
+
 func computeSettlementPreferences(
 	biomes *climgen.BiomeResult,
 	soils *climgen.SoilResult,
