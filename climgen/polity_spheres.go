@@ -150,7 +150,7 @@ func politySphereSeeds(
 		existingCapital[civ.CenterNode] = struct{}{}
 	}
 
-	adj := buildTradeAdjacency(network)
+	adj := buildTradeAdjacency(network, nil)
 	for _, civ := range proto.Civilizations {
 		bestNode := -1
 		bestScore := -1.0

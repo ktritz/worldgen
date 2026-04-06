@@ -137,6 +137,17 @@ func loadPopulationSupportSettings(path string) climgen.PopulationSupportSetting
 	return settings
 }
 
+func loadLandRouteSettings(path string) climgen.LandRouteSettings {
+	settings := climgen.DefaultLandRouteSettings()
+	if loaded, err := climgen.LoadLandRouteSettings(path); err != nil {
+		fmt.Printf("Using built-in land route settings, failed to load %s: %v\n", path, err)
+	} else {
+		settings = loaded
+		fmt.Printf("Loaded land route settings from %s\n", path)
+	}
+	return settings
+}
+
 func loadOrGenerateTerrain(
 	cacheStore *reviewCacheStore,
 	terrainKey string,
@@ -464,8 +475,36 @@ func computeTradeNetwork(
 	cells []climgen.VoronoiCell,
 	network *climgen.SettlementNetworkResult,
 	proto *climgen.ProtoCivilizationResult,
+	landRoutes *climgen.LandRouteResult,
 ) *climgen.TradeNetworkResult {
-	return climgen.BuildTradeNetwork(cells, network, proto, climgen.DefaultTradeNetworkSettings())
+	return climgen.BuildTradeNetwork(cells, network, proto, landRoutes, climgen.DefaultTradeNetworkSettings())
+}
+
+func computeLandRoutes(
+	settlements *climgen.SettlementResult,
+	population *climgen.PopulationResult,
+	biomes *climgen.BiomeResult,
+	vegetation *climgen.VegetationResult,
+	soils *climgen.SoilResult,
+	wildlife *climgen.WildlifeResult,
+	waterResources *climgen.WaterResourceResult,
+	elevation []float64,
+	hydro *climgen.HydrologyBiomeInputs,
+	settings climgen.LandRouteSettings,
+) *climgen.LandRouteResult {
+	return climgen.BuildLandRouteDiagnostics(
+		settlements,
+		population,
+		biomes,
+		vegetation,
+		soils,
+		wildlife,
+		waterResources,
+		elevation,
+		0.0,
+		hydro,
+		settings,
+	)
 }
 
 func computePolitySpheres(

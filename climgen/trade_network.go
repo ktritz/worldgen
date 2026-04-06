@@ -1,7 +1,6 @@
 package climgen
 
 import (
-	"container/heap"
 	"math"
 	"sort"
 )
@@ -22,18 +21,49 @@ func TradeCorridorTierName(tier TradeCorridorTier) string {
 	return "Unknown"
 }
 
+type TradeCorridorRole int
+
+const (
+	TradeCorridorRoleFeeder TradeCorridorRole = iota
+	TradeCorridorRoleInternalTrunk
+	TradeCorridorRoleInterPolityTrunk
+)
+
+func TradeCorridorRoleName(role TradeCorridorRole) string {
+	names := []string{"Feeder", "Internal Trunk", "Inter-Polity Trunk"}
+	if int(role) < len(names) {
+		return names[role]
+	}
+	return "Unknown"
+}
+
 type TradeCorridor struct {
 	ID                int
+	FromLocalNode     int
+	ToLocalNode       int
 	FromNode          int
 	ToNode            int
 	FromCivilization  int
 	ToCivilization    int
+	Mode              string
+	Role              TradeCorridorRole
+	HandoffNode       int
 	TravelCost        float64
 	Flow              float64
+	MeanRisk          float64
+	MeanSupport       float64
 	Tier              TradeCorridorTier
 	NodePath          []int
 	CellPath          []int
 	InterCivilization bool
+}
+
+type TradeHandoff struct {
+	Node            int
+	FeederCorridors int
+	TrunkCorridors  int
+	DominantMode    string
+	Hub             bool
 }
 
 type TradeNetworkDiagnostics struct {
@@ -41,11 +71,14 @@ type TradeNetworkDiagnostics struct {
 	NodeCentrality     []float64
 	HubScore           []float64
 	RouteIntensity     []float64
+	RouteRiskIntensity []float64
 }
 
 type TradeNetworkResult struct {
 	Corridors   []TradeCorridor
+	Handoffs    []TradeHandoff
 	MajorHubs   []int
+	LocalNodes  []LocalTradeNode
 	Diagnostics *TradeNetworkDiagnostics
 }
 
@@ -75,6 +108,7 @@ func BuildTradeNetwork(
 	cells []VoronoiCell,
 	network *SettlementNetworkResult,
 	proto *ProtoCivilizationResult,
+	landRoutes *LandRouteResult,
 	settings TradeNetworkSettings,
 ) *TradeNetworkResult {
 	out := &TradeNetworkResult{}
@@ -86,23 +120,25 @@ func BuildTradeNetwork(
 		NodeCentrality:     make([]float64, len(network.Nodes)),
 		HubScore:           make([]float64, len(network.Nodes)),
 		RouteIntensity:     make([]float64, len(cells)),
+		RouteRiskIntensity: make([]float64, len(cells)),
 	}
 
-	adj := buildTradeAdjacency(network)
-	corridors := collectInterCivilizationCorridors(network, proto, adj, settings)
-	corridors = append(corridors, collectInternalCivilizationCorridors(network, proto, out.Diagnostics.CivilizationByNode, adj, settings)...)
+	adj := buildTradeAdjacency(network, landRoutes)
+	localGraph := BuildLocalTradeGraph(cells, network, landRoutes)
+	corridors := collectInterCivilizationCorridors(network, proto, adj, landRoutes, settings)
+	corridors = append(corridors, collectInternalCivilizationCorridors(network, proto, out.Diagnostics.CivilizationByNode, adj, landRoutes, settings)...)
+	corridors = append(corridors, collectAnchorFeederCorridors(network, adj, landRoutes, settings)...)
+	corridors = append(corridors, collectLocalFeederCorridors(cells, network, localGraph, landRoutes, settings)...)
 	corridors = dedupeTradeCorridors(corridors)
 	classifyTradeCorridors(corridors, settings)
 	applyTradeDiagnostics(corridors, out.Diagnostics)
 	out.MajorHubs = identifyMajorTradeHubs(network, proto, out.Diagnostics, settings)
+	out.Handoffs = buildTradeHandoffs(corridors, out.MajorHubs)
+	if localGraph != nil {
+		out.LocalNodes = localGraph.Nodes
+	}
 	out.Corridors = corridors
 	return out
-}
-
-type tradeAdjEdge struct {
-	neighbor  int
-	linkIndex int
-	cost      float64
 }
 
 func civilizationByNode(network *SettlementNetworkResult, proto *ProtoCivilizationResult) []int {
@@ -128,22 +164,11 @@ func civilizationByNode(network *SettlementNetworkResult, proto *ProtoCivilizati
 	return byNode
 }
 
-func buildTradeAdjacency(network *SettlementNetworkResult) [][]tradeAdjEdge {
-	adj := make([][]tradeAdjEdge, len(network.Nodes))
-	for i, link := range network.Links {
-		if link.From < 0 || link.From >= len(adj) || link.To < 0 || link.To >= len(adj) {
-			continue
-		}
-		adj[link.From] = append(adj[link.From], tradeAdjEdge{neighbor: link.To, linkIndex: i, cost: link.TravelCost})
-		adj[link.To] = append(adj[link.To], tradeAdjEdge{neighbor: link.From, linkIndex: i, cost: link.TravelCost})
-	}
-	return adj
-}
-
 func collectInterCivilizationCorridors(
 	network *SettlementNetworkResult,
 	proto *ProtoCivilizationResult,
 	adj [][]tradeAdjEdge,
+	landRoutes *LandRouteResult,
 	settings TradeNetworkSettings,
 ) []TradeCorridor {
 	type candidate struct {
@@ -157,11 +182,12 @@ func collectInterCivilizationCorridors(
 		for j := i + 1; j < len(proto.Civilizations); j++ {
 			a := proto.Civilizations[i]
 			b := proto.Civilizations[j]
-			path := shortestTradeNodePath(a.CenterNode, b.CenterNode, network, adj, settings.MaxRouteCost)
+			path := shortestTradeNodePath(a.CenterNode, b.CenterNode, network, adj, settings.MaxRouteCost*interCivilizationReachMultiplier(landRoutes))
 			if !path.ok {
 				continue
 			}
 			flow := tradeFlowBetweenCivilizations(a, b, network.Nodes[a.CenterNode], network.Nodes[b.CenterNode], path.cost)
+			flow *= interCivilizationFlowMultiplier(landRoutes)
 			if flow < settings.MinFlow {
 				continue
 			}
@@ -175,7 +201,7 @@ func collectInterCivilizationCorridors(
 		if used[cand.from] >= settings.MaxPartnersPerCivilization || used[cand.to] >= settings.MaxPartnersPerCivilization {
 			continue
 		}
-		out = append(out, buildTradeCorridor(network, cand.path, cand.from, cand.to, cand.flow, true))
+		out = append(out, buildTradeCorridor(network, cand.path, cand.from, cand.to, cand.flow, true, TradeCorridorRoleInterPolityTrunk, -1, landRoutes))
 		used[cand.from]++
 		used[cand.to]++
 	}
@@ -187,6 +213,7 @@ func collectInternalCivilizationCorridors(
 	proto *ProtoCivilizationResult,
 	civByNode []int,
 	adj [][]tradeAdjEdge,
+	landRoutes *LandRouteResult,
 	settings TradeNetworkSettings,
 ) []TradeCorridor {
 	out := make([]TradeCorridor, 0)
@@ -213,15 +240,76 @@ func collectInternalCivilizationCorridors(
 			limit = len(targets)
 		}
 		for i := 0; i < limit; i++ {
-			path := shortestTradeNodePath(civ.CenterNode, targets[i].node, network, adj, settings.MaxRouteCost*0.75)
+			path := shortestTradeNodePath(civ.CenterNode, targets[i].node, network, adj, settings.MaxRouteCost*0.75*internalReachMultiplier(landRoutes))
 			if !path.ok {
 				continue
 			}
 			flow := tradeFlowWithinCivilization(civ, network.Nodes[civ.CenterNode], network.Nodes[targets[i].node], path.cost)
+			flow *= internalFlowMultiplier(landRoutes)
 			if flow < settings.MinFlow {
 				continue
 			}
-			out = append(out, buildTradeCorridor(network, path, civ.ID, civ.ID, flow, false))
+			out = append(out, buildTradeCorridor(network, path, civ.ID, civ.ID, flow, false, TradeCorridorRoleInternalTrunk, -1, landRoutes))
+		}
+	}
+	return out
+}
+
+func collectAnchorFeederCorridors(
+	network *SettlementNetworkResult,
+	adj [][]tradeAdjEdge,
+	landRoutes *LandRouteResult,
+	settings TradeNetworkSettings,
+) []TradeCorridor {
+	if network == nil || landRoutes == nil || landRoutes.Mode.FeederFlow <= 0 || len(network.Regions) == 0 {
+		return nil
+	}
+	maxCost := settings.MaxRouteCost * landRoutes.Mode.FeederReach
+	if maxCost <= 0 {
+		return nil
+	}
+	out := make([]TradeCorridor, 0)
+	for _, region := range network.Regions {
+		candidates := make([]int, 0, len(region.NodeIndices))
+		for _, nodeIdx := range region.NodeIndices {
+			if nodeIdx < 0 || nodeIdx >= len(network.Nodes) {
+				continue
+			}
+			node := network.Nodes[nodeIdx]
+			if node.Kind > SettlementNodeVillage {
+				continue
+			}
+			candidates = append(candidates, nodeIdx)
+		}
+		for _, fromIdx := range candidates {
+			bestPath := tradeNodePath{}
+			bestTarget := -1
+			for _, toIdx := range region.NodeIndices {
+				if toIdx == fromIdx || toIdx < 0 || toIdx >= len(network.Nodes) {
+					continue
+				}
+				fromNode := network.Nodes[fromIdx]
+				toNode := network.Nodes[toIdx]
+				if toNode.Kind < fromNode.Kind || (toNode.Kind == fromNode.Kind && toNode.Score <= fromNode.Score) {
+					continue
+				}
+				path := shortestTradeNodePath(fromIdx, toIdx, network, adj, maxCost)
+				if !path.ok {
+					continue
+				}
+				if bestTarget < 0 || path.cost < bestPath.cost {
+					bestTarget = toIdx
+					bestPath = path
+				}
+			}
+			if bestTarget < 0 {
+				continue
+			}
+			flow := localFeederFlow(network.Nodes[fromIdx], network.Nodes[bestTarget], bestPath.cost, landRoutes.Mode)
+			if flow < settings.MinFlow*0.45 {
+				continue
+			}
+			out = append(out, buildTradeCorridor(network, bestPath, -1, -1, flow, false, TradeCorridorRoleFeeder, bestTarget, landRoutes))
 		}
 	}
 	return out
@@ -253,223 +341,7 @@ func tradeFlowWithinCivilization(civ ProtoCivilization, center, node SettlementN
 	return base * bonus / math.Max(cost*1.3, 1.0)
 }
 
-type tradeNodePath struct {
-	ok        bool
-	cost      float64
-	nodes     []int
-	linkOrder []int
-}
-
-type tradePQState struct {
-	node int
-	cost float64
-}
-
-type tradePathHeap []tradePQState
-
-func (h tradePathHeap) Len() int            { return len(h) }
-func (h tradePathHeap) Less(i, j int) bool  { return h[i].cost < h[j].cost }
-func (h tradePathHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }
-func (h *tradePathHeap) Push(x interface{}) { *h = append(*h, x.(tradePQState)) }
-func (h *tradePathHeap) Pop() interface{} {
-	old := *h
-	n := len(old)
-	item := old[n-1]
-	*h = old[:n-1]
-	return item
-}
-
-func shortestTradeNodePath(start, goal int, network *SettlementNetworkResult, adj [][]tradeAdjEdge, maxCost float64) tradeNodePath {
-	if start < 0 || goal < 0 || start >= len(network.Nodes) || goal >= len(network.Nodes) {
-		return tradeNodePath{}
-	}
-	dist := make([]float64, len(network.Nodes))
-	prevNode := make([]int, len(network.Nodes))
-	prevLink := make([]int, len(network.Nodes))
-	for i := range dist {
-		dist[i] = math.Inf(1)
-		prevNode[i] = -1
-		prevLink[i] = -1
-	}
-	dist[start] = 0
-	pq := &tradePathHeap{{node: start, cost: 0}}
-	heap.Init(pq)
-	for pq.Len() > 0 {
-		cur := heap.Pop(pq).(tradePQState)
-		if cur.cost > dist[cur.node] || cur.cost > maxCost {
-			continue
-		}
-		if cur.node == goal {
-			break
-		}
-		for _, edge := range adj[cur.node] {
-			nextCost := cur.cost + edge.cost
-			if nextCost < dist[edge.neighbor] && nextCost <= maxCost {
-				dist[edge.neighbor] = nextCost
-				prevNode[edge.neighbor] = cur.node
-				prevLink[edge.neighbor] = edge.linkIndex
-				heap.Push(pq, tradePQState{node: edge.neighbor, cost: nextCost})
-			}
-		}
-	}
-	if math.IsInf(dist[goal], 1) {
-		return tradeNodePath{}
-	}
-	nodes := make([]int, 0)
-	links := make([]int, 0)
-	for cur := goal; cur >= 0; cur = prevNode[cur] {
-		nodes = append(nodes, cur)
-		if cur == start {
-			break
-		}
-		links = append(links, prevLink[cur])
-	}
-	for i, j := 0, len(nodes)-1; i < j; i, j = i+1, j-1 {
-		nodes[i], nodes[j] = nodes[j], nodes[i]
-	}
-	for i, j := 0, len(links)-1; i < j; i, j = i+1, j-1 {
-		links[i], links[j] = links[j], links[i]
-	}
-	return tradeNodePath{ok: true, cost: dist[goal], nodes: nodes, linkOrder: links}
-}
-
-func buildTradeCorridor(network *SettlementNetworkResult, path tradeNodePath, fromCiv, toCiv int, flow float64, inter bool) TradeCorridor {
-	cellPath := make([]int, 0)
-	for i, linkIdx := range path.linkOrder {
-		link := network.Links[linkIdx]
-		fromNode := path.nodes[i]
-		segment := link.Path
-		if link.From != fromNode {
-			segment = reversedInts(segment)
-		}
-		if len(cellPath) > 0 && len(segment) > 0 && cellPath[len(cellPath)-1] == segment[0] {
-			cellPath = append(cellPath, segment[1:]...)
-		} else {
-			cellPath = append(cellPath, segment...)
-		}
-	}
-	return TradeCorridor{
-		FromNode:          path.nodes[0],
-		ToNode:            path.nodes[len(path.nodes)-1],
-		FromCivilization:  fromCiv,
-		ToCivilization:    toCiv,
-		TravelCost:        path.cost,
-		Flow:              flow,
-		NodePath:          append([]int(nil), path.nodes...),
-		CellPath:          cellPath,
-		InterCivilization: inter,
-	}
-}
-
-func reversedInts(values []int) []int {
-	out := append([]int(nil), values...)
-	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
-		out[i], out[j] = out[j], out[i]
-	}
-	return out
-}
-
-func dedupeTradeCorridors(corridors []TradeCorridor) []TradeCorridor {
-	type key struct{ a, b int }
-	best := make(map[key]TradeCorridor)
-	for _, corridor := range corridors {
-		k := key{a: corridor.FromNode, b: corridor.ToNode}
-		if k.a > k.b {
-			k.a, k.b = k.b, k.a
-		}
-		current, ok := best[k]
-		if !ok || corridor.Flow > current.Flow {
-			best[k] = corridor
-		}
-	}
-	out := make([]TradeCorridor, 0, len(best))
-	for _, corridor := range best {
-		out = append(out, corridor)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Flow > out[j].Flow })
-	for i := range out {
-		out[i].ID = i
-	}
-	return out
-}
-
-func classifyTradeCorridors(corridors []TradeCorridor, settings TradeNetworkSettings) {
-	for i := range corridors {
-		switch {
-		case corridors[i].Flow >= settings.PrimaryFlow:
-			corridors[i].Tier = TradeCorridorPrimary
-		case corridors[i].Flow >= settings.RegionalFlow || corridors[i].InterCivilization:
-			corridors[i].Tier = TradeCorridorRegional
-		default:
-			corridors[i].Tier = TradeCorridorLocal
-		}
-	}
-}
-
-func applyTradeDiagnostics(corridors []TradeCorridor, diagnostics *TradeNetworkDiagnostics) {
-	if diagnostics == nil {
-		return
-	}
-	for _, corridor := range corridors {
-		for _, nodeIdx := range corridor.NodePath {
-			if nodeIdx >= 0 && nodeIdx < len(diagnostics.NodeCentrality) {
-				diagnostics.NodeCentrality[nodeIdx] += corridor.Flow
-			}
-		}
-		for _, cellIdx := range corridor.CellPath {
-			if cellIdx >= 0 && cellIdx < len(diagnostics.RouteIntensity) {
-				diagnostics.RouteIntensity[cellIdx] += corridor.Flow
-			}
-		}
-	}
-}
-
-func identifyMajorTradeHubs(
-	network *SettlementNetworkResult,
-	proto *ProtoCivilizationResult,
-	diagnostics *TradeNetworkDiagnostics,
-	settings TradeNetworkSettings,
-) []int {
-	maxCentrality := 0.0
-	for _, value := range diagnostics.NodeCentrality {
-		if value > maxCentrality {
-			maxCentrality = value
-		}
-	}
-	hubs := make([]int, 0)
-	for i, node := range network.Nodes {
-		centerBonus := 0.0
-		for _, civ := range proto.Civilizations {
-			if civ.CenterNode == i {
-				centerBonus = 0.12
-				break
-			}
-		}
-		centralityNorm := 0.0
-		if maxCentrality > 0 {
-			centralityNorm = diagnostics.NodeCentrality[i] / maxCentrality
-		}
-		score := node.Score + 0.18*(float64(node.Kind)/3.0) + 0.24*centralityNorm + centerBonus
-		if node.Coastal {
-			score += 0.05
-		}
-		if node.River {
-			score += 0.04
-		}
-		diagnostics.HubScore[i] = score
-		if node.Kind >= SettlementNodeTown && score >= settings.HubThreshold {
-			hubs = append(hubs, i)
-		}
-	}
-	sort.Slice(hubs, func(i, j int) bool {
-		return diagnostics.HubScore[hubs[i]] > diagnostics.HubScore[hubs[j]]
-	})
-	return hubs
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
+func localFeederFlow(from, to SettlementNode, cost float64, mode LandRouteModeSettings) float64 {
+	base := 0.20 + 0.22*from.Score + 0.18*to.Score + 0.08*float64(from.Kind) + 0.06*float64(to.Kind)
+	return base * maxFloat(mode.FeederFlow, 0) / math.Max(cost*1.15, 1.0)
 }

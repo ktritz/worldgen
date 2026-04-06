@@ -41,6 +41,7 @@ func main() {
 	waterResourceFile := flag.String("water-resources-file", "config/water_resources_earthlike.json", "JSON freshwater resource productivity configuration")
 	resourceAbundanceFile := flag.String("resource-abundance-file", "config/resource_abundance_earthlike.json", "JSON resource abundance/scarcity configuration")
 	populationSupportFile := flag.String("population-support-file", "config/population_support_earthlike.json", "JSON population support configuration")
+	landRouteFile := flag.String("land-route-file", "config/land_routes_earthlike.json", "JSON overland trade route mode configuration")
 	useCache := flag.Bool("cache", true, "reuse cached terrain and seasonal climate artifacts under the review output directory")
 	flag.Parse()
 
@@ -108,6 +109,7 @@ func main() {
 	coastalResourceSettings := loadCoastalResourceSettings(*coastalResourceFile)
 	waterResourceSettings := loadWaterResourceSettings(*waterResourceFile)
 	populationSettings := loadPopulationSupportSettings(*populationSupportFile)
+	landRouteSettings := loadLandRouteSettings(*landRouteFile)
 	baselineRecords := make([]baselineSeedMetrics, 0, len(seeds))
 
 	for _, seed := range seeds {
@@ -228,7 +230,21 @@ func main() {
 							printProtoCivilizationSummary(protoResult)
 							renderProtoCivilizationMap(sites, elevation, index, protoResult, networkResult, prefix+"_proto_civilizations.png", width, height)
 							if *climateTradeNetwork {
-								tradeResult := computeTradeNetwork(climateCells, networkResult, protoResult)
+								landRouteResult := computeLandRoutes(
+									settlementResult,
+									populationResult,
+									biomeResult,
+									vegetationResult,
+									soilResult,
+									wildlifeResult,
+									waterResourceResult,
+									elevation,
+									hydrologyBiomeInputsFromScaffold(diagnostics.Hydrology.Scaffold),
+									landRouteSettings,
+								)
+								printLandRouteSummary(landRouteResult)
+								renderLandRouteRiskMap(sites, elevation, index, landRouteResult, prefix+"_land_route_risk.png", width, height)
+								tradeResult := computeTradeNetwork(climateCells, networkResult, protoResult, landRouteResult)
 								printTradeNetworkSummary(tradeResult, networkResult)
 								renderTradeNetworkMap(sites, elevation, index, tradeResult, networkResult, prefix+"_trade_network.png", width, height)
 								if *climatePolitySpheres {
