@@ -4,29 +4,31 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+
+	worldgen "worldgen"
 )
 
 type SettlementPreferenceProfile struct {
-	Name                string
-	ClimateWeight       float64
-	WaterWeight         float64
-	TerrainWeight       float64
-	SoilWeight          float64
-	AccessWeight        float64
-	ResourceWeight      float64
-	HazardWeight        float64
-	RiverBias           float64
-	CoastalBias         float64
-	AlluvialBias        float64
-	FertilityBias       float64
-	ForestBias          float64
-	WetlandBias         float64
-	RockBias            float64
-	ElevationBias       float64
-	ColdTolerance       float64
-	AridityTolerance    float64
-	FavorableThreshold  float64
-	PrimeThreshold      float64
+	Name               string
+	ClimateWeight      float64
+	WaterWeight        float64
+	TerrainWeight      float64
+	SoilWeight         float64
+	AccessWeight       float64
+	ResourceWeight     float64
+	HazardWeight       float64
+	RiverBias          float64
+	CoastalBias        float64
+	AlluvialBias       float64
+	FertilityBias      float64
+	ForestBias         float64
+	WetlandBias        float64
+	RockBias           float64
+	ElevationBias      float64
+	ColdTolerance      float64
+	AridityTolerance   float64
+	FavorableThreshold float64
+	PrimeThreshold     float64
 }
 
 type SettlementPreferenceResult struct {
@@ -40,96 +42,11 @@ type SettlementPreferenceProfileFile struct {
 }
 
 func DefaultFantasySettlementProfiles() []SettlementPreferenceProfile {
-	return []SettlementPreferenceProfile{
-		{
-			Name:               "Human",
-			ClimateWeight:      1.00,
-			WaterWeight:        1.00,
-			TerrainWeight:      1.00,
-			SoilWeight:         1.00,
-			AccessWeight:       1.00,
-			ResourceWeight:     1.00,
-			HazardWeight:       1.00,
-			RiverBias:          0.04,
-			CoastalBias:        0.04,
-			AlluvialBias:       0.05,
-			FertilityBias:      0.04,
-			ForestBias:         0.00,
-			WetlandBias:       -0.03,
-			RockBias:          -0.03,
-			ElevationBias:     -0.02,
-			ColdTolerance:      0.00,
-			AridityTolerance:   0.00,
-			FavorableThreshold: 0.42,
-			PrimeThreshold:     0.66,
-		},
-		{
-			Name:               "Elf",
-			ClimateWeight:      1.05,
-			WaterWeight:        1.00,
-			TerrainWeight:      0.95,
-			SoilWeight:         0.95,
-			AccessWeight:       0.85,
-			ResourceWeight:     0.65,
-			HazardWeight:       0.90,
-			RiverBias:          0.02,
-			CoastalBias:       -0.01,
-			AlluvialBias:       0.01,
-			FertilityBias:      0.02,
-			ForestBias:         0.10,
-			WetlandBias:       -0.01,
-			RockBias:          -0.04,
-			ElevationBias:     -0.01,
-			ColdTolerance:      0.02,
-			AridityTolerance:  -0.04,
-			FavorableThreshold: 0.41,
-			PrimeThreshold:     0.64,
-		},
-		{
-			Name:               "Dwarf",
-			ClimateWeight:      0.80,
-			WaterWeight:        0.80,
-			TerrainWeight:      1.20,
-			SoilWeight:         0.65,
-			AccessWeight:       0.70,
-			ResourceWeight:     1.35,
-			HazardWeight:       0.70,
-			RiverBias:         -0.01,
-			CoastalBias:       -0.05,
-			AlluvialBias:      -0.02,
-			FertilityBias:     -0.04,
-			ForestBias:        -0.03,
-			WetlandBias:       -0.08,
-			RockBias:           0.09,
-			ElevationBias:      0.08,
-			ColdTolerance:      0.06,
-			AridityTolerance:   0.03,
-			FavorableThreshold: 0.38,
-			PrimeThreshold:     0.61,
-		},
-		{
-			Name:               "Halfling",
-			ClimateWeight:      1.05,
-			WaterWeight:        1.10,
-			TerrainWeight:      0.90,
-			SoilWeight:         1.15,
-			AccessWeight:       1.00,
-			ResourceWeight:     0.75,
-			HazardWeight:       1.00,
-			RiverBias:          0.06,
-			CoastalBias:        0.02,
-			AlluvialBias:       0.08,
-			FertilityBias:      0.08,
-			ForestBias:         0.01,
-			WetlandBias:       -0.05,
-			RockBias:          -0.07,
-			ElevationBias:     -0.06,
-			ColdTolerance:     -0.01,
-			AridityTolerance:  -0.03,
-			FavorableThreshold: 0.40,
-			PrimeThreshold:     0.62,
-		},
+	profiles, err := loadSettlementPreferenceProfilesData(worldgen.EmbeddedSettlementProfiles())
+	if err != nil {
+		return nil
 	}
+	return profiles
 }
 
 func LoadSettlementPreferenceProfiles(path string) ([]SettlementPreferenceProfile, error) {
@@ -137,6 +54,10 @@ func LoadSettlementPreferenceProfiles(path string) ([]SettlementPreferenceProfil
 	if err != nil {
 		return nil, err
 	}
+	return loadSettlementPreferenceProfilesData(data)
+}
+
+func loadSettlementPreferenceProfilesData(data []byte) ([]SettlementPreferenceProfile, error) {
 	var file SettlementPreferenceProfileFile
 	if err := json.Unmarshal(data, &file); err == nil && len(file.Profiles) > 0 {
 		if err := validateSettlementPreferenceProfiles(file.Profiles); err != nil {

@@ -3,17 +3,18 @@ package climgen
 import (
 	"encoding/json"
 	"fmt"
-	"os"
+
+	worldgen "worldgen"
 )
 
 const ProfileCatalogSchemaVersion = "profile-catalog/v1"
 
 type ProfileSocialModule struct {
-	Openness             float64 `json:"openness"`
-	HierarchyPreference  float64 `json:"hierarchyPreference"`
-	TraditionPreference  float64 `json:"traditionPreference"`
-	ClanBias             float64 `json:"clanBias"`
-	GuildBias            float64 `json:"guildBias"`
+	Openness            float64 `json:"openness"`
+	HierarchyPreference float64 `json:"hierarchyPreference"`
+	TraditionPreference float64 `json:"traditionPreference"`
+	ClanBias            float64 `json:"clanBias"`
+	GuildBias           float64 `json:"guildBias"`
 }
 
 type ProfileSocialOverrides struct {
@@ -95,20 +96,25 @@ type SettlementPreferenceOverrides struct {
 }
 
 type AncestryProfile struct {
-	Name        string                       `json:"name"`
-	Description string                       `json:"description,omitempty"`
-	Tags        []string                     `json:"tags,omitempty"`
-	Settlement  *SettlementPreferenceProfile `json:"settlement,omitempty"`
-	Social      *ProfileSocialModule         `json:"social,omitempty"`
-	Governance  *ProfileGovernanceModule     `json:"governance,omitempty"`
-	Economy     *ProfileEconomicModule       `json:"economy,omitempty"`
-	Attitudes   *ProfileAttitudeModule       `json:"attitudes,omitempty"`
+	Name               string                       `json:"name"`
+	Description        string                       `json:"description,omitempty"`
+	BaselinePrevalence float64                      `json:"baselinePrevalence,omitempty"`
+	Tags               []string                     `json:"tags,omitempty"`
+	Traits             ProfileTraitMap              `json:"traits,omitempty"`
+	Affinities         []ProfileAffinityRule        `json:"affinities,omitempty"`
+	Settlement         *SettlementPreferenceProfile `json:"settlement,omitempty"`
+	Social             *ProfileSocialModule         `json:"social,omitempty"`
+	Governance         *ProfileGovernanceModule     `json:"governance,omitempty"`
+	Economy            *ProfileEconomicModule       `json:"economy,omitempty"`
+	Attitudes          *ProfileAttitudeModule       `json:"attitudes,omitempty"`
 }
 
 type CultureProfile struct {
-	Name        string                   `json:"name"`
-	Description string                   `json:"description,omitempty"`
-	Tags        []string                 `json:"tags,omitempty"`
+	Name        string                         `json:"name"`
+	Description string                         `json:"description,omitempty"`
+	Tags        []string                       `json:"tags,omitempty"`
+	Traits      ProfileTraitMap                `json:"traits,omitempty"`
+	Affinities  []ProfileAffinityRule          `json:"affinities,omitempty"`
 	Settlement  *SettlementPreferenceOverrides `json:"settlement,omitempty"`
 	Social      *ProfileSocialOverrides        `json:"social,omitempty"`
 	Governance  *ProfileGovernanceOverrides    `json:"governance,omitempty"`
@@ -117,9 +123,9 @@ type CultureProfile struct {
 }
 
 type ProfileCatalog struct {
-	SchemaVersion string           `json:"schemaVersion"`
-	Ancestries    []AncestryProfile      `json:"ancestries,omitempty"`
-	Cultures      []CultureProfile       `json:"cultures,omitempty"`
+	SchemaVersion string                   `json:"schemaVersion"`
+	Ancestries    []AncestryProfile        `json:"ancestries,omitempty"`
+	Cultures      []CultureProfile         `json:"cultures,omitempty"`
 	Compositions  []ProfileCompositionSpec `json:"compositions,omitempty"`
 }
 
@@ -130,8 +136,12 @@ type ProfileCompositionSpec struct {
 }
 
 type ResolvedProfile struct {
+	Name         string
 	AncestryName string
 	CultureName  string
+	Tags         []string
+	Traits       map[string]float64
+	Affinities   []ProfileAffinityRule
 	Settlement   *SettlementPreferenceProfile
 	Social       *ProfileSocialModule
 	Governance   *ProfileGovernanceModule
@@ -140,45 +150,22 @@ type ResolvedProfile struct {
 }
 
 func DefaultFantasyProfileCatalog() *ProfileCatalog {
+	catalog, err := LoadProfileCatalogFromFS(worldgen.EmbeddedDefaultsFS(), "config/profile_catalog_fantasy.json")
+	if err == nil {
+		return catalog
+	}
 	profiles := DefaultFantasySettlementProfiles()
-	catalog := &ProfileCatalog{
+	fallback := &ProfileCatalog{
 		SchemaVersion: ProfileCatalogSchemaVersion,
 		Ancestries:    make([]AncestryProfile, 0, len(profiles)),
 	}
 	for _, profile := range profiles {
-		ancestry := AncestryProfile{
+		fallback.Ancestries = append(fallback.Ancestries, AncestryProfile{
 			Name:       profile.Name,
 			Settlement: cloneSettlementPreferenceProfile(profile),
-		}
-		switch profile.Name {
-		case "Human":
-			ancestry.Tags = []string{"adaptable", "coastal", "agrarian"}
-			ancestry.Social = &ProfileSocialModule{Openness: 0.55, HierarchyPreference: 0.45, TraditionPreference: 0.45, ClanBias: 0.35, GuildBias: 0.60}
-			ancestry.Governance = &ProfileGovernanceModule{CentralizationPreference: 0.50, LegalismPreference: 0.55, MeritPreference: 0.50, RepublicBias: 0.45, AutocracyBias: 0.35, TheocracyBias: 0.20}
-			ancestry.Economy = &ProfileEconomicModule{TradeBias: 0.60, AgrarianBias: 0.65, CraftBias: 0.45, ExtractiveBias: 0.35, ProfessionAptitudes: map[string]float64{"farmer": 0.70, "merchant": 0.65, "administrator": 0.55}}
-			ancestry.Attitudes = &ProfileAttitudeModule{Xenophilia: 0.50, Aggression: 0.45, HonorBias: 0.40, Curiosity: 0.55}
-		case "Elf":
-			ancestry.Tags = []string{"forest", "long-lived", "low-density"}
-			ancestry.Social = &ProfileSocialModule{Openness: 0.45, HierarchyPreference: 0.35, TraditionPreference: 0.75, ClanBias: 0.40, GuildBias: 0.25}
-			ancestry.Governance = &ProfileGovernanceModule{CentralizationPreference: 0.30, LegalismPreference: 0.35, MeritPreference: 0.40, RepublicBias: 0.25, AutocracyBias: 0.20, TheocracyBias: 0.35}
-			ancestry.Economy = &ProfileEconomicModule{TradeBias: 0.35, AgrarianBias: 0.30, CraftBias: 0.55, ExtractiveBias: 0.10, ProfessionAptitudes: map[string]float64{"warden": 0.75, "artisan": 0.60, "scholar": 0.65}}
-			ancestry.Attitudes = &ProfileAttitudeModule{Xenophilia: 0.35, Aggression: 0.20, HonorBias: 0.50, Curiosity: 0.60}
-		case "Dwarf":
-			ancestry.Tags = []string{"mountain", "craft", "subterranean"}
-			ancestry.Social = &ProfileSocialModule{Openness: 0.30, HierarchyPreference: 0.65, TraditionPreference: 0.80, ClanBias: 0.70, GuildBias: 0.65}
-			ancestry.Governance = &ProfileGovernanceModule{CentralizationPreference: 0.60, LegalismPreference: 0.70, MeritPreference: 0.55, RepublicBias: 0.20, AutocracyBias: 0.45, TheocracyBias: 0.25}
-			ancestry.Economy = &ProfileEconomicModule{TradeBias: 0.40, AgrarianBias: 0.15, CraftBias: 0.80, ExtractiveBias: 0.85, ProfessionAptitudes: map[string]float64{"miner": 0.90, "smith": 0.85, "engineer": 0.75}}
-			ancestry.Attitudes = &ProfileAttitudeModule{Xenophilia: 0.20, Aggression: 0.40, HonorBias: 0.70, Curiosity: 0.35}
-		case "Halfling":
-			ancestry.Tags = []string{"river-valley", "agrarian", "smallhold"}
-			ancestry.Social = &ProfileSocialModule{Openness: 0.60, HierarchyPreference: 0.25, TraditionPreference: 0.55, ClanBias: 0.55, GuildBias: 0.35}
-			ancestry.Governance = &ProfileGovernanceModule{CentralizationPreference: 0.20, LegalismPreference: 0.40, MeritPreference: 0.40, RepublicBias: 0.50, AutocracyBias: 0.10, TheocracyBias: 0.15}
-			ancestry.Economy = &ProfileEconomicModule{TradeBias: 0.45, AgrarianBias: 0.85, CraftBias: 0.35, ExtractiveBias: 0.05, ProfessionAptitudes: map[string]float64{"farmer": 0.90, "brewer": 0.70, "merchant": 0.45}}
-			ancestry.Attitudes = &ProfileAttitudeModule{Xenophilia: 0.55, Aggression: 0.15, HonorBias: 0.30, Curiosity: 0.40}
-		}
-		catalog.Ancestries = append(catalog.Ancestries, ancestry)
+		})
 	}
-	return catalog
+	return fallback
 }
 
 func cloneSettlementPreferenceProfile(profile SettlementPreferenceProfile) *SettlementPreferenceProfile {
@@ -186,11 +173,7 @@ func cloneSettlementPreferenceProfile(profile SettlementPreferenceProfile) *Sett
 	return &copied
 }
 
-func LoadProfileCatalog(path string) (*ProfileCatalog, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
+func loadProfileCatalogData(data []byte) (*ProfileCatalog, error) {
 	var catalog ProfileCatalog
 	if err := json.Unmarshal(data, &catalog); err != nil {
 		return nil, fmt.Errorf("decode profile catalog: %w", err)
@@ -225,6 +208,12 @@ func ValidateProfileCatalog(catalog *ProfileCatalog) error {
 				return fmt.Errorf("ancestry %q: %w", ancestry.Name, err)
 			}
 		}
+		if ancestry.BaselinePrevalence < 0 {
+			return fmt.Errorf("ancestry %q baselinePrevalence must be >= 0", ancestry.Name)
+		}
+		if err := validateProfileTraitsAndAffinities(ancestry.Traits, ancestry.Affinities, fmt.Sprintf("ancestry %q", ancestry.Name)); err != nil {
+			return err
+		}
 	}
 	seenCulture := make(map[string]struct{}, len(catalog.Cultures))
 	for _, culture := range catalog.Cultures {
@@ -235,6 +224,9 @@ func ValidateProfileCatalog(catalog *ProfileCatalog) error {
 			return fmt.Errorf("duplicate culture profile %q", culture.Name)
 		}
 		seenCulture[culture.Name] = struct{}{}
+		if err := validateProfileTraitsAndAffinities(culture.Traits, culture.Affinities, fmt.Sprintf("culture %q", culture.Name)); err != nil {
+			return err
+		}
 	}
 	seenComposition := make(map[string]struct{}, len(catalog.Compositions))
 	for _, composition := range catalog.Compositions {
@@ -314,17 +306,25 @@ func ResolveProfileComposition(catalog *ProfileCatalog, spec ProfileCompositionS
 		}
 	}
 	resolved := ComposeResolvedProfile(*ancestry, culture)
-	if resolved != nil && spec.Name != "" && resolved.Settlement != nil {
-		resolved.Settlement.Name = spec.Name
+	if resolved != nil && spec.Name != "" {
+		resolved.Name = spec.Name
+		if resolved.Settlement != nil {
+			resolved.Settlement.Name = spec.Name
+		}
 	}
 	return resolved
 }
 
 func ComposeResolvedProfile(ancestry AncestryProfile, culture *CultureProfile) *ResolvedProfile {
 	resolved := &ResolvedProfile{
+		Name:         ancestry.Name,
 		AncestryName: ancestry.Name,
+		Tags:         mergeProfileTags(nil, ancestry.Tags),
+		Traits:       cloneTraitMap(ancestry.Traits),
+		Affinities:   cloneAffinityRules(ancestry.Affinities),
 	}
 	if culture != nil {
+		resolved.Name = ancestry.Name + " + " + culture.Name
 		resolved.CultureName = culture.Name
 	}
 	if ancestry.Settlement != nil {
@@ -350,6 +350,9 @@ func ComposeResolvedProfile(ancestry AncestryProfile, culture *CultureProfile) *
 	if culture == nil {
 		return resolved
 	}
+	resolved.Tags = mergeProfileTags(resolved.Tags, culture.Tags)
+	resolved.Traits = mergeTraitMaps(resolved.Traits, culture.Traits)
+	resolved.Affinities = mergeAffinityRules(resolved.Affinities, culture.Affinities)
 	applySettlementOverrides(&resolved.Settlement, culture.Settlement)
 	applySocialOverrides(&resolved.Social, culture.Social)
 	applyGovernanceOverrides(&resolved.Governance, culture.Governance)
@@ -452,6 +455,26 @@ func applyAttitudeOverrides(dst **ProfileAttitudeModule, src *ProfileAttitudeOve
 	applyFloat(&mod.Aggression, src.Aggression)
 	applyFloat(&mod.HonorBias, src.HonorBias)
 	applyFloat(&mod.Curiosity, src.Curiosity)
+}
+
+func validateProfileTraitsAndAffinities(traits map[string]float64, affinities []ProfileAffinityRule, scope string) error {
+	for name, value := range traits {
+		if name == "" {
+			return fmt.Errorf("%s has empty trait key", scope)
+		}
+		if value < -1 || value > 1 {
+			return fmt.Errorf("%s trait %q out of range [-1,1]: %.3f", scope, name, value)
+		}
+	}
+	for _, rule := range affinities {
+		if rule.TargetType == "" {
+			return fmt.Errorf("%s has affinity rule with empty targetType", scope)
+		}
+		if rule.Target == "" {
+			return fmt.Errorf("%s has affinity rule with empty target", scope)
+		}
+	}
+	return nil
 }
 
 func copyStringFloatMap(src map[string]float64) map[string]float64 {

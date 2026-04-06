@@ -100,7 +100,8 @@ func main() {
 		cacheStore = newReviewCacheStore(*outputDir)
 	}
 
-	profiles := loadSettlementProfiles(*settlementProfiles, *profileCatalogFile)
+	profileCatalog := loadProfileCatalogWithFallback(*profileCatalogFile)
+	profiles := extractSettlementProfilesFromCatalog(*settlementProfiles, profileCatalog)
 	resourceSettings := loadResourceAbundanceSettings(*resourceAbundanceFile)
 	agricultureSettings := loadAgricultureSettings(*agricultureFile)
 	wildlifeSettings := loadWildlifeSettings(*wildlifeFile)
@@ -234,6 +235,8 @@ func main() {
 									polityResult := computePolitySpheres(climateCells, networkResult, protoResult, tradeResult, populationResult, settlementResult, elevation)
 									printPolitySphereSummary(polityResult, networkResult)
 									renderPolitySphereMap(sites, elevation, index, polityResult, networkResult, prefix+"_polity_spheres.png", width, height)
+									polityProfiles := computePolityProfiles(climateCells, polityResult, networkResult, tradeResult, biomeResult, vegetationResult, soilResult, diagnostics.Hydrology.Scaffold, profileCatalog)
+									printPolityProfileSummary(polityProfiles)
 								}
 							}
 						}

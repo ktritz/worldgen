@@ -49,6 +49,28 @@ func loadSettlementProfiles(enabled bool, path string) []climgen.SettlementPrefe
 	return profiles
 }
 
+func loadProfileCatalogWithFallback(path string) *climgen.ProfileCatalog {
+	catalog, err := climgen.LoadProfileCatalog(path)
+	if err != nil {
+		fmt.Printf("Using built-in profile catalog, failed to load %s: %v\n", path, err)
+		return climgen.DefaultFantasyProfileCatalog()
+	}
+	fmt.Printf("Loaded profile catalog from %s\n", path)
+	return catalog
+}
+
+func extractSettlementProfilesFromCatalog(enabled bool, catalog *climgen.ProfileCatalog) []climgen.SettlementPreferenceProfile {
+	profiles := climgen.DefaultFantasySettlementProfiles()
+	if !enabled || catalog == nil {
+		return profiles
+	}
+	profiles = climgen.ExtractComposedSettlementProfiles(catalog)
+	if len(profiles) == 0 {
+		profiles = climgen.ExtractSettlementProfiles(catalog)
+	}
+	return profiles
+}
+
 func loadResourceAbundanceSettings(path string) climgen.ResourceAbundanceSettings {
 	settings := climgen.DefaultResourceAbundanceSettings()
 	if loaded, err := climgen.LoadResourceAbundanceSettings(path); err != nil {
@@ -466,6 +488,21 @@ func computePolitySpheres(
 		0.0,
 		climgen.DefaultPolitySphereSettings(),
 	)
+}
+
+func computePolityProfiles(
+	cells []climgen.VoronoiCell,
+	polities *climgen.PolitySphereResult,
+	network *climgen.SettlementNetworkResult,
+	trade *climgen.TradeNetworkResult,
+	biomes *climgen.BiomeResult,
+	vegetation *climgen.VegetationResult,
+	soils *climgen.SoilResult,
+	scaffold *terrain.HydrologyScaffold,
+	catalog *climgen.ProfileCatalog,
+) *climgen.PolityProfileResult {
+	hydro := hydrologyBiomeInputsFromScaffold(scaffold)
+	return climgen.BuildPolityProfiles(cells, polities, network, trade, biomes, vegetation, soils, hydro, catalog)
 }
 
 func computeSettlementPreferences(
