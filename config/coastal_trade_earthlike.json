@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "coastal-trade/v1",
+  "candidatePortThreshold": 0.42,
+  "candidatePortSuitabilityFloor": 0.29,
+  "candidatePortFeatureFloor": 0.22,
+  "maxPartnersPerPort": 3,
+  "maxPartnersPerCivilization": 3,
+  "baseLegCost": 4.0,
+  "legScale": 42.0,
+  "maxRouteCost": 18.0,
+  "routeBudgetBaseFactor": 0.70,
+  "routeBudgetLongHaulWeight": 0.85,
+  "routeBudgetCoastalWeight": 0.20,
+  "routeBudgetOpenOceanWeight": 0.55,
+  "routeBudgetDailyRangeWeight": 0.20,
+  "routeBudgetStopoverWeight": 0.15,
+  "routeBudgetLegWeight": 8.0,
+  "minFlow": 0.04,
+  "regionalFlow": 0.10,
+  "primaryFlow": 0.18
+}

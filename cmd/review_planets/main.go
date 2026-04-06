@@ -33,6 +33,9 @@ func main() {
 	climateProtoCivilizations := flag.Bool("climate-proto-civilizations", true, "derive coarse proto-civilization seeds and hinterlands from settlement regions")
 	climateTradeNetwork := flag.Bool("climate-trade-network", true, "derive coarse trade corridors and hub hierarchy from proto-civilizations and settlement links")
 	climateRiverTrade := flag.Bool("climate-river-trade", true, "derive coarse river navigability and river trade corridors from hydrology and settlement anchors")
+	climateCoastalPorts := flag.Bool("climate-coastal-ports", true, "derive coarse coastal port suitability and maritime handoff candidates from coasts, rivers, and trade hubs")
+	climateCoastalTrade := flag.Bool("climate-coastal-trade", true, "derive coast-hugging coastal shipping corridors from ports, currents, and vessel limits")
+	climateOceanTrade := flag.Bool("climate-ocean-trade", true, "derive blue-water ocean shipping corridors from deepwater ports, stopovers, currents, and vessel limits")
 	climatePolitySpheres := flag.Bool("climate-polity-spheres", true, "derive coarse polity spheres from proto-civilization capitals and trade hubs")
 	settlementProfiles := flag.Bool("settlement-profiles", true, "report fantasy settlement preference overlays")
 	profileCatalogFile := flag.String("profile-catalog-file", "config/profile_catalog_fantasy.json", "JSON profile catalog describing ancestry/culture modifiers")
@@ -44,6 +47,11 @@ func main() {
 	populationSupportFile := flag.String("population-support-file", "config/population_support_earthlike.json", "JSON population support configuration")
 	landRouteFile := flag.String("land-route-file", "config/land_routes_earthlike.json", "JSON overland trade route mode configuration")
 	riverRouteFile := flag.String("river-route-file", "config/river_routes_earthlike.json", "JSON river route mode configuration")
+	maritimeRouteFile := flag.String("maritime-route-file", "config/maritime_vessels_earthlike.json", "JSON maritime vessel mode configuration")
+	maritimeCompareVessels := flag.String("maritime-compare-vessels", "", "comma-separated maritime vessel names to compare in coastal port/trade review output")
+	maritimePortFile := flag.String("maritime-port-file", "config/maritime_ports_earthlike.json", "JSON maritime port suitability configuration")
+	coastalTradeFile := flag.String("coastal-trade-file", "config/coastal_trade_earthlike.json", "JSON coast-hugging maritime trade configuration")
+	oceanTradeFile := flag.String("ocean-trade-file", "config/ocean_trade_earthlike.json", "JSON blue-water ocean trade configuration")
 	useCache := flag.Bool("cache", true, "reuse cached terrain and seasonal climate artifacts under the review output directory")
 	flag.Parse()
 
@@ -113,6 +121,11 @@ func main() {
 	populationSettings := loadPopulationSupportSettings(*populationSupportFile)
 	landRouteSettings := loadLandRouteSettings(*landRouteFile)
 	riverRouteSettings := loadRiverRouteSettings(*riverRouteFile)
+	maritimeRouteSettings := loadMaritimeRouteSettings(*maritimeRouteFile)
+	maritimeComparisonVessels := selectMaritimeComparisonVessels(*maritimeCompareVessels, maritimeRouteSettings)
+	maritimePortSettings := loadMaritimePortSettings(*maritimePortFile)
+	coastalTradeSettings := loadCoastalTradeSettings(*coastalTradeFile)
+	oceanTradeSettings := loadOceanTradeSettings(*oceanTradeFile)
 	baselineRecords := make([]baselineSeedMetrics, 0, len(seeds))
 
 	for _, seed := range seeds {
@@ -250,8 +263,10 @@ func main() {
 								tradeResult := computeTradeNetwork(climateCells, networkResult, protoResult, landRouteResult)
 								printTradeNetworkSummary(tradeResult, networkResult)
 								renderTradeNetworkMap(sites, elevation, index, tradeResult, networkResult, prefix+"_trade_network.png", width, height)
+								var riverRouteResult *climgen.RiverRouteResult
+								var riverTradeResult *climgen.RiverTradeResult
 								if *climateRiverTrade {
-									riverRouteResult := computeRiverRoutes(
+									riverRouteResult = computeRiverRoutes(
 										settlementResult,
 										populationResult,
 										soilResult,
@@ -262,9 +277,60 @@ func main() {
 									)
 									printRiverRouteSummary(riverRouteResult)
 									renderRiverNavigabilityMap(sites, elevation, index, riverRouteResult, prefix+"_river_navigability.png", width, height)
-									riverTradeResult := computeRiverTrade(climateCells, networkResult, protoResult, riverRouteResult, elevation)
+									riverTradeResult = computeRiverTrade(climateCells, networkResult, protoResult, riverRouteResult, elevation)
 									printRiverTradeSummary(riverTradeResult, networkResult)
 									renderRiverTradeMap(sites, elevation, index, riverTradeResult, networkResult, prefix+"_river_trade.png", width, height)
+								}
+								if *climateCoastalPorts {
+									for _, vesselName := range maritimeComparisonVessels {
+										fmt.Printf("    maritimeVessel=%s\n", vesselName)
+										vesselRoutes := maritimeSettingsForVessel(maritimeRouteSettings, vesselName)
+										coastalPortResult := computeCoastalPorts(
+											climateCells,
+											seasonalClimate,
+											networkResult,
+											tradeResult,
+											riverTradeResult,
+											coastalResourceResult,
+											riverRouteResult,
+											soilResult,
+											elevation,
+											diagnostics.Hydrology.Scaffold,
+											vesselRoutes,
+											maritimePortSettings,
+										)
+										printCoastalPortSummary(coastalPortResult, networkResult)
+										suffix := maritimeOutputSuffix(maritimeRouteSettings.DefaultVessel, vesselName)
+										renderCoastalPortSuitabilityMap(sites, elevation, index, coastalPortResult, networkResult, prefix+"_coastal_ports"+suffix+".png", width, height)
+										if *climateCoastalTrade {
+											coastalTradeResult := computeCoastalTrade(
+												climateSites,
+												climateCells,
+												seasonalClimate,
+												networkResult,
+												protoResult,
+												coastalPortResult,
+												elevation,
+												coastalTradeSettings,
+											)
+											printCoastalTradeSummary(coastalTradeResult, networkResult)
+											renderCoastalTradeMap(sites, elevation, index, coastalTradeResult, networkResult, prefix+"_coastal_trade"+suffix+".png", width, height)
+										}
+										if *climateOceanTrade {
+											oceanTradeResult := computeOceanTrade(
+												climateSites,
+												climateCells,
+												seasonalClimate,
+												networkResult,
+												protoResult,
+												coastalPortResult,
+												elevation,
+												oceanTradeSettings,
+											)
+											printOceanTradeSummary(oceanTradeResult, networkResult)
+											renderOceanTradeMap(sites, elevation, index, oceanTradeResult, networkResult, prefix+"_ocean_trade"+suffix+".png", width, height)
+										}
+									}
 								}
 								if *climatePolitySpheres {
 									polityResult := computePolitySpheres(climateCells, networkResult, protoResult, tradeResult, populationResult, settlementResult, elevation)

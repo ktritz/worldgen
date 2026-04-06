@@ -159,6 +159,100 @@ func loadRiverRouteSettings(path string) climgen.RiverRouteSettings {
 	return settings
 }
 
+func loadMaritimeRouteSettings(path string) climgen.MaritimeRouteSettings {
+	settings := climgen.DefaultMaritimeRouteSettings()
+	if loaded, err := climgen.LoadMaritimeRouteSettings(path); err != nil {
+		fmt.Printf("Using built-in maritime vessel settings, failed to load %s: %v\n", path, err)
+	} else {
+		settings = loaded
+		fmt.Printf("Loaded maritime vessel settings from %s\n", path)
+	}
+	return settings
+}
+
+func loadMaritimePortSettings(path string) climgen.MaritimePortSettings {
+	settings := climgen.DefaultMaritimePortSettings()
+	if loaded, err := climgen.LoadMaritimePortSettings(path); err != nil {
+		fmt.Printf("Using built-in maritime port settings, failed to load %s: %v\n", path, err)
+	} else {
+		settings = loaded
+		fmt.Printf("Loaded maritime port settings from %s\n", path)
+	}
+	return settings
+}
+
+func loadCoastalTradeSettings(path string) climgen.CoastalTradeSettings {
+	settings := climgen.DefaultCoastalTradeSettings()
+	if loaded, err := climgen.LoadCoastalTradeSettings(path); err != nil {
+		fmt.Printf("Using built-in coastal trade settings, failed to load %s: %v\n", path, err)
+	} else {
+		settings = loaded
+		fmt.Printf("Loaded coastal trade settings from %s\n", path)
+	}
+	return settings
+}
+
+func loadOceanTradeSettings(path string) climgen.OceanTradeSettings {
+	settings := climgen.DefaultOceanTradeSettings()
+	if loaded, err := climgen.LoadOceanTradeSettings(path); err != nil {
+		fmt.Printf("Using built-in ocean trade settings, failed to load %s: %v\n", path, err)
+	} else {
+		settings = loaded
+		fmt.Printf("Loaded ocean trade settings from %s\n", path)
+	}
+	return settings
+}
+
+func selectMaritimeComparisonVessels(raw string, settings climgen.MaritimeRouteSettings) []string {
+	addUnique := func(out *[]string, seen map[string]struct{}, name string) {
+		if name == "" {
+			return
+		}
+		if _, ok := settings.VesselByName(name); !ok {
+			return
+		}
+		if _, ok := seen[name]; ok {
+			return
+		}
+		seen[name] = struct{}{}
+		*out = append(*out, name)
+	}
+
+	out := make([]string, 0, 4)
+	seen := make(map[string]struct{}, 4)
+	if strings.TrimSpace(raw) == "" {
+		for _, name := range []string{settings.DefaultVessel, "lateen-dhow", "knarr", "caravel"} {
+			addUnique(&out, seen, name)
+		}
+	} else {
+		for _, name := range strings.Split(raw, ",") {
+			addUnique(&out, seen, strings.TrimSpace(name))
+		}
+	}
+	if len(out) == 0 {
+		if settings.DefaultVessel != "" {
+			addUnique(&out, seen, settings.DefaultVessel)
+		} else if len(settings.Vessels) > 0 {
+			addUnique(&out, seen, settings.Vessels[0].Name)
+		}
+	}
+	return out
+}
+
+func maritimeSettingsForVessel(settings climgen.MaritimeRouteSettings, vesselName string) climgen.MaritimeRouteSettings {
+	override := settings
+	override.DefaultVessel = vesselName
+	return override
+}
+
+func maritimeOutputSuffix(defaultVessel, vesselName string) string {
+	if vesselName == "" || vesselName == defaultVessel {
+		return ""
+	}
+	replacer := strings.NewReplacer(" ", "_", "/", "_")
+	return "_" + replacer.Replace(vesselName)
+}
+
 func loadOrGenerateTerrain(
 	cacheStore *reviewCacheStore,
 	terrainKey string,
@@ -520,6 +614,64 @@ func computeRiverTrade(
 	elevation []float64,
 ) *climgen.RiverTradeResult {
 	return climgen.BuildRiverTradeNetwork(cells, network, proto, riverRoutes, elevation, climgen.DefaultRiverTradeSettings())
+}
+
+func computeCoastalPorts(
+	cells []climgen.VoronoiCell,
+	climate *climgen.SeasonalClimateResult,
+	network *climgen.SettlementNetworkResult,
+	trade *climgen.TradeNetworkResult,
+	riverTrade *climgen.RiverTradeResult,
+	coastalResources *climgen.CoastalResourceResult,
+	riverRoutes *climgen.RiverRouteResult,
+	soils *climgen.SoilResult,
+	elevation []float64,
+	scaffold *terrain.HydrologyScaffold,
+	maritimeRoutes climgen.MaritimeRouteSettings,
+	settings climgen.MaritimePortSettings,
+) *climgen.CoastalPortResult {
+	hydro := hydrologyBiomeInputsFromScaffold(scaffold)
+	return climgen.BuildCoastalPorts(
+		cells,
+		climate,
+		network,
+		trade,
+		riverTrade,
+		coastalResources,
+		riverRoutes,
+		soils,
+		elevation,
+		0.0,
+		hydro,
+		maritimeRoutes,
+		settings,
+	)
+}
+
+func computeCoastalTrade(
+	sites []climgen.Vector3D,
+	cells []climgen.VoronoiCell,
+	climate *climgen.SeasonalClimateResult,
+	network *climgen.SettlementNetworkResult,
+	proto *climgen.ProtoCivilizationResult,
+	ports *climgen.CoastalPortResult,
+	elevation []float64,
+	settings climgen.CoastalTradeSettings,
+) *climgen.CoastalTradeResult {
+	return climgen.BuildCoastalTradeNetwork(sites, cells, climate, network, proto, ports, elevation, 0.0, settings)
+}
+
+func computeOceanTrade(
+	sites []climgen.Vector3D,
+	cells []climgen.VoronoiCell,
+	climate *climgen.SeasonalClimateResult,
+	network *climgen.SettlementNetworkResult,
+	proto *climgen.ProtoCivilizationResult,
+	ports *climgen.CoastalPortResult,
+	elevation []float64,
+	settings climgen.OceanTradeSettings,
+) *climgen.OceanTradeResult {
+	return climgen.BuildOceanTradeNetwork(sites, cells, climate, network, proto, ports, elevation, 0.0, settings)
 }
 
 func computeLandRoutes(
