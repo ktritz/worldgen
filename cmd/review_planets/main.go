@@ -32,6 +32,7 @@ func main() {
 	climateSettlementNetwork := flag.Bool("climate-settlement-network", true, "extract coarse settlement nodes and connectivity corridors from support fields")
 	climateProtoCivilizations := flag.Bool("climate-proto-civilizations", true, "derive coarse proto-civilization seeds and hinterlands from settlement regions")
 	climateTradeNetwork := flag.Bool("climate-trade-network", true, "derive coarse trade corridors and hub hierarchy from proto-civilizations and settlement links")
+	climateRiverTrade := flag.Bool("climate-river-trade", true, "derive coarse river navigability and river trade corridors from hydrology and settlement anchors")
 	climatePolitySpheres := flag.Bool("climate-polity-spheres", true, "derive coarse polity spheres from proto-civilization capitals and trade hubs")
 	settlementProfiles := flag.Bool("settlement-profiles", true, "report fantasy settlement preference overlays")
 	profileCatalogFile := flag.String("profile-catalog-file", "config/profile_catalog_fantasy.json", "JSON profile catalog describing ancestry/culture modifiers")
@@ -42,6 +43,7 @@ func main() {
 	resourceAbundanceFile := flag.String("resource-abundance-file", "config/resource_abundance_earthlike.json", "JSON resource abundance/scarcity configuration")
 	populationSupportFile := flag.String("population-support-file", "config/population_support_earthlike.json", "JSON population support configuration")
 	landRouteFile := flag.String("land-route-file", "config/land_routes_earthlike.json", "JSON overland trade route mode configuration")
+	riverRouteFile := flag.String("river-route-file", "config/river_routes_earthlike.json", "JSON river route mode configuration")
 	useCache := flag.Bool("cache", true, "reuse cached terrain and seasonal climate artifacts under the review output directory")
 	flag.Parse()
 
@@ -110,6 +112,7 @@ func main() {
 	waterResourceSettings := loadWaterResourceSettings(*waterResourceFile)
 	populationSettings := loadPopulationSupportSettings(*populationSupportFile)
 	landRouteSettings := loadLandRouteSettings(*landRouteFile)
+	riverRouteSettings := loadRiverRouteSettings(*riverRouteFile)
 	baselineRecords := make([]baselineSeedMetrics, 0, len(seeds))
 
 	for _, seed := range seeds {
@@ -247,6 +250,22 @@ func main() {
 								tradeResult := computeTradeNetwork(climateCells, networkResult, protoResult, landRouteResult)
 								printTradeNetworkSummary(tradeResult, networkResult)
 								renderTradeNetworkMap(sites, elevation, index, tradeResult, networkResult, prefix+"_trade_network.png", width, height)
+								if *climateRiverTrade {
+									riverRouteResult := computeRiverRoutes(
+										settlementResult,
+										populationResult,
+										soilResult,
+										waterResourceResult,
+										elevation,
+										hydrologyBiomeInputsFromScaffold(diagnostics.Hydrology.Scaffold),
+										riverRouteSettings,
+									)
+									printRiverRouteSummary(riverRouteResult)
+									renderRiverNavigabilityMap(sites, elevation, index, riverRouteResult, prefix+"_river_navigability.png", width, height)
+									riverTradeResult := computeRiverTrade(climateCells, networkResult, protoResult, riverRouteResult, elevation)
+									printRiverTradeSummary(riverTradeResult, networkResult)
+									renderRiverTradeMap(sites, elevation, index, riverTradeResult, networkResult, prefix+"_river_trade.png", width, height)
+								}
 								if *climatePolitySpheres {
 									polityResult := computePolitySpheres(climateCells, networkResult, protoResult, tradeResult, populationResult, settlementResult, elevation)
 									printPolitySphereSummary(polityResult, networkResult)

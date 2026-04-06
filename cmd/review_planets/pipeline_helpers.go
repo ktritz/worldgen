@@ -148,6 +148,17 @@ func loadLandRouteSettings(path string) climgen.LandRouteSettings {
 	return settings
 }
 
+func loadRiverRouteSettings(path string) climgen.RiverRouteSettings {
+	settings := climgen.DefaultRiverRouteSettings()
+	if loaded, err := climgen.LoadRiverRouteSettings(path); err != nil {
+		fmt.Printf("Using built-in river route settings, failed to load %s: %v\n", path, err)
+	} else {
+		settings = loaded
+		fmt.Printf("Loaded river route settings from %s\n", path)
+	}
+	return settings
+}
+
 func loadOrGenerateTerrain(
 	cacheStore *reviewCacheStore,
 	terrainKey string,
@@ -478,6 +489,37 @@ func computeTradeNetwork(
 	landRoutes *climgen.LandRouteResult,
 ) *climgen.TradeNetworkResult {
 	return climgen.BuildTradeNetwork(cells, network, proto, landRoutes, climgen.DefaultTradeNetworkSettings())
+}
+
+func computeRiverRoutes(
+	settlements *climgen.SettlementResult,
+	population *climgen.PopulationResult,
+	soils *climgen.SoilResult,
+	waterResources *climgen.WaterResourceResult,
+	elevation []float64,
+	hydro *climgen.HydrologyBiomeInputs,
+	settings climgen.RiverRouteSettings,
+) *climgen.RiverRouteResult {
+	return climgen.BuildRiverRouteDiagnostics(
+		settlements,
+		population,
+		soils,
+		waterResources,
+		elevation,
+		0.0,
+		hydro,
+		settings,
+	)
+}
+
+func computeRiverTrade(
+	cells []climgen.VoronoiCell,
+	network *climgen.SettlementNetworkResult,
+	proto *climgen.ProtoCivilizationResult,
+	riverRoutes *climgen.RiverRouteResult,
+	elevation []float64,
+) *climgen.RiverTradeResult {
+	return climgen.BuildRiverTradeNetwork(cells, network, proto, riverRoutes, elevation, climgen.DefaultRiverTradeSettings())
 }
 
 func computeLandRoutes(
