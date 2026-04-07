@@ -1,0 +1,46 @@
+{
+  "name": "Merchant League",
+  "description": "Urbanized trade federation that amplifies coastal access, guild structures, and commerce.",
+  "tags": ["mercantile", "urban", "coastal"],
+  "traits": {
+    "order": 0.58,
+    "mercantile": 0.88,
+    "xenophilic": 0.74
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "mercantile", "weight": 0.30},
+    {"targetType": "tag", "target": "coastal", "weight": 0.20},
+    {"targetType": "trait", "target": "order", "weight": 0.12}
+  ],
+  "settlement": {
+    "AccessWeight": 1.15,
+    "CoastalBias": 0.08,
+    "RiverBias": 0.04,
+    "ResourceWeight": 1.05,
+    "FavorableThreshold": 0.40,
+    "PrimeThreshold": 0.62
+  },
+  "social": {
+    "openness": 0.70,
+    "guildBias": 0.85
+  },
+  "governance": {
+    "republicBias": 0.75,
+    "legalismPreference": 0.65,
+    "autocracyBias": 0.10
+  },
+  "economy": {
+    "tradeBias": 0.90,
+    "agrarianBias": 0.25,
+    "craftBias": 0.65,
+    "professionAptitudes": {
+      "merchant": 0.90,
+      "shipwright": 0.75,
+      "scribe": 0.70
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.75,
+    "curiosity": 0.70
+  }
+}

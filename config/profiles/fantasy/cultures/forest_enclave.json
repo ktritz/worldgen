@@ -1,0 +1,54 @@
+{
+  "name": "Forest Enclave",
+  "description": "Low-density woodland culture favoring managed forests, craft, and sacred groves over dense urban trade.",
+  "tags": ["forest", "spiritual", "low-density"],
+  "traits": {
+    "order": 0.46,
+    "spiritual": 0.74,
+    "xenophilic": 0.34
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "forest", "weight": 0.26},
+    {"targetType": "tag", "target": "low-density", "weight": 0.14},
+    {"targetType": "trait", "target": "curiosity", "weight": 0.08}
+  ],
+  "settlement": {
+    "ForestBias": 0.08,
+    "ResourceWeight": 0.70,
+    "CoastalBias": -0.02,
+    "FavorableThreshold": 0.40,
+    "PrimeThreshold": 0.63
+  },
+  "social": {
+    "openness": 0.40,
+    "hierarchyPreference": 0.28,
+    "traditionPreference": 0.78,
+    "clanBias": 0.44,
+    "guildBias": 0.22
+  },
+  "governance": {
+    "centralizationPreference": 0.24,
+    "legalismPreference": 0.30,
+    "meritPreference": 0.36,
+    "republicBias": 0.22,
+    "autocracyBias": 0.14,
+    "theocracyBias": 0.42
+  },
+  "economy": {
+    "tradeBias": 0.24,
+    "agrarianBias": 0.28,
+    "craftBias": 0.58,
+    "extractiveBias": 0.06,
+    "professionAptitudes": {
+      "warden": 0.78,
+      "artisan": 0.62,
+      "healer": 0.66
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.32,
+    "aggression": 0.16,
+    "honorBias": 0.46,
+    "curiosity": 0.62
+  }
+}

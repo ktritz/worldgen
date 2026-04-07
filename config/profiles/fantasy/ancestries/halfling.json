@@ -1,0 +1,73 @@
+{
+  "name": "Halfling",
+  "description": "River-valley and smallhold oriented peoples with strong agrarian preferences and low relief tolerance.",
+  "baselinePrevalence": 0.52,
+  "tags": ["river-valley", "agrarian", "smallhold", "floodplain"],
+  "traits": {
+    "order": 0.44,
+    "chaos": 0.24,
+    "warlike": 0.12,
+    "communal": 0.72
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "river", "weight": 0.14},
+    {"targetType": "tag", "target": "floodplain", "weight": 0.20},
+    {"targetType": "tag", "target": "alluvial", "weight": 0.16},
+    {"targetType": "tag", "target": "agrarian", "weight": 0.22},
+    {"targetType": "ancestry", "target": "Human", "weight": 0.08}
+  ],
+  "settlement": {
+    "Name": "Halfling",
+    "ClimateWeight": 1.05,
+    "WaterWeight": 1.10,
+    "TerrainWeight": 0.90,
+    "SoilWeight": 1.15,
+    "AccessWeight": 1.0,
+    "ResourceWeight": 0.75,
+    "HazardWeight": 1.0,
+    "RiverBias": 0.06,
+    "CoastalBias": 0.02,
+    "AlluvialBias": 0.08,
+    "FertilityBias": 0.08,
+    "ForestBias": 0.01,
+    "WetlandBias": -0.05,
+    "RockBias": -0.07,
+    "ElevationBias": -0.06,
+    "ColdTolerance": -0.01,
+    "AridityTolerance": -0.03,
+    "FavorableThreshold": 0.40,
+    "PrimeThreshold": 0.62
+  },
+  "social": {
+    "openness": 0.60,
+    "hierarchyPreference": 0.25,
+    "traditionPreference": 0.55,
+    "clanBias": 0.55,
+    "guildBias": 0.35
+  },
+  "governance": {
+    "centralizationPreference": 0.20,
+    "legalismPreference": 0.40,
+    "meritPreference": 0.40,
+    "republicBias": 0.50,
+    "autocracyBias": 0.10,
+    "theocracyBias": 0.15
+  },
+  "economy": {
+    "tradeBias": 0.45,
+    "agrarianBias": 0.85,
+    "craftBias": 0.35,
+    "extractiveBias": 0.05,
+    "professionAptitudes": {
+      "farmer": 0.90,
+      "brewer": 0.70,
+      "merchant": 0.45
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.55,
+    "aggression": 0.15,
+    "honorBias": 0.30,
+    "curiosity": 0.40
+  }
+}

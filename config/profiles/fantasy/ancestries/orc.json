@@ -1,0 +1,73 @@
+{
+  "name": "Orc",
+  "description": "Hardy frontier peoples with strong martial and raiding tendencies, comfortable in marginal climates and rough country.",
+  "baselinePrevalence": 0.34,
+  "tags": ["frontier", "martial", "rough-country"],
+  "traits": {
+    "order": 0.30,
+    "chaos": 0.42,
+    "warlike": 0.78,
+    "honor": 0.58
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "frontier", "weight": 0.24},
+    {"targetType": "tag", "target": "mountain", "weight": 0.14},
+    {"targetType": "ancestry", "target": "Elf", "weight": -0.72},
+    {"targetType": "ancestry", "target": "Dwarf", "weight": -0.55},
+    {"targetType": "ancestry", "target": "Goblin", "weight": 0.18}
+  ],
+  "settlement": {
+    "Name": "Orc",
+    "ClimateWeight": 0.90,
+    "WaterWeight": 0.85,
+    "TerrainWeight": 1.10,
+    "SoilWeight": 0.70,
+    "AccessWeight": 0.80,
+    "ResourceWeight": 1.0,
+    "HazardWeight": 0.75,
+    "RiverBias": 0.01,
+    "CoastalBias": -0.04,
+    "AlluvialBias": -0.01,
+    "FertilityBias": -0.05,
+    "ForestBias": -0.02,
+    "WetlandBias": -0.07,
+    "RockBias": 0.06,
+    "ElevationBias": 0.05,
+    "ColdTolerance": 0.05,
+    "AridityTolerance": 0.05,
+    "FavorableThreshold": 0.36,
+    "PrimeThreshold": 0.58
+  },
+  "social": {
+    "openness": 0.24,
+    "hierarchyPreference": 0.58,
+    "traditionPreference": 0.62,
+    "clanBias": 0.78,
+    "guildBias": 0.14
+  },
+  "governance": {
+    "centralizationPreference": 0.42,
+    "legalismPreference": 0.28,
+    "meritPreference": 0.34,
+    "republicBias": 0.08,
+    "autocracyBias": 0.62,
+    "theocracyBias": 0.12
+  },
+  "economy": {
+    "tradeBias": 0.18,
+    "agrarianBias": 0.22,
+    "craftBias": 0.28,
+    "extractiveBias": 0.52,
+    "professionAptitudes": {
+      "raider": 0.82,
+      "drover": 0.58,
+      "hunter": 0.66
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.14,
+    "aggression": 0.78,
+    "honorBias": 0.62,
+    "curiosity": 0.26
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "name": "Human",
+  "description": "Flexible generalists with balanced environmental tolerance and strong mixed agrarian-trade tendencies.",
+  "baselinePrevalence": 1.10,
+  "tags": ["adaptable", "coastal", "agrarian", "lowland"],
+  "traits": {
+    "order": 0.52,
+    "chaos": 0.28,
+    "warlike": 0.42,
+    "mercantile": 0.62
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "agrarian", "weight": 0.15},
+    {"targetType": "tag", "target": "coastal", "weight": 0.10},
+    {"targetType": "tag", "target": "lowland", "weight": 0.08}
+  ],
+  "settlement": {
+    "Name": "Human",
+    "ClimateWeight": 1.0,
+    "WaterWeight": 1.0,
+    "TerrainWeight": 1.0,
+    "SoilWeight": 1.0,
+    "AccessWeight": 1.0,
+    "ResourceWeight": 1.0,
+    "HazardWeight": 1.0,
+    "RiverBias": 0.04,
+    "CoastalBias": 0.04,
+    "AlluvialBias": 0.05,
+    "FertilityBias": 0.04,
+    "ForestBias": 0.0,
+    "WetlandBias": -0.03,
+    "RockBias": -0.03,
+    "ElevationBias": -0.02,
+    "ColdTolerance": 0.0,
+    "AridityTolerance": 0.0,
+    "FavorableThreshold": 0.42,
+    "PrimeThreshold": 0.66
+  },
+  "social": {
+    "openness": 0.55,
+    "hierarchyPreference": 0.45,
+    "traditionPreference": 0.45,
+    "clanBias": 0.35,
+    "guildBias": 0.60
+  },
+  "governance": {
+    "centralizationPreference": 0.50,
+    "legalismPreference": 0.55,
+    "meritPreference": 0.50,
+    "republicBias": 0.45,
+    "autocracyBias": 0.35,
+    "theocracyBias": 0.20
+  },
+  "economy": {
+    "tradeBias": 0.60,
+    "agrarianBias": 0.65,
+    "craftBias": 0.45,
+    "extractiveBias": 0.35,
+    "professionAptitudes": {
+      "farmer": 0.70,
+      "merchant": 0.65,
+      "administrator": 0.55
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.50,
+    "aggression": 0.45,
+    "honorBias": 0.40,
+    "curiosity": 0.55
+  }
+}

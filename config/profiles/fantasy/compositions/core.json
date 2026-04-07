@@ -1,0 +1,22 @@
+{
+  "compositions": [
+    {"name": "Human + Merchant League", "ancestry": "Human", "culture": "Merchant League"},
+    {"name": "Human + River Confederacy", "ancestry": "Human", "culture": "River Confederacy"},
+    {"name": "Human + Desert Caravan", "ancestry": "Human", "culture": "Desert Caravan"},
+    {"name": "Human + Iron Legion", "ancestry": "Human", "culture": "Iron Legion"},
+    {"name": "Elf + Merchant League", "ancestry": "Elf", "culture": "Merchant League"},
+    {"name": "Elf + Forest Enclave", "ancestry": "Elf", "culture": "Forest Enclave"},
+    {"name": "Dwarf + Highland Hold", "ancestry": "Dwarf", "culture": "Highland Hold"},
+    {"name": "Dragonborn + Imperial Mandate", "ancestry": "Dragonborn", "culture": "Imperial Mandate"},
+    {"name": "Halfling + River Confederacy", "ancestry": "Halfling", "culture": "River Confederacy"},
+    {"name": "Halfling + Merchant League", "ancestry": "Halfling", "culture": "Merchant League"},
+    {"name": "Orc + Desert Caravan", "ancestry": "Orc", "culture": "Desert Caravan"},
+    {"name": "Hobgoblin + Iron Legion", "ancestry": "Hobgoblin", "culture": "Iron Legion"},
+    {"name": "Goblin + Desert Caravan", "ancestry": "Goblin", "culture": "Desert Caravan"},
+    {"name": "Gnome + Merchant League", "ancestry": "Gnome", "culture": "Merchant League"},
+    {"name": "Gnome + River Confederacy", "ancestry": "Gnome", "culture": "River Confederacy"},
+    {"name": "Lizardfolk + Marsh Clans", "ancestry": "Lizardfolk", "culture": "Marsh Clans"},
+    {"name": "Aarakocra + Sky Aerie", "ancestry": "Aarakocra", "culture": "Sky Aerie"},
+    {"name": "Gnoll + Desert Caravan", "ancestry": "Gnoll", "culture": "Desert Caravan"}
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "name": "Gnoll",
+  "description": "Dryland hunters and herders adapted to steppe, scrub, and desert margins, combining mobility with harsh survivalism.",
+  "baselinePrevalence": 0.16,
+  "tags": ["arid", "pastoral", "frontier"],
+  "traits": {
+    "order": 0.26,
+    "chaos": 0.44,
+    "warlike": 0.62,
+    "endurance": 0.78
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "arid", "weight": 0.32},
+    {"targetType": "tag", "target": "frontier", "weight": 0.20},
+    {"targetType": "tag", "target": "pastoral", "weight": 0.22},
+    {"targetType": "ancestry", "target": "Human", "weight": -0.10}
+  ],
+  "settlement": {
+    "Name": "Gnoll",
+    "ClimateWeight": 0.88,
+    "WaterWeight": 0.80,
+    "TerrainWeight": 1.00,
+    "SoilWeight": 0.66,
+    "AccessWeight": 0.88,
+    "ResourceWeight": 0.82,
+    "HazardWeight": 0.84,
+    "RiverBias": 0.00,
+    "CoastalBias": -0.03,
+    "AlluvialBias": -0.01,
+    "FertilityBias": -0.05,
+    "ForestBias": -0.04,
+    "WetlandBias": -0.10,
+    "RockBias": 0.02,
+    "ElevationBias": 0.02,
+    "ColdTolerance": 0.00,
+    "AridityTolerance": 0.10,
+    "FavorableThreshold": 0.35,
+    "PrimeThreshold": 0.57
+  },
+  "social": {
+    "openness": 0.22,
+    "hierarchyPreference": 0.46,
+    "traditionPreference": 0.56,
+    "clanBias": 0.72,
+    "guildBias": 0.08
+  },
+  "governance": {
+    "centralizationPreference": 0.24,
+    "legalismPreference": 0.20,
+    "meritPreference": 0.28,
+    "republicBias": 0.06,
+    "autocracyBias": 0.34,
+    "theocracyBias": 0.10
+  },
+  "economy": {
+    "tradeBias": 0.34,
+    "agrarianBias": 0.10,
+    "craftBias": 0.14,
+    "extractiveBias": 0.14,
+    "professionAptitudes": {
+      "drover": 0.86,
+      "hunter": 0.82,
+      "raider": 0.64
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.16,
+    "aggression": 0.58,
+    "honorBias": 0.36,
+    "curiosity": 0.24
+  }
+}

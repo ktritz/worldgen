@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "wildlife-productivity/v1",
+  "gameMultiplier": 1.0,
+  "grazingMultiplier": 1.0,
+  "forestGameMultiplier": 1.0,
+  "wetlandGameMultiplier": 1.0,
+  "peltMultiplier": 0.9,
+  "timberMultiplier": 1.0,
+  "furredAnimalsPresent": true,
+  "timberPresent": true,
+  "grazingPrimaryBias": 0.0,
+  "forestGamePrimaryBias": 0.0,
+  "wetlandGamePrimaryBias": 0.0,
+  "peltPrimaryBias": 0.02,
+  "timberPrimaryBias": 0.02
+}

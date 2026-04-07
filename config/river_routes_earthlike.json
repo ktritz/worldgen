@@ -1,0 +1,39 @@
+{
+  "defaultMode": "barge",
+  "modes": [
+    {
+      "name": "barge",
+      "minChannelStrength": 0.95,
+      "minRunoff": 18.0,
+      "minNavigability": 0.34,
+      "dailyRange": 0.96,
+      "payloadCapacity": 0.92,
+      "longHaulTolerance": 0.88,
+      "upstreamPenalty": 0.46,
+      "downstreamBonus": 0.22,
+      "lakeBonus": 0.12,
+      "portageTolerance": 0.18,
+      "floodTolerance": 0.54,
+      "towpathBenefit": 0.32,
+      "towpathReliefLimit": 260.0,
+      "transferSupportFloor": 0.20
+    },
+    {
+      "name": "canoe",
+      "minChannelStrength": 0.55,
+      "minRunoff": 8.0,
+      "minNavigability": 0.24,
+      "dailyRange": 0.82,
+      "payloadCapacity": 0.42,
+      "longHaulTolerance": 0.48,
+      "upstreamPenalty": 0.30,
+      "downstreamBonus": 0.12,
+      "lakeBonus": 0.08,
+      "portageTolerance": 0.62,
+      "floodTolerance": 0.60,
+      "towpathBenefit": 0.10,
+      "towpathReliefLimit": 180.0,
+      "transferSupportFloor": 0.14
+    }
+  ]
+}

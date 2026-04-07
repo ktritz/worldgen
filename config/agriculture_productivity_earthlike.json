@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "agriculture-productivity/v1",
+  "cropMultiplier": 0.9,
+  "pastureMultiplier": 1.12,
+  "irrigationMultiplier": 1.0,
+  "floodplainMultiplier": 1.0,
+  "dryFarmingThreshold": 0.48,
+  "mixedFarmingThreshold": 0.58,
+  "intensiveThreshold": 0.74,
+  "pastoralThreshold": 0.42,
+  "floodplainThreshold": 0.58
+}

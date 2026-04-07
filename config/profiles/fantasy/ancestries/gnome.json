@@ -1,0 +1,72 @@
+{
+  "name": "Gnome",
+  "description": "Clever smallfolk drawn to workshops, hill towns, and curious experimentation more than brute expansion.",
+  "baselinePrevalence": 0.28,
+  "tags": ["craft", "curious", "hillfolk"],
+  "traits": {
+    "order": 0.58,
+    "chaos": 0.20,
+    "craft": 0.78,
+    "curiosity": 0.84
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "craft", "weight": 0.24},
+    {"targetType": "tag", "target": "urban", "weight": 0.12},
+    {"targetType": "ancestry", "target": "Goblin", "weight": -0.26},
+    {"targetType": "ancestry", "target": "Dwarf", "weight": 0.12}
+  ],
+  "settlement": {
+    "Name": "Gnome",
+    "ClimateWeight": 0.98,
+    "WaterWeight": 0.95,
+    "TerrainWeight": 1.02,
+    "SoilWeight": 0.88,
+    "AccessWeight": 1.0,
+    "ResourceWeight": 1.08,
+    "HazardWeight": 0.92,
+    "RiverBias": 0.02,
+    "CoastalBias": 0.0,
+    "AlluvialBias": 0.02,
+    "FertilityBias": 0.01,
+    "ForestBias": 0.02,
+    "WetlandBias": -0.03,
+    "RockBias": 0.04,
+    "ElevationBias": 0.02,
+    "ColdTolerance": 0.01,
+    "AridityTolerance": -0.01,
+    "FavorableThreshold": 0.40,
+    "PrimeThreshold": 0.62
+  },
+  "social": {
+    "openness": 0.56,
+    "hierarchyPreference": 0.32,
+    "traditionPreference": 0.46,
+    "clanBias": 0.42,
+    "guildBias": 0.74
+  },
+  "governance": {
+    "centralizationPreference": 0.34,
+    "legalismPreference": 0.58,
+    "meritPreference": 0.66,
+    "republicBias": 0.52,
+    "autocracyBias": 0.12,
+    "theocracyBias": 0.14
+  },
+  "economy": {
+    "tradeBias": 0.52,
+    "agrarianBias": 0.24,
+    "craftBias": 0.88,
+    "extractiveBias": 0.26,
+    "professionAptitudes": {
+      "tinker": 0.90,
+      "scribe": 0.78,
+      "glassworker": 0.74
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.52,
+    "aggression": 0.16,
+    "honorBias": 0.34,
+    "curiosity": 0.84
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "name": "Sky Aerie",
+  "description": "Aerial highland culture centered on eyries, couriers, cliff fortresses, and hard-to-reach sanctuaries.",
+  "tags": ["flight", "highland", "aerie"],
+  "traits": {
+    "order": 0.50,
+    "curiosity": 0.70,
+    "mercantile": 0.34
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "flight", "weight": 0.34},
+    {"targetType": "tag", "target": "mountain", "weight": 0.18},
+    {"targetType": "tag", "target": "coastal", "weight": 0.08}
+  ],
+  "settlement": {
+    "TerrainWeight": 1.16,
+    "AccessWeight": 1.04,
+    "CoastalBias": 0.03,
+    "ElevationBias": 0.10,
+    "FavorableThreshold": 0.39,
+    "PrimeThreshold": 0.62
+  },
+  "social": {
+    "openness": 0.44,
+    "hierarchyPreference": 0.26,
+    "traditionPreference": 0.56,
+    "clanBias": 0.52,
+    "guildBias": 0.18
+  },
+  "governance": {
+    "centralizationPreference": 0.24,
+    "legalismPreference": 0.34,
+    "meritPreference": 0.48,
+    "republicBias": 0.24,
+    "autocracyBias": 0.10,
+    "theocracyBias": 0.10
+  },
+  "economy": {
+    "tradeBias": 0.34,
+    "agrarianBias": 0.12,
+    "craftBias": 0.28,
+    "extractiveBias": 0.08,
+    "professionAptitudes": {
+      "courier": 0.92,
+      "scout": 0.86,
+      "beastkeeper": 0.58
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.40,
+    "aggression": 0.22,
+    "honorBias": 0.34,
+    "curiosity": 0.74
+  }
+}

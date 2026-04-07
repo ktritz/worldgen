@@ -1,0 +1,56 @@
+{
+  "name": "Marsh Clans",
+  "description": "Wetland kin-groups adapted to estuaries, mangroves, marsh farming, and defensive waterways.",
+  "tags": ["wetland", "delta", "marsh", "clan"],
+  "traits": {
+    "order": 0.36,
+    "communal": 0.68,
+    "stoic": 0.62
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "wetland", "weight": 0.32},
+    {"targetType": "tag", "target": "marsh", "weight": 0.30},
+    {"targetType": "tag", "target": "delta", "weight": 0.24},
+    {"targetType": "tag", "target": "river", "weight": 0.04}
+  ],
+  "settlement": {
+    "WaterWeight": 1.10,
+    "RiverBias": 0.08,
+    "CoastalBias": 0.03,
+    "WetlandBias": 0.10,
+    "FavorableThreshold": 0.39,
+    "PrimeThreshold": 0.61
+  },
+  "social": {
+    "openness": 0.22,
+    "hierarchyPreference": 0.34,
+    "traditionPreference": 0.68,
+    "clanBias": 0.82,
+    "guildBias": 0.10
+  },
+  "governance": {
+    "centralizationPreference": 0.20,
+    "legalismPreference": 0.18,
+    "meritPreference": 0.24,
+    "republicBias": 0.10,
+    "autocracyBias": 0.20,
+    "theocracyBias": 0.14
+  },
+  "economy": {
+    "tradeBias": 0.22,
+    "agrarianBias": 0.44,
+    "craftBias": 0.18,
+    "extractiveBias": 0.12,
+    "professionAptitudes": {
+      "fisher": 0.82,
+      "reedworker": 0.76,
+      "boatman": 0.58
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.16,
+    "aggression": 0.22,
+    "honorBias": 0.24,
+    "curiosity": 0.20
+  }
+}

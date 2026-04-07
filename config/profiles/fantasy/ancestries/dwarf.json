@@ -1,0 +1,73 @@
+{
+  "name": "Dwarf",
+  "description": "Resource-focused mountain and subterranean societies with strong craft and extractive biases.",
+  "baselinePrevalence": 0.40,
+  "tags": ["mountain", "craft", "subterranean"],
+  "traits": {
+    "order": 0.68,
+    "chaos": 0.12,
+    "warlike": 0.46,
+    "craft": 0.82
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "mountain", "weight": 0.22},
+    {"targetType": "ancestry", "target": "Elf", "weight": -0.14},
+    {"targetType": "ancestry", "target": "Orc", "weight": -0.72},
+    {"targetType": "ancestry", "target": "Goblin", "weight": -0.28},
+    {"targetType": "ancestry", "target": "Gnome", "weight": 0.18}
+  ],
+  "settlement": {
+    "Name": "Dwarf",
+    "ClimateWeight": 0.80,
+    "WaterWeight": 0.80,
+    "TerrainWeight": 1.20,
+    "SoilWeight": 0.65,
+    "AccessWeight": 0.70,
+    "ResourceWeight": 1.35,
+    "HazardWeight": 0.70,
+    "RiverBias": -0.01,
+    "CoastalBias": -0.05,
+    "AlluvialBias": -0.02,
+    "FertilityBias": -0.04,
+    "ForestBias": -0.03,
+    "WetlandBias": -0.08,
+    "RockBias": 0.09,
+    "ElevationBias": 0.08,
+    "ColdTolerance": 0.06,
+    "AridityTolerance": 0.03,
+    "FavorableThreshold": 0.40,
+    "PrimeThreshold": 0.64
+  },
+  "social": {
+    "openness": 0.30,
+    "hierarchyPreference": 0.65,
+    "traditionPreference": 0.80,
+    "clanBias": 0.70,
+    "guildBias": 0.65
+  },
+  "governance": {
+    "centralizationPreference": 0.60,
+    "legalismPreference": 0.70,
+    "meritPreference": 0.55,
+    "republicBias": 0.20,
+    "autocracyBias": 0.45,
+    "theocracyBias": 0.25
+  },
+  "economy": {
+    "tradeBias": 0.40,
+    "agrarianBias": 0.15,
+    "craftBias": 0.80,
+    "extractiveBias": 0.85,
+    "professionAptitudes": {
+      "miner": 0.90,
+      "smith": 0.85,
+      "engineer": 0.75
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.20,
+    "aggression": 0.40,
+    "honorBias": 0.70,
+    "curiosity": 0.35
+  }
+}

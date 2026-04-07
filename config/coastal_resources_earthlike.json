@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "coastal-resources/v1",
+  "openFisheryMultiplier": 1.05,
+  "estuarineFisheryMultiplier": 1.0,
+  "shellfishMultiplier": 1.05,
+  "saltworksMultiplier": 0.9,
+  "openFisheryPrimaryBias": 0.0,
+  "estuarineFisheryPrimaryBias": 0.01,
+  "shellfishPrimaryBias": 0.0,
+  "saltworksPrimaryBias": 0.0
+}

@@ -1,0 +1,72 @@
+{
+  "name": "Aarakocra",
+  "description": "Flying cliff and high-aerie peoples that trade speed and vertical mobility for low bulk logistics and lower dense settlement.",
+  "baselinePrevalence": 0.10,
+  "tags": ["flight", "highland", "aerie"],
+  "traits": {
+    "order": 0.46,
+    "chaos": 0.18,
+    "warlike": 0.26,
+    "curiosity": 0.72
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "flight", "weight": 0.36},
+    {"targetType": "tag", "target": "mountain", "weight": 0.20},
+    {"targetType": "tag", "target": "coastal", "weight": 0.08},
+    {"targetType": "ancestry", "target": "Lizardfolk", "weight": -0.10}
+  ],
+  "settlement": {
+    "Name": "Aarakocra",
+    "ClimateWeight": 0.94,
+    "WaterWeight": 0.92,
+    "TerrainWeight": 1.18,
+    "SoilWeight": 0.70,
+    "AccessWeight": 1.04,
+    "ResourceWeight": 0.72,
+    "HazardWeight": 0.90,
+    "RiverBias": 0.00,
+    "CoastalBias": 0.04,
+    "AlluvialBias": -0.02,
+    "FertilityBias": -0.04,
+    "ForestBias": -0.01,
+    "WetlandBias": -0.05,
+    "RockBias": 0.06,
+    "ElevationBias": 0.10,
+    "ColdTolerance": 0.04,
+    "AridityTolerance": 0.00,
+    "FavorableThreshold": 0.39,
+    "PrimeThreshold": 0.62
+  },
+  "social": {
+    "openness": 0.44,
+    "hierarchyPreference": 0.30,
+    "traditionPreference": 0.52,
+    "clanBias": 0.56,
+    "guildBias": 0.18
+  },
+  "governance": {
+    "centralizationPreference": 0.26,
+    "legalismPreference": 0.36,
+    "meritPreference": 0.44,
+    "republicBias": 0.28,
+    "autocracyBias": 0.12,
+    "theocracyBias": 0.12
+  },
+  "economy": {
+    "tradeBias": 0.30,
+    "agrarianBias": 0.16,
+    "craftBias": 0.30,
+    "extractiveBias": 0.08,
+    "professionAptitudes": {
+      "courier": 0.90,
+      "scout": 0.84,
+      "herbalist": 0.52
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.42,
+    "aggression": 0.24,
+    "honorBias": 0.34,
+    "curiosity": 0.76
+  }
+}

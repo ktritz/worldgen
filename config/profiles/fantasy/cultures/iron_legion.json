@@ -1,0 +1,54 @@
+{
+  "name": "Iron Legion",
+  "description": "Centralized military-administrative culture built around forts, roads, discipline, and organized conquest.",
+  "tags": ["fortress", "imperial", "disciplined"],
+  "traits": {
+    "order": 0.86,
+    "warlike": 0.70,
+    "hierarchy": 0.80
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "fortress", "weight": 0.30},
+    {"targetType": "tag", "target": "imperial", "weight": 0.26},
+    {"targetType": "trait", "target": "order", "weight": 0.14}
+  ],
+  "settlement": {
+    "TerrainWeight": 1.04,
+    "AccessWeight": 1.02,
+    "ResourceWeight": 1.10,
+    "FavorableThreshold": 0.37,
+    "PrimeThreshold": 0.60
+  },
+  "social": {
+    "openness": 0.24,
+    "hierarchyPreference": 0.86,
+    "traditionPreference": 0.64,
+    "clanBias": 0.30,
+    "guildBias": 0.38
+  },
+  "governance": {
+    "centralizationPreference": 0.86,
+    "legalismPreference": 0.84,
+    "meritPreference": 0.50,
+    "republicBias": 0.04,
+    "autocracyBias": 0.82,
+    "theocracyBias": 0.08
+  },
+  "economy": {
+    "tradeBias": 0.28,
+    "agrarianBias": 0.36,
+    "craftBias": 0.48,
+    "extractiveBias": 0.46,
+    "professionAptitudes": {
+      "officer": 0.88,
+      "engineer": 0.72,
+      "administrator": 0.70
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.10,
+    "aggression": 0.72,
+    "honorBias": 0.66,
+    "curiosity": 0.18
+  }
+}

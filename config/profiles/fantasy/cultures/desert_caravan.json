@@ -1,0 +1,55 @@
+{
+  "name": "Desert Caravan",
+  "description": "Dryland caravan culture shaped by oasis exchange, raiding pressure, and long-distance overland trade.",
+  "tags": ["arid", "frontier", "mercantile"],
+  "traits": {
+    "order": 0.40,
+    "mercantile": 0.70,
+    "warlike": 0.42
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "arid", "weight": 0.28},
+    {"targetType": "tag", "target": "frontier", "weight": 0.20},
+    {"targetType": "tag", "target": "mercantile", "weight": 0.16}
+  ],
+  "settlement": {
+    "AccessWeight": 1.05,
+    "ResourceWeight": 0.90,
+    "RiverBias": 0.02,
+    "AridityTolerance": 0.08,
+    "FavorableThreshold": 0.39,
+    "PrimeThreshold": 0.62
+  },
+  "social": {
+    "openness": 0.38,
+    "hierarchyPreference": 0.54,
+    "traditionPreference": 0.62,
+    "clanBias": 0.58,
+    "guildBias": 0.24
+  },
+  "governance": {
+    "centralizationPreference": 0.40,
+    "legalismPreference": 0.38,
+    "meritPreference": 0.36,
+    "republicBias": 0.14,
+    "autocracyBias": 0.44,
+    "theocracyBias": 0.26
+  },
+  "economy": {
+    "tradeBias": 0.72,
+    "agrarianBias": 0.18,
+    "craftBias": 0.36,
+    "extractiveBias": 0.22,
+    "professionAptitudes": {
+      "caravanner": 0.84,
+      "drover": 0.70,
+      "guard": 0.62
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.38,
+    "aggression": 0.34,
+    "honorBias": 0.50,
+    "curiosity": 0.48
+  }
+}

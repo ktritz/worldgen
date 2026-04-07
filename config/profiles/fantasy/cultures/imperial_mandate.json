@@ -1,0 +1,53 @@
+{
+  "name": "Imperial Mandate",
+  "description": "Prestige-heavy bureaucratic high culture that prizes law, rank, pageantry, and durable centralized rule.",
+  "tags": ["imperial", "urban", "honor-bound"],
+  "traits": {
+    "order": 0.84,
+    "hierarchy": 0.82,
+    "honor": 0.74
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "imperial", "weight": 0.30},
+    {"targetType": "tag", "target": "urban", "weight": 0.14},
+    {"targetType": "trait", "target": "honor", "weight": 0.12}
+  ],
+  "settlement": {
+    "AccessWeight": 1.02,
+    "ResourceWeight": 1.06,
+    "FavorableThreshold": 0.38,
+    "PrimeThreshold": 0.61
+  },
+  "social": {
+    "openness": 0.30,
+    "hierarchyPreference": 0.82,
+    "traditionPreference": 0.74,
+    "clanBias": 0.38,
+    "guildBias": 0.34
+  },
+  "governance": {
+    "centralizationPreference": 0.88,
+    "legalismPreference": 0.82,
+    "meritPreference": 0.42,
+    "republicBias": 0.06,
+    "autocracyBias": 0.78,
+    "theocracyBias": 0.16
+  },
+  "economy": {
+    "tradeBias": 0.42,
+    "agrarianBias": 0.38,
+    "craftBias": 0.52,
+    "extractiveBias": 0.34,
+    "professionAptitudes": {
+      "magistrate": 0.84,
+      "scribe": 0.76,
+      "officer": 0.74
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.18,
+    "aggression": 0.48,
+    "honorBias": 0.88,
+    "curiosity": 0.26
+  }
+}

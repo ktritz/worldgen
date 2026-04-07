@@ -1,0 +1,57 @@
+{
+  "name": "River Confederacy",
+  "description": "Ordered river-valley league built around grain plains, ferries, and managed floodplains.",
+  "tags": ["river", "floodplain", "alluvial", "agrarian", "communal"],
+  "traits": {
+    "order": 0.64,
+    "communal": 0.70,
+    "mercantile": 0.42
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "river", "weight": 0.20},
+    {"targetType": "tag", "target": "floodplain", "weight": 0.24},
+    {"targetType": "tag", "target": "alluvial", "weight": 0.18},
+    {"targetType": "tag", "target": "agrarian", "weight": 0.24},
+    {"targetType": "trait", "target": "order", "weight": 0.08}
+  ],
+  "settlement": {
+    "RiverBias": 0.08,
+    "AlluvialBias": 0.06,
+    "FertilityBias": 0.06,
+    "ResourceWeight": 0.90,
+    "FavorableThreshold": 0.39,
+    "PrimeThreshold": 0.61
+  },
+  "social": {
+    "openness": 0.52,
+    "hierarchyPreference": 0.34,
+    "traditionPreference": 0.58,
+    "clanBias": 0.46,
+    "guildBias": 0.42
+  },
+  "governance": {
+    "centralizationPreference": 0.38,
+    "legalismPreference": 0.58,
+    "meritPreference": 0.42,
+    "republicBias": 0.38,
+    "autocracyBias": 0.18,
+    "theocracyBias": 0.18
+  },
+  "economy": {
+    "tradeBias": 0.45,
+    "agrarianBias": 0.82,
+    "craftBias": 0.38,
+    "extractiveBias": 0.12,
+    "professionAptitudes": {
+      "farmer": 0.85,
+      "boatman": 0.72,
+      "steward": 0.64
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.46,
+    "aggression": 0.22,
+    "honorBias": 0.34,
+    "curiosity": 0.42
+  }
+}

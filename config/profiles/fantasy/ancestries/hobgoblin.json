@@ -1,0 +1,73 @@
+{
+  "name": "Hobgoblin",
+  "description": "Disciplined martial peoples drawn to forts, plains, and rigid hierarchies rather than chaotic raiding.",
+  "baselinePrevalence": 0.18,
+  "tags": ["martial", "disciplined", "fortress"],
+  "traits": {
+    "order": 0.78,
+    "chaos": 0.08,
+    "warlike": 0.72,
+    "honor": 0.62
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "fortress", "weight": 0.26},
+    {"targetType": "tag", "target": "mountain", "weight": 0.10},
+    {"targetType": "ancestry", "target": "Goblin", "weight": 0.12},
+    {"targetType": "ancestry", "target": "Orc", "weight": 0.08},
+    {"targetType": "ancestry", "target": "Elf", "weight": -0.30}
+  ],
+  "settlement": {
+    "Name": "Hobgoblin",
+    "ClimateWeight": 0.94,
+    "WaterWeight": 0.88,
+    "TerrainWeight": 1.08,
+    "SoilWeight": 0.84,
+    "AccessWeight": 0.90,
+    "ResourceWeight": 1.08,
+    "HazardWeight": 0.80,
+    "RiverBias": 0.01,
+    "CoastalBias": -0.02,
+    "AlluvialBias": 0.00,
+    "FertilityBias": -0.01,
+    "ForestBias": -0.02,
+    "WetlandBias": -0.06,
+    "RockBias": 0.05,
+    "ElevationBias": 0.04,
+    "ColdTolerance": 0.04,
+    "AridityTolerance": 0.03,
+    "FavorableThreshold": 0.37,
+    "PrimeThreshold": 0.59
+  },
+  "social": {
+    "openness": 0.20,
+    "hierarchyPreference": 0.82,
+    "traditionPreference": 0.68,
+    "clanBias": 0.48,
+    "guildBias": 0.30
+  },
+  "governance": {
+    "centralizationPreference": 0.74,
+    "legalismPreference": 0.76,
+    "meritPreference": 0.44,
+    "republicBias": 0.06,
+    "autocracyBias": 0.72,
+    "theocracyBias": 0.10
+  },
+  "economy": {
+    "tradeBias": 0.22,
+    "agrarianBias": 0.34,
+    "craftBias": 0.44,
+    "extractiveBias": 0.52,
+    "professionAptitudes": {
+      "soldier": 0.88,
+      "quartermaster": 0.68,
+      "engineer": 0.58
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.12,
+    "aggression": 0.70,
+    "honorBias": 0.68,
+    "curiosity": 0.20
+  }
+}

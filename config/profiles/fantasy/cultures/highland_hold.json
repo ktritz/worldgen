@@ -1,0 +1,50 @@
+{
+  "name": "Highland Hold",
+  "description": "Insular mountain polity that reinforces rugged settlement and hierarchical clan institutions.",
+  "tags": ["mountain", "clan", "fortress"],
+  "traits": {
+    "order": 0.72,
+    "warlike": 0.48,
+    "insular": 0.68
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "mountain", "weight": 0.16},
+    {"targetType": "tag", "target": "fortress", "weight": 0.20},
+    {"targetType": "trait", "target": "warlike", "weight": 0.10}
+  ],
+  "settlement": {
+    "TerrainWeight": 1.15,
+    "ResourceWeight": 1.20,
+    "RockBias": 0.08,
+    "ElevationBias": 0.05,
+    "CoastalBias": -0.04,
+    "FavorableThreshold": 0.40,
+    "PrimeThreshold": 0.64
+  },
+  "social": {
+    "hierarchyPreference": 0.75,
+    "traditionPreference": 0.80,
+    "clanBias": 0.85,
+    "guildBias": 0.35
+  },
+  "governance": {
+    "centralizationPreference": 0.55,
+    "autocracyBias": 0.55,
+    "republicBias": 0.10
+  },
+  "economy": {
+    "tradeBias": 0.25,
+    "craftBias": 0.70,
+    "extractiveBias": 0.85,
+    "professionAptitudes": {
+      "miner": 0.85,
+      "mason": 0.80,
+      "soldier": 0.65
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.20,
+    "honorBias": 0.80,
+    "aggression": 0.45
+  }
+}

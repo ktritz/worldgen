@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "population-support/v1",
+  "foodMultiplier": 1.0,
+  "waterMultiplier": 1.0,
+  "tradeMultiplier": 1.0,
+  "resourceMultiplier": 0.96,
+  "urbanMultiplier": 1.08,
+  "sparseThreshold": 0.18,
+  "ruralThreshold": 0.34,
+  "denseRuralThreshold": 0.52,
+  "urbanThreshold": 0.56
+}

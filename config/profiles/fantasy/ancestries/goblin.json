@@ -1,0 +1,73 @@
+{
+  "name": "Goblin",
+  "description": "Adaptable opportunists that thrive on mobility, scavenging, and compressed frontier settlements.",
+  "baselinePrevalence": 0.22,
+  "tags": ["scrappy", "frontier", "cunning"],
+  "traits": {
+    "order": 0.24,
+    "chaos": 0.56,
+    "warlike": 0.46,
+    "mercantile": 0.42
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "frontier", "weight": 0.18},
+    {"targetType": "tag", "target": "arid", "weight": 0.10},
+    {"targetType": "ancestry", "target": "Orc", "weight": 0.16},
+    {"targetType": "ancestry", "target": "Dwarf", "weight": -0.22},
+    {"targetType": "ancestry", "target": "Gnome", "weight": -0.20}
+  ],
+  "settlement": {
+    "Name": "Goblin",
+    "ClimateWeight": 0.94,
+    "WaterWeight": 0.85,
+    "TerrainWeight": 1.02,
+    "SoilWeight": 0.74,
+    "AccessWeight": 0.90,
+    "ResourceWeight": 0.92,
+    "HazardWeight": 0.82,
+    "RiverBias": 0.01,
+    "CoastalBias": -0.01,
+    "AlluvialBias": 0.01,
+    "FertilityBias": -0.03,
+    "ForestBias": 0.01,
+    "WetlandBias": -0.04,
+    "RockBias": 0.03,
+    "ElevationBias": 0.03,
+    "ColdTolerance": 0.02,
+    "AridityTolerance": 0.04,
+    "FavorableThreshold": 0.37,
+    "PrimeThreshold": 0.59
+  },
+  "social": {
+    "openness": 0.34,
+    "hierarchyPreference": 0.44,
+    "traditionPreference": 0.40,
+    "clanBias": 0.62,
+    "guildBias": 0.18
+  },
+  "governance": {
+    "centralizationPreference": 0.28,
+    "legalismPreference": 0.24,
+    "meritPreference": 0.32,
+    "republicBias": 0.12,
+    "autocracyBias": 0.40,
+    "theocracyBias": 0.10
+  },
+  "economy": {
+    "tradeBias": 0.36,
+    "agrarianBias": 0.20,
+    "craftBias": 0.22,
+    "extractiveBias": 0.34,
+    "professionAptitudes": {
+      "scavenger": 0.84,
+      "skirmisher": 0.66,
+      "peddler": 0.54
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.22,
+    "aggression": 0.46,
+    "honorBias": 0.20,
+    "curiosity": 0.42
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "water-resources/v1",
+  "surfaceReliabilityMultiplier": 1.0,
+  "seasonalAvailabilityMultiplier": 0.88,
+  "groundwaterMultiplier": 0.95,
+  "lakeAccessMultiplier": 0.82,
+  "surfacePrimaryBias": 0.02,
+  "seasonalPrimaryBias": 0.0,
+  "groundwaterPrimaryBias": 0.0,
+  "lakePrimaryBias": 0.02
+}

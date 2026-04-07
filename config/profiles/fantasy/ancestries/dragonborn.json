@@ -1,0 +1,73 @@
+{
+  "name": "Dragonborn",
+  "description": "Honor-bound and status-conscious peoples drawn to strong states, warm rugged lands, and prestigious command.",
+  "baselinePrevalence": 0.16,
+  "tags": ["honor-bound", "imperial", "martial"],
+  "traits": {
+    "order": 0.74,
+    "chaos": 0.10,
+    "warlike": 0.64,
+    "honor": 0.86
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "imperial", "weight": 0.28},
+    {"targetType": "tag", "target": "mountain", "weight": 0.12},
+    {"targetType": "ancestry", "target": "Dwarf", "weight": 0.10},
+    {"targetType": "ancestry", "target": "Orc", "weight": -0.18},
+    {"targetType": "ancestry", "target": "Goblin", "weight": -0.26}
+  ],
+  "settlement": {
+    "Name": "Dragonborn",
+    "ClimateWeight": 0.96,
+    "WaterWeight": 0.90,
+    "TerrainWeight": 1.04,
+    "SoilWeight": 0.88,
+    "AccessWeight": 0.94,
+    "ResourceWeight": 1.06,
+    "HazardWeight": 0.82,
+    "RiverBias": 0.01,
+    "CoastalBias": 0.00,
+    "AlluvialBias": 0.02,
+    "FertilityBias": 0.00,
+    "ForestBias": -0.02,
+    "WetlandBias": -0.05,
+    "RockBias": 0.06,
+    "ElevationBias": 0.04,
+    "ColdTolerance": 0.02,
+    "AridityTolerance": 0.02,
+    "FavorableThreshold": 0.38,
+    "PrimeThreshold": 0.60
+  },
+  "social": {
+    "openness": 0.34,
+    "hierarchyPreference": 0.72,
+    "traditionPreference": 0.70,
+    "clanBias": 0.50,
+    "guildBias": 0.28
+  },
+  "governance": {
+    "centralizationPreference": 0.72,
+    "legalismPreference": 0.70,
+    "meritPreference": 0.46,
+    "republicBias": 0.12,
+    "autocracyBias": 0.64,
+    "theocracyBias": 0.18
+  },
+  "economy": {
+    "tradeBias": 0.34,
+    "agrarianBias": 0.32,
+    "craftBias": 0.48,
+    "extractiveBias": 0.42,
+    "professionAptitudes": {
+      "officer": 0.84,
+      "judge": 0.68,
+      "smith": 0.62
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.24,
+    "aggression": 0.56,
+    "honorBias": 0.90,
+    "curiosity": 0.28
+  }
+}

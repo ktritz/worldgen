@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "profile-catalog-pack/v1",
+  "ancestryFiles": [
+    "profiles/fantasy/ancestries/human.json",
+    "profiles/fantasy/ancestries/elf.json",
+    "profiles/fantasy/ancestries/dwarf.json",
+    "profiles/fantasy/ancestries/halfling.json",
+    "profiles/fantasy/ancestries/orc.json",
+    "profiles/fantasy/ancestries/gnome.json",
+    "profiles/fantasy/ancestries/goblin.json",
+    "profiles/fantasy/ancestries/hobgoblin.json",
+    "profiles/fantasy/ancestries/dragonborn.json",
+    "profiles/fantasy/ancestries/lizardfolk.json",
+    "profiles/fantasy/ancestries/aarakocra.json",
+    "profiles/fantasy/ancestries/gnoll.json"
+  ],
+  "cultureFiles": [
+    "profiles/fantasy/cultures/merchant_league.json",
+    "profiles/fantasy/cultures/river_confederacy.json",
+    "profiles/fantasy/cultures/forest_enclave.json",
+    "profiles/fantasy/cultures/highland_hold.json",
+    "profiles/fantasy/cultures/desert_caravan.json",
+    "profiles/fantasy/cultures/iron_legion.json",
+    "profiles/fantasy/cultures/imperial_mandate.json",
+    "profiles/fantasy/cultures/marsh_clans.json",
+    "profiles/fantasy/cultures/sky_aerie.json"
+  ],
+  "compositionFiles": [
+    "profiles/fantasy/compositions/core.json"
+  ]
+}

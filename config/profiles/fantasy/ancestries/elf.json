@@ -1,0 +1,72 @@
+{
+  "name": "Elf",
+  "description": "Forest-oriented, lower-density societies with stronger environmental selectivity and tradition bias.",
+  "baselinePrevalence": 0.42,
+  "tags": ["forest", "long-lived", "low-density"],
+  "traits": {
+    "order": 0.48,
+    "chaos": 0.22,
+    "warlike": 0.20,
+    "spiritual": 0.62
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "forest", "weight": 0.28},
+    {"targetType": "ancestry", "target": "Dwarf", "weight": -0.18},
+    {"targetType": "ancestry", "target": "Orc", "weight": -0.65},
+    {"targetType": "ancestry", "target": "Goblin", "weight": -0.30}
+  ],
+  "settlement": {
+    "Name": "Elf",
+    "ClimateWeight": 1.05,
+    "WaterWeight": 1.0,
+    "TerrainWeight": 0.95,
+    "SoilWeight": 0.95,
+    "AccessWeight": 0.85,
+    "ResourceWeight": 0.65,
+    "HazardWeight": 0.90,
+    "RiverBias": 0.02,
+    "CoastalBias": -0.01,
+    "AlluvialBias": 0.01,
+    "FertilityBias": 0.02,
+    "ForestBias": 0.10,
+    "WetlandBias": -0.01,
+    "RockBias": -0.04,
+    "ElevationBias": -0.01,
+    "ColdTolerance": 0.02,
+    "AridityTolerance": -0.04,
+    "FavorableThreshold": 0.41,
+    "PrimeThreshold": 0.64
+  },
+  "social": {
+    "openness": 0.45,
+    "hierarchyPreference": 0.35,
+    "traditionPreference": 0.75,
+    "clanBias": 0.40,
+    "guildBias": 0.25
+  },
+  "governance": {
+    "centralizationPreference": 0.30,
+    "legalismPreference": 0.35,
+    "meritPreference": 0.40,
+    "republicBias": 0.25,
+    "autocracyBias": 0.20,
+    "theocracyBias": 0.35
+  },
+  "economy": {
+    "tradeBias": 0.35,
+    "agrarianBias": 0.30,
+    "craftBias": 0.55,
+    "extractiveBias": 0.10,
+    "professionAptitudes": {
+      "warden": 0.75,
+      "artisan": 0.60,
+      "scholar": 0.65
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.35,
+    "aggression": 0.20,
+    "honorBias": 0.50,
+    "curiosity": 0.60
+  }
+}

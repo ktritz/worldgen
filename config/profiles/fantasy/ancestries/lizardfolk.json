@@ -1,0 +1,74 @@
+{
+  "name": "Lizardfolk",
+  "description": "Wetland and delta peoples shaped by marsh subsistence, rivers, lagoons, and lowland heat.",
+  "baselinePrevalence": 0.14,
+  "tags": ["wetland", "delta", "marsh"],
+  "traits": {
+    "order": 0.38,
+    "chaos": 0.24,
+    "warlike": 0.34,
+    "stoic": 0.70
+  },
+  "affinities": [
+    {"targetType": "tag", "target": "wetland", "weight": 0.34},
+    {"targetType": "tag", "target": "marsh", "weight": 0.28},
+    {"targetType": "tag", "target": "delta", "weight": 0.26},
+    {"targetType": "tag", "target": "river", "weight": 0.08},
+    {"targetType": "tag", "target": "coastal", "weight": 0.12},
+    {"targetType": "ancestry", "target": "Aarakocra", "weight": -0.12}
+  ],
+  "settlement": {
+    "Name": "Lizardfolk",
+    "ClimateWeight": 1.08,
+    "WaterWeight": 1.18,
+    "TerrainWeight": 0.92,
+    "SoilWeight": 0.90,
+    "AccessWeight": 0.94,
+    "ResourceWeight": 0.80,
+    "HazardWeight": 1.04,
+    "RiverBias": 0.08,
+    "CoastalBias": 0.03,
+    "AlluvialBias": 0.05,
+    "FertilityBias": 0.02,
+    "ForestBias": 0.02,
+    "WetlandBias": 0.12,
+    "RockBias": -0.05,
+    "ElevationBias": -0.08,
+    "ColdTolerance": -0.08,
+    "AridityTolerance": -0.10,
+    "FavorableThreshold": 0.39,
+    "PrimeThreshold": 0.61
+  },
+  "social": {
+    "openness": 0.18,
+    "hierarchyPreference": 0.42,
+    "traditionPreference": 0.58,
+    "clanBias": 0.64,
+    "guildBias": 0.10
+  },
+  "governance": {
+    "centralizationPreference": 0.30,
+    "legalismPreference": 0.22,
+    "meritPreference": 0.28,
+    "republicBias": 0.06,
+    "autocracyBias": 0.28,
+    "theocracyBias": 0.14
+  },
+  "economy": {
+    "tradeBias": 0.24,
+    "agrarianBias": 0.34,
+    "craftBias": 0.16,
+    "extractiveBias": 0.18,
+    "professionAptitudes": {
+      "fisher": 0.84,
+      "reedworker": 0.64,
+      "hunter": 0.66
+    }
+  },
+  "attitudes": {
+    "xenophilia": 0.18,
+    "aggression": 0.30,
+    "honorBias": 0.26,
+    "curiosity": 0.22
+  }
+}
