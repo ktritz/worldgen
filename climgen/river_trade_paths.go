@@ -150,7 +150,7 @@ func shortestRiverCellPath(
 		prev[i] = -1
 	}
 	dist[start] = 0
-	stepScale := riverCellCostResolutionScale(len(cells))
+	stepScale := meshPathCostResolutionScale(len(cells))
 	pq := &riverCellHeap{{cell: start, cost: 0}}
 	heap.Init(pq)
 	for pq.Len() > 0 {
@@ -192,20 +192,6 @@ func shortestRiverCellPath(
 		path[i], path[j] = path[j], path[i]
 	}
 	return riverCellPath{ok: true, cost: dist[goal], cells: path}
-}
-
-func riverCellCostResolutionScale(cellCount int) float64 {
-	if cellCount <= 0 {
-		return 1
-	}
-	scale := math.Sqrt(10242.0 / float64(cellCount))
-	if scale < 0.25 {
-		return 0.25
-	}
-	if scale > 2.0 {
-		return 2.0
-	}
-	return scale
 }
 
 func riverCellStepCost(from, to int, riverRoutes *RiverRouteResult) float64 {

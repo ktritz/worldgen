@@ -42,7 +42,7 @@ func riverTradeTerminalCatchmentSteps(cellCount int) int {
 	if cellCount <= 0 {
 		return 1
 	}
-	steps := int(math.Ceil(math.Sqrt(float64(cellCount) / 10242.0)))
+	steps := int(math.Ceil(math.Sqrt(float64(cellCount) / baselinePathCostCells)))
 	if steps < 1 {
 		return 1
 	}

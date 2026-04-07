@@ -111,15 +111,6 @@ func TestBuildRiverTradeNetworkUsesNearbyRiverTerminalCells(t *testing.T) {
 	}
 }
 
-func TestRiverCellCostResolutionScale(t *testing.T) {
-	if scale := riverCellCostResolutionScale(10242); scale < 0.99 || scale > 1.01 {
-		t.Fatalf("expected level-5-ish scale near 1.0, got %.3f", scale)
-	}
-	if scale := riverCellCostResolutionScale(40962); scale < 0.49 || scale > 0.51 {
-		t.Fatalf("expected level-6-ish scale near 0.5, got %.3f", scale)
-	}
-}
-
 func TestRiverTradeTerminalCatchmentStepsScaleWithResolution(t *testing.T) {
 	if steps := riverTradeTerminalCatchmentSteps(10242); steps != 1 {
 		t.Fatalf("expected level-5-ish catchment of 1 step, got %d", steps)

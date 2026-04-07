@@ -6,11 +6,11 @@ import (
 )
 
 type coastalCellPath struct {
-	ok            bool
-	cost          float64
-	cells         []int
-	meanExposure  float64
-	meanAssist    float64
+	ok           bool
+	cost         float64
+	cells        []int
+	meanExposure float64
+	meanAssist   float64
 }
 
 type coastalCellState struct {
@@ -71,6 +71,7 @@ func shortestMaritimeCellPath(
 		prev[i] = -1
 	}
 	dist[start] = 0
+	stepScale := meshPathCostResolutionScale(len(cells))
 	pq := &coastalCellHeap{{cell: start, cost: 0}}
 	heap.Init(pq)
 	for pq.Len() > 0 {
@@ -90,7 +91,7 @@ func shortestMaritimeCellPath(
 			if math.IsInf(stepCost, 1) {
 				continue
 			}
-			nextCost := cur.cost + stepCost
+			nextCost := cur.cost + stepCost*stepScale
 			if nextCost < dist[neighbor] && nextCost <= maxCost {
 				dist[neighbor] = nextCost
 				prev[neighbor] = cur.cell

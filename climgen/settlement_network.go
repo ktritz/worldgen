@@ -522,6 +522,7 @@ func shortestPathsFromNode(start int, cells []VoronoiCell, movementCost []float6
 		prev[i] = -1
 	}
 	dist[start] = 0
+	stepScale := meshPathCostResolutionScale(len(cells))
 	pq := &pathHeap{{cell: start, dist: 0}}
 	heap.Init(pq)
 	for pq.Len() > 0 {
@@ -534,7 +535,7 @@ func shortestPathsFromNode(start int, cells []VoronoiCell, movementCost []float6
 			if j < 0 || j >= len(cells) || math.IsInf(movementCost[j], 1) {
 				continue
 			}
-			step := 0.5 * (movementCost[cur.cell] + movementCost[j])
+			step := 0.5 * (movementCost[cur.cell] + movementCost[j]) * stepScale
 			nd := cur.dist + step
 			if nd < dist[j] && nd <= maxDist {
 				dist[j] = nd

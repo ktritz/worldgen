@@ -78,6 +78,7 @@ func shortestOceanCellPath(
 		prev[i] = -1
 	}
 	dist[start] = 0
+	stepScale := meshPathCostResolutionScale(len(cells))
 	pq := &coastalCellHeap{{cell: start, cost: 0}}
 	heap.Init(pq)
 	for pq.Len() > 0 {
@@ -97,7 +98,7 @@ func shortestOceanCellPath(
 			if math.IsInf(stepCost, 1) {
 				continue
 			}
-			nextCost := cur.cost + stepCost
+			nextCost := cur.cost + stepCost*stepScale
 			if nextCost < dist[neighbor] && nextCost <= maxCost {
 				dist[neighbor] = nextCost
 				prev[neighbor] = cur.cell
