@@ -42,7 +42,15 @@ func printRiverTradeSummary(result *climgen.RiverTradeResult, network *climgen.S
 		return
 	}
 	if len(result.Corridors) == 0 {
-		fmt.Println("    riverTrade: corridors=0 ports=0")
+		terminals := 0
+		if result.Diagnostics != nil {
+			for _, cellIdx := range result.Diagnostics.NodeTerminalCell {
+				if cellIdx >= 0 {
+					terminals++
+				}
+			}
+		}
+		fmt.Printf("    riverTrade: corridors=0 ports=0 terminals=%d\n", terminals)
 		return
 	}
 	tierCounts := make(map[climgen.RiverTradeCorridorTier]int)
@@ -50,6 +58,14 @@ func printRiverTradeSummary(result *climgen.RiverTradeResult, network *climgen.S
 	totalNav := 0.0
 	totalTransfer := 0.0
 	inter := 0
+	terminals := 0
+	if result.Diagnostics != nil {
+		for _, cellIdx := range result.Diagnostics.NodeTerminalCell {
+			if cellIdx >= 0 {
+				terminals++
+			}
+		}
+	}
 	for _, corridor := range result.Corridors {
 		tierCounts[corridor.Tier]++
 		totalFlow += corridor.Flow
@@ -60,9 +76,10 @@ func printRiverTradeSummary(result *climgen.RiverTradeResult, network *climgen.S
 		}
 	}
 	fmt.Printf(
-		"    riverTrade: corridors=%d ports=%d inter=%d meanFlow=%.2f meanNav=%.2f meanTransfer=%.2f\n",
+		"    riverTrade: corridors=%d ports=%d terminals=%d inter=%d meanFlow=%.2f meanNav=%.2f meanTransfer=%.2f\n",
 		len(result.Corridors),
 		len(result.MajorPorts),
+		terminals,
 		inter,
 		totalFlow/float64(len(result.Corridors)),
 		totalNav/float64(len(result.Corridors)),
@@ -97,4 +114,3 @@ func printRiverTradeSummary(result *climgen.RiverTradeResult, network *climgen.S
 		)
 	}
 }
-

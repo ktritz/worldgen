@@ -38,8 +38,9 @@ type RiverTradeCorridor struct {
 }
 
 type RiverTradeDiagnostics struct {
-	RouteIntensity []float64
-	NodeCentrality []float64
+	RouteIntensity   []float64
+	NodeCentrality   []float64
+	NodeTerminalCell []int
 }
 
 type RiverTradeResult struct {
@@ -83,17 +84,25 @@ func BuildRiverTradeNetwork(
 		return out
 	}
 	out.Diagnostics = &RiverTradeDiagnostics{
-		RouteIntensity: make([]float64, len(cells)),
-		NodeCentrality: make([]float64, len(network.Nodes)),
+		RouteIntensity:   make([]float64, len(cells)),
+		NodeCentrality:   make([]float64, len(network.Nodes)),
+		NodeTerminalCell: make([]int, len(network.Nodes)),
+	}
+	for i := range out.Diagnostics.NodeTerminalCell {
+		out.Diagnostics.NodeTerminalCell[i] = -1
 	}
 	civByNode := civilizationByNode(network, proto)
-	riverNodes := eligibleRiverTradeNodes(network, riverRoutes)
-	if len(riverNodes) < 2 {
+	terminals := buildRiverTradeTerminals(cells, network, riverRoutes)
+	for nodeIdx, terminal := range terminals {
+		if nodeIdx >= 0 && nodeIdx < len(out.Diagnostics.NodeTerminalCell) {
+			out.Diagnostics.NodeTerminalCell[nodeIdx] = terminal.cell
+		}
+	}
+	if len(terminals) < 2 {
 		return out
 	}
-	transitNodes := eligibleRiverTransitNodes(network, riverRoutes)
-	adj := buildRiverTradeAdjacency(cells, network, riverRoutes, transitNodes, elevation)
-	out.Corridors = collectRiverTradeCorridors(cells, network, proto, civByNode, adj, riverNodes, riverRoutes, settings)
+	riverNodes := riverTradeTerminalNodeSet(terminals)
+	out.Corridors = collectRiverTradeCorridors(cells, network, proto, civByNode, terminals, riverRoutes, settings)
 	classifyRiverTradeCorridors(out.Corridors, settings)
 	applyRiverTradeDiagnostics(out.Corridors, out.Diagnostics)
 	out.MajorPorts = identifyMajorRiverPorts(network, riverNodes, out.Diagnostics, settings)
@@ -153,31 +162,32 @@ func collectRiverTradeCorridors(
 	network *SettlementNetworkResult,
 	proto *ProtoCivilizationResult,
 	civByNode []int,
-	adj [][]riverAdjEdge,
-	riverNodes map[int]struct{},
+	terminals map[int]riverTradeTerminal,
 	riverRoutes *RiverRouteResult,
 	settings RiverTradeSettings,
 ) []RiverTradeCorridor {
 	type candidate struct {
-		from int
-		to   int
-		path riverNodePath
-		flow float64
+		from      int
+		to        int
+		startNode int
+		endNode   int
+		path      riverCellPath
+		flow      float64
 	}
 	cands := make([]candidate, 0)
 	for i := 0; i < len(proto.Civilizations); i++ {
 		for j := i + 1; j < len(proto.Civilizations); j++ {
 			a := proto.Civilizations[i]
 			b := proto.Civilizations[j]
-			aNodes := topRiverNodesForCivilization(network, civByNode, riverNodes, a.ID, 3)
-			bNodes := topRiverNodesForCivilization(network, civByNode, riverNodes, b.ID, 3)
+			aNodes := topRiverNodesForCivilization(network, civByNode, terminals, a.ID, 3)
+			bNodes := topRiverNodesForCivilization(network, civByNode, terminals, b.ID, 3)
 			if len(aNodes) == 0 || len(bNodes) == 0 {
 				continue
 			}
 			for _, startNode := range aNodes {
 				for _, endNode := range bNodes {
-					startCell := network.Nodes[startNode].CellIndex
-					endCell := network.Nodes[endNode].CellIndex
+					startCell := terminals[startNode].cell
+					endCell := terminals[endNode].cell
 					cellPath := shortestRiverCellPath(cells, startCell, endCell, riverRoutes, settings.MaxRouteCost*(0.58+0.42*riverRoutes.Mode.LongHaulTolerance))
 					if !cellPath.ok {
 						continue
@@ -186,8 +196,7 @@ func collectRiverTradeCorridors(
 					if flow < settings.MinFlow {
 						continue
 					}
-					path := riverNodePath{ok: true, cost: cellPath.cost, nodes: []int{startNode, endNode}}
-					cands = append(cands, candidate{from: i, to: j, path: path, flow: flow})
+					cands = append(cands, candidate{from: i, to: j, startNode: startNode, endNode: endNode, path: cellPath, flow: flow})
 				}
 			}
 		}
@@ -199,35 +208,31 @@ func collectRiverTradeCorridors(
 		if used[cand.from] >= settings.MaxPartnersPerCivilization || used[cand.to] >= settings.MaxPartnersPerCivilization {
 			continue
 		}
-		startCell := network.Nodes[cand.path.nodes[0]].CellIndex
-		endCell := network.Nodes[cand.path.nodes[len(cand.path.nodes)-1]].CellIndex
-		cellPath := shortestRiverCellPath(cells, startCell, endCell, riverRoutes, settings.MaxRouteCost*(0.58+0.42*riverRoutes.Mode.LongHaulTolerance))
-		if !cellPath.ok {
-			continue
-		}
-		out = append(out, buildRiverTradeCorridorFromCells(cand.path.nodes[0], cand.path.nodes[len(cand.path.nodes)-1], cand.from, cand.to, cand.flow, true, cellPath, riverRoutes))
+		out = append(out, buildRiverTradeCorridorFromCells(cand.startNode, cand.endNode, cand.from, cand.to, cand.flow, true, cand.path, riverRoutes))
 		used[cand.from]++
 		used[cand.to]++
 	}
 
 	for _, civ := range proto.Civilizations {
-		if _, ok := riverNodes[civ.CenterNode]; !ok {
+		startNodes := topRiverNodesForCivilization(network, civByNode, terminals, civ.ID, 1)
+		if len(startNodes) == 0 {
 			continue
 		}
+		startNode := startNodes[0]
 		type target struct {
 			node  int
 			score float64
 		}
 		targets := make([]target, 0)
-		for nodeIdx := range riverNodes {
-			if nodeIdx == civ.CenterNode {
+		for nodeIdx, terminal := range terminals {
+			if nodeIdx == startNode {
 				continue
 			}
 			if nodeIdx < 0 || nodeIdx >= len(civByNode) || civByNode[nodeIdx] != civ.ID {
 				continue
 			}
 			node := network.Nodes[nodeIdx]
-			score := node.Score + 0.10*node.CarryingCapacity + 0.08*node.UrbanPotential
+			score := node.Score + 0.10*node.CarryingCapacity + 0.08*node.UrbanPotential + 0.18*terminal.score
 			targets = append(targets, target{node: nodeIdx, score: score})
 		}
 		sort.Slice(targets, func(i, j int) bool { return targets[i].score > targets[j].score })
@@ -236,15 +241,15 @@ func collectRiverTradeCorridors(
 			limit = len(targets)
 		}
 		for i := 0; i < limit; i++ {
-			path := shortestRiverNodePath(civ.CenterNode, targets[i].node, network, adj, settings.MaxRouteCost*0.72)
+			path := shortestRiverCellPath(cells, terminals[startNode].cell, terminals[targets[i].node].cell, riverRoutes, settings.MaxRouteCost*0.72)
 			if !path.ok {
 				continue
 			}
-			flow := riverTradeFlowWithinCivilization(civ, network.Nodes[civ.CenterNode], network.Nodes[targets[i].node], path.cost, riverRoutes.Mode)
+			flow := riverTradeFlowWithinCivilization(civ, network.Nodes[startNode], network.Nodes[targets[i].node], path.cost, riverRoutes.Mode)
 			if flow < settings.MinFlow {
 				continue
 			}
-			out = append(out, buildRiverTradeCorridor(network, path, civ.ID, civ.ID, flow, false, riverRoutes))
+			out = append(out, buildRiverTradeCorridorFromCells(startNode, targets[i].node, civ.ID, civ.ID, flow, false, path, riverRoutes))
 		}
 	}
 	out = dedupeRiverTradeCorridors(out)
@@ -254,7 +259,7 @@ func collectRiverTradeCorridors(
 func topRiverNodesForCivilization(
 	network *SettlementNetworkResult,
 	civByNode []int,
-	riverNodes map[int]struct{},
+	terminals map[int]riverTradeTerminal,
 	civID int,
 	limit int,
 ) []int {
@@ -263,12 +268,12 @@ func topRiverNodesForCivilization(
 		score float64
 	}
 	cands := make([]scoredNode, 0)
-	for nodeIdx := range riverNodes {
+	for nodeIdx, terminal := range terminals {
 		if nodeIdx < 0 || nodeIdx >= len(civByNode) || civByNode[nodeIdx] != civID {
 			continue
 		}
 		node := network.Nodes[nodeIdx]
-		score := node.Score + 0.12*node.CarryingCapacity + 0.10*node.UrbanPotential
+		score := node.Score + 0.12*node.CarryingCapacity + 0.10*node.UrbanPotential + 0.24*terminal.score
 		if node.River {
 			score += 0.08
 		}
