@@ -18,6 +18,7 @@ func main() {
 	seedsFlag := flag.String("seeds", "4,6,7,42,84", "comma-separated seed list")
 	outputDir := flag.String("out", "output/review_planets", "output directory")
 	renderWidth := flag.Int("width", 0, "render width (defaults based on level)")
+	renderMaps := flag.Bool("render", true, "write review PNG map outputs")
 	climateHydrology := flag.Bool("climate-hydrology", true, "use climate-driven runoff for hydrology diagnostics")
 	climateBiomes := flag.Bool("climate-biomes", true, "report seasonal hydrology-aware biome summaries")
 	climateVegetation := flag.Bool("climate-vegetation", true, "report vegetation summaries from seasonal climate, hydrology, and biomes")
@@ -171,56 +172,74 @@ func main() {
 				vegetationResult = computeVegetation(climateCells, seasonalClimate, biomeResult, elevation, diagnostics.Hydrology.Scaffold, soilResult)
 				record.Woody = collectVegetationMetrics(vegetationResult)
 				printVegetationSummary(vegetationResult)
-				renderVegetationMap(sites, index, vegetationResult, prefix+"_vegetation.png", width, height)
+				if *renderMaps {
+					renderVegetationMap(sites, index, vegetationResult, prefix+"_vegetation.png", width, height)
+				}
 			}
 			if *climateSoils && soilResult != nil {
 				printSoilSummary(soilResult)
-				renderSoilMap(sites, index, soilResult, prefix+"_soils.png", width, height)
+				if *renderMaps {
+					renderSoilMap(sites, index, soilResult, prefix+"_soils.png", width, height)
+				}
 			}
 			if *climateAgriculture && soilResult != nil {
 				agricultureResult = computeAgriculture(biomeResult, soilResult, elevation, diagnostics.Hydrology.Scaffold, agricultureSettings)
 				record.Crop, record.Pasture = collectAgricultureMetrics(agricultureResult)
 				printAgricultureSummary(agricultureResult)
-				renderAgricultureMap(sites, index, agricultureResult, prefix+"_agriculture.png", width, height)
+				if *renderMaps {
+					renderAgricultureMap(sites, index, agricultureResult, prefix+"_agriculture.png", width, height)
+				}
 			}
 			if *climateWildlife && vegetationResult != nil {
 				wildlifeResult = computeWildlife(biomeResult, vegetationResult, soilResult, elevation, diagnostics.Hydrology.Scaffold, wildlifeSettings)
 				record.Game, record.Timber = collectWildlifeMetrics(wildlifeResult)
 				printWildlifeSummary(wildlifeResult)
-				renderWildlifeMap(sites, index, wildlifeResult, prefix+"_wildlife.png", width, height)
+				if *renderMaps {
+					renderWildlifeMap(sites, index, wildlifeResult, prefix+"_wildlife.png", width, height)
+				}
 			}
 			if *climateWaterResources && soilResult != nil {
 				waterResourceResult = computeWaterResources(biomeResult, soilResult, elevation, diagnostics.Hydrology.Scaffold, waterResourceSettings)
 				record.Reliable, record.Groundwater = collectWaterMetrics(waterResourceResult)
 				printWaterResourceSummary(waterResourceResult)
-				renderWaterResourceMap(sites, index, waterResourceResult, prefix+"_water_resources.png", width, height)
+				if *renderMaps {
+					renderWaterResourceMap(sites, index, waterResourceResult, prefix+"_water_resources.png", width, height)
+				}
 			}
 			if *climateCoastalResources && vegetationResult != nil && soilResult != nil {
 				coastalResourceResult = computeCoastalResources(climateSites, climateCells, seasonalClimate, biomeResult, soilResult, vegetationResult, elevation, diagnostics.Hydrology.Scaffold, coastalResourceSettings)
 				record.Fishery, record.Shellfish = collectCoastalMetrics(coastalResourceResult)
 				printCoastalResourceSummary(coastalResourceResult)
-				renderCoastalResourceMap(sites, index, coastalResourceResult, prefix+"_coastal_resources.png", width, height)
-				renderCoastalUpwellingMap(sites, index, coastalResourceResult, prefix+"_coastal_upwelling.png", width, height)
+				if *renderMaps {
+					renderCoastalResourceMap(sites, index, coastalResourceResult, prefix+"_coastal_resources.png", width, height)
+					renderCoastalUpwellingMap(sites, index, coastalResourceResult, prefix+"_coastal_upwelling.png", width, height)
+				}
 			}
 			var resourceResult *climgen.ResourceResult
 			if *climateResources && soilResult != nil {
 				resourceResult = computeResources(seasonalClimate, biomeResult, soilResult, elevation, diagnostics.Hydrology.Scaffold, diagnostics.HotspotChains, resourceSettings)
 				record.Metallic, record.Fuel, record.Luxury = collectResourceMetrics(resourceResult)
 				printResourceSummary(resourceResult, len(sites))
-				renderResourceMap(sites, index, resourceResult, prefix+"_resources.png", width, height)
-				renderResourcePotentialMap(sites, index, resourceResult, climgen.ResourceGoldOre, prefix+"_resource_gold_potential.png", width, height)
-				renderResourcePotentialMap(sites, index, resourceResult, climgen.ResourceLeadSilverOre, prefix+"_resource_leadsilver_potential.png", width, height)
-				renderResourcePotentialMap(sites, index, resourceResult, climgen.ResourceGemstones, prefix+"_resource_gems_potential.png", width, height)
+				if *renderMaps {
+					renderResourceMap(sites, index, resourceResult, prefix+"_resources.png", width, height)
+					renderResourcePotentialMap(sites, index, resourceResult, climgen.ResourceGoldOre, prefix+"_resource_gold_potential.png", width, height)
+					renderResourcePotentialMap(sites, index, resourceResult, climgen.ResourceLeadSilverOre, prefix+"_resource_leadsilver_potential.png", width, height)
+					renderResourcePotentialMap(sites, index, resourceResult, climgen.ResourceGemstones, prefix+"_resource_gems_potential.png", width, height)
+				}
 			}
 			if *climateSettlements && soilResult != nil {
 				settlementResult := computeSettlement(climateCells, seasonalClimate, biomeResult, soilResult, vegetationResult, waterResourceResult, resourceResult, elevation, diagnostics.Hydrology.Scaffold)
 				record.Favorable, record.Prime = collectSettlementMetrics(settlementResult)
 				printSettlementSummary(settlementResult)
-				renderSettlementMap(sites, index, settlementResult, prefix+"_settlements.png", width, height)
+				if *renderMaps {
+					renderSettlementMap(sites, index, settlementResult, prefix+"_settlements.png", width, height)
+				}
 				if *settlementProfiles {
 					preferences := computeSettlementPreferences(biomeResult, soilResult, vegetationResult, settlementResult, elevation, profiles)
 					printSettlementPreferenceSummary(preferences)
-					renderSettlementPreferenceMap(sites, index, preferences, prefix+"_settlement_preferences.png", width, height)
+					if *renderMaps {
+						renderSettlementPreferenceMap(sites, index, preferences, prefix+"_settlement_preferences.png", width, height)
+					}
 				}
 				if *climatePopulation {
 					populationResult := computePopulation(
@@ -235,16 +254,22 @@ func main() {
 					)
 					record.Frontier, record.Settled, record.DensePop, record.UrbanPop = collectPopulationMetrics(populationResult)
 					printPopulationSummary(populationResult)
-					renderPopulationMap(sites, index, populationResult, prefix+"_population.png", width, height)
+					if *renderMaps {
+						renderPopulationMap(sites, index, populationResult, prefix+"_population.png", width, height)
+					}
 					if *climateSettlementNetwork {
 						networkResult := computeSettlementNetwork(climateSites, climateCells, settlementResult, populationResult, biomeResult, soilResult, resourceResult, elevation)
 						printSettlementNetworkSummary(networkResult)
-						renderSettlementNetworkMap(sites, elevation, index, networkResult, prefix+"_settlement_network.png", width, height)
-						renderSettlementRegionMap(sites, elevation, index, networkResult, prefix+"_settlement_regions.png", width, height)
+						if *renderMaps {
+							renderSettlementNetworkMap(sites, elevation, index, networkResult, prefix+"_settlement_network.png", width, height)
+							renderSettlementRegionMap(sites, elevation, index, networkResult, prefix+"_settlement_regions.png", width, height)
+						}
 						if *climateProtoCivilizations {
 							protoResult := computeProtoCivilizations(climateCells, networkResult, settlementResult, populationResult, biomeResult, soilResult, elevation)
 							printProtoCivilizationSummary(protoResult)
-							renderProtoCivilizationMap(sites, elevation, index, protoResult, networkResult, prefix+"_proto_civilizations.png", width, height)
+							if *renderMaps {
+								renderProtoCivilizationMap(sites, elevation, index, protoResult, networkResult, prefix+"_proto_civilizations.png", width, height)
+							}
 							if *climateTradeNetwork {
 								landRouteResult := computeLandRoutes(
 									settlementResult,
@@ -259,10 +284,14 @@ func main() {
 									landRouteSettings,
 								)
 								printLandRouteSummary(landRouteResult)
-								renderLandRouteRiskMap(sites, elevation, index, landRouteResult, prefix+"_land_route_risk.png", width, height)
+								if *renderMaps {
+									renderLandRouteRiskMap(sites, elevation, index, landRouteResult, prefix+"_land_route_risk.png", width, height)
+								}
 								tradeResult := computeTradeNetwork(climateCells, networkResult, protoResult, landRouteResult)
 								printTradeNetworkSummary(tradeResult, networkResult)
-								renderTradeNetworkMap(sites, elevation, index, tradeResult, networkResult, prefix+"_trade_network.png", width, height)
+								if *renderMaps {
+									renderTradeNetworkMap(sites, elevation, index, tradeResult, networkResult, prefix+"_trade_network.png", width, height)
+								}
 								var riverRouteResult *climgen.RiverRouteResult
 								var riverTradeResult *climgen.RiverTradeResult
 								if *climateRiverTrade {
@@ -276,10 +305,14 @@ func main() {
 										riverRouteSettings,
 									)
 									printRiverRouteSummary(riverRouteResult)
-									renderRiverNavigabilityMap(sites, elevation, index, riverRouteResult, prefix+"_river_navigability.png", width, height)
+									if *renderMaps {
+										renderRiverNavigabilityMap(sites, elevation, index, riverRouteResult, prefix+"_river_navigability.png", width, height)
+									}
 									riverTradeResult = computeRiverTrade(climateCells, networkResult, protoResult, riverRouteResult, elevation)
 									printRiverTradeSummary(riverTradeResult, networkResult)
-									renderRiverTradeMap(sites, elevation, index, riverTradeResult, networkResult, prefix+"_river_trade.png", width, height)
+									if *renderMaps {
+										renderRiverTradeMap(sites, elevation, index, riverTradeResult, networkResult, prefix+"_river_trade.png", width, height)
+									}
 								}
 								if *climateCoastalPorts {
 									for _, vesselName := range maritimeComparisonVessels {
@@ -301,7 +334,9 @@ func main() {
 										)
 										printCoastalPortSummary(coastalPortResult, networkResult)
 										suffix := maritimeOutputSuffix(maritimeRouteSettings.DefaultVessel, vesselName)
-										renderCoastalPortSuitabilityMap(sites, elevation, index, coastalPortResult, networkResult, prefix+"_coastal_ports"+suffix+".png", width, height)
+										if *renderMaps {
+											renderCoastalPortSuitabilityMap(sites, elevation, index, coastalPortResult, networkResult, prefix+"_coastal_ports"+suffix+".png", width, height)
+										}
 										if *climateCoastalTrade {
 											coastalTradeResult := computeCoastalTrade(
 												climateSites,
@@ -314,7 +349,9 @@ func main() {
 												coastalTradeSettings,
 											)
 											printCoastalTradeSummary(coastalTradeResult, networkResult)
-											renderCoastalTradeMap(sites, elevation, index, coastalTradeResult, networkResult, prefix+"_coastal_trade"+suffix+".png", width, height)
+											if *renderMaps {
+												renderCoastalTradeMap(sites, elevation, index, coastalTradeResult, networkResult, prefix+"_coastal_trade"+suffix+".png", width, height)
+											}
 										}
 										if *climateOceanTrade {
 											oceanTradeResult := computeOceanTrade(
@@ -328,14 +365,18 @@ func main() {
 												oceanTradeSettings,
 											)
 											printOceanTradeSummary(oceanTradeResult, networkResult)
-											renderOceanTradeMap(sites, elevation, index, oceanTradeResult, networkResult, prefix+"_ocean_trade"+suffix+".png", width, height)
+											if *renderMaps {
+												renderOceanTradeMap(sites, elevation, index, oceanTradeResult, networkResult, prefix+"_ocean_trade"+suffix+".png", width, height)
+											}
 										}
 									}
 								}
 								if *climatePolitySpheres {
 									polityResult := computePolitySpheres(climateCells, networkResult, protoResult, tradeResult, populationResult, settlementResult, elevation)
 									printPolitySphereSummary(polityResult, networkResult)
-									renderPolitySphereMap(sites, elevation, index, polityResult, networkResult, prefix+"_polity_spheres.png", width, height)
+									if *renderMaps {
+										renderPolitySphereMap(sites, elevation, index, polityResult, networkResult, prefix+"_polity_spheres.png", width, height)
+									}
 									polityProfiles := computePolityProfiles(climateCells, polityResult, networkResult, tradeResult, biomeResult, vegetationResult, soilResult, diagnostics.Hydrology.Scaffold, profileCatalog)
 									printPolityProfileSummary(polityProfiles)
 								}
@@ -346,12 +387,14 @@ func main() {
 			}
 		}
 
-		terrain.RenderShadedElevationMap(sites, elevation, index, prefix+"_shaded.png", width, height)
-		terrain.RenderLandOceanMap(sites, elevation, isLand, index, prefix+"_landocean.png")
-		if diagnostics.Hydrology.Scaffold != nil {
-			terrain.RenderHydrologyOverlayMap(sites, elevation, diagnostics.Hydrology.Scaffold, index, prefix+"_hydrology.png", width, height)
+		if *renderMaps {
+			terrain.RenderShadedElevationMap(sites, elevation, index, prefix+"_shaded.png", width, height)
+			terrain.RenderLandOceanMap(sites, elevation, isLand, index, prefix+"_landocean.png")
+			if diagnostics.Hydrology.Scaffold != nil {
+				terrain.RenderHydrologyOverlayMap(sites, elevation, diagnostics.Hydrology.Scaffold, index, prefix+"_hydrology.png", width, height)
+			}
+			terrain.RenderOrthoView(sites, elevation, index, 0, 0, prefix+"_globe.png")
 		}
-		terrain.RenderOrthoView(sites, elevation, index, 0, 0, prefix+"_globe.png")
 		baselineRecords = append(baselineRecords, record)
 	}
 
