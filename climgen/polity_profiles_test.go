@@ -131,6 +131,9 @@ func TestClassifyPolityAttitudeLeavesModerateNegativesWary(t *testing.T) {
 }
 
 func TestClassifyDetailedPolityAttitudeAllowsSuzeraintyAlliance(t *testing.T) {
+	if stance := classifyDetailedPolityAttitude(0.12, 0.44, true); stance != PolityAttitudeAllied {
+		t.Fatalf("expected strong suzerainty pair with modest positive score to classify allied, got %s", PolityAttitudeStanceName(stance))
+	}
 	if stance := classifyDetailedPolityAttitude(0.34, 0.42, true); stance != PolityAttitudeAllied {
 		t.Fatalf("expected suzerainty pair with strong alliance bonus to classify allied, got %s", PolityAttitudeStanceName(stance))
 	}
@@ -152,9 +155,11 @@ func TestPolityAllianceBonusSupportsSuzerainty(t *testing.T) {
 	relations := []PolitySphereRelation{{Kind: PolityRelationSuzerain, Overlord: 1, Subject: 2, Strength: 1.0}}
 	from := PolityProfileAssignment{Profile: ResolvedProfile{AncestryName: "Human", CultureName: "River Confederacy"}}
 	to := PolityProfileAssignment{Profile: ResolvedProfile{AncestryName: "Human", CultureName: "River Confederacy"}}
+	fromSphere := PolitySphere{ID: 1, Style: ProtoCivilizationRiverine, River: true}
+	toSphere := PolitySphere{ID: 2, Style: ProtoCivilizationRiverine, River: true}
 
-	overlordBonus := polityAllianceBonus(1, 2, from, to, 0.12, 0.04, 0.01, relations)
-	subjectBonus := polityAllianceBonus(2, 1, to, from, 0.12, 0.04, 0.01, relations)
+	overlordBonus := polityAllianceBonus(1, 2, fromSphere, toSphere, from, to, 0.34, 0.12, 0.04, 0.01, relations)
+	subjectBonus := polityAllianceBonus(2, 1, toSphere, fromSphere, to, from, 0.34, 0.12, 0.04, 0.01, relations)
 	if !(overlordBonus > subjectBonus) {
 		t.Fatalf("expected overlord->subject alliance bonus to exceed reverse direction, got %.3f <= %.3f", overlordBonus, subjectBonus)
 	}
@@ -166,18 +171,36 @@ func TestPolityAllianceBonusSupportsSuzerainty(t *testing.T) {
 func TestPolityAllianceBonusRewardsStrongTradeLinkedKin(t *testing.T) {
 	from := PolityProfileAssignment{Profile: ResolvedProfile{AncestryName: "Human", CultureName: "Merchant League"}}
 	to := PolityProfileAssignment{Profile: ResolvedProfile{AncestryName: "Human", CultureName: "Merchant League"}}
+	fromSphere := PolitySphere{ID: 1, Style: ProtoCivilizationMaritime, Coastal: true}
+	toSphere := PolitySphere{ID: 2, Style: ProtoCivilizationMaritime, Coastal: true}
 
-	strong := polityAllianceBonus(1, 2, from, to, 0.32, 0.03, 0.02, nil)
-	weak := polityAllianceBonus(1, 2, from, to, 0.10, 0.03, 0.02, nil)
-	contested := polityAllianceBonus(1, 2, from, to, 0.32, 0.20, 0.14, nil)
+	strong := polityAllianceBonus(1, 2, fromSphere, toSphere, from, to, 0.44, 0.32, 0.03, 0.02, nil)
+	weak := polityAllianceBonus(1, 2, fromSphere, toSphere, from, to, 0.28, 0.02, 0.03, 0.02, nil)
+	contested := polityAllianceBonus(1, 2, fromSphere, toSphere, from, to, 0.44, 0.32, 0.22, 0.20, nil)
 	if strong <= 0 {
 		t.Fatalf("expected strong trade-linked kin polities to receive alliance bonus")
 	}
 	if weak != 0 {
-		t.Fatalf("expected weakly traded kin polities to receive no alliance bonus, got %.3f", weak)
+		t.Fatalf("expected weak affinity/trade kin polities to receive no alliance bonus, got %.3f", weak)
 	}
 	if !(contested < strong) {
 		t.Fatalf("expected contested borders to suppress alliance bonus, got contested=%.3f strong=%.3f", contested, strong)
+	}
+}
+
+func TestPolityAllianceBonusRewardsComplementaryLowTensionRoles(t *testing.T) {
+	from := PolityProfileAssignment{Profile: ResolvedProfile{AncestryName: "Human", CultureName: "Merchant League"}}
+	to := PolityProfileAssignment{Profile: ResolvedProfile{AncestryName: "Human", CultureName: "River Confederacy"}}
+	maritime := PolitySphere{ID: 1, Style: ProtoCivilizationMaritime, Coastal: true}
+	river := PolitySphere{ID: 2, Style: ProtoCivilizationRiverine, River: true}
+
+	bonus := polityAllianceBonus(1, 2, maritime, river, from, to, 0.38, 0.22, 0.04, 0.03, nil)
+	contested := polityAllianceBonus(1, 2, maritime, river, from, to, 0.38, 0.22, 0.22, 0.20, nil)
+	if bonus <= 0 {
+		t.Fatalf("expected complementary river-maritime roles to receive alliance pressure")
+	}
+	if contested != 0 {
+		t.Fatalf("expected high-tension complementary roles not to form alliance bonus, got %.3f", contested)
 	}
 }
 

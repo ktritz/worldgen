@@ -160,7 +160,7 @@ func buildPolityAttitudes(
 			borderAdj := borderPenalty[[2]int{from.ID, to.ID}]
 			competitionAdj := polityCompetitionPenalty(fromAssignment, toAssignment, borderAdj, tradeAdj)
 			competitionAdj += polityTerritorialRivalryPenalty(from, to, fromAssignment, toAssignment, borderAdj, tradeAdj, polities.Relations)
-			allianceAdj := polityAllianceBonus(from.ID, to.ID, fromAssignment, toAssignment, tradeAdj, borderAdj, competitionAdj, polities.Relations)
+			allianceAdj := polityAllianceBonus(from.ID, to.ID, from, to, fromAssignment, toAssignment, affinity, tradeAdj, borderAdj, competitionAdj, polities.Relations)
 			strategicTension := borderAdj + competitionAdj
 			score := affinity + tradeAdj + allianceAdj - strategicTension
 			stance := classifyDetailedPolityAttitude(score, allianceAdj, hasSuzeraintyRelation(from.ID, to.ID, polities.Relations))
@@ -389,38 +389,72 @@ func hasSuzeraintyRelation(from, to int, relations []PolitySphereRelation) bool 
 
 func polityAllianceBonus(
 	fromID, toID int,
+	fromSphere PolitySphere,
+	toSphere PolitySphere,
 	from PolityProfileAssignment,
 	to PolityProfileAssignment,
+	affinity float64,
 	tradeAdj float64,
 	borderAdj float64,
 	competitionAdj float64,
 	relations []PolitySphereRelation,
 ) float64 {
 	bonus := suzeraintyBonus(fromID, toID, relations)
-	if tradeAdj < 0.14 {
+	if borderAdj > 0.20 || competitionAdj > 0.18 {
 		return bonus
 	}
-	if borderAdj > 0.18 || competitionAdj > 0.12 {
+
+	tradeStrength := clamp01(tradeAdj / 0.18)
+	if tradeStrength < 0.55 {
 		return bonus
 	}
 
 	kinship := 0.0
 	if from.Profile.CultureName != "" && from.Profile.CultureName == to.Profile.CultureName {
-		kinship += 0.14
+		kinship += 0.20
 	}
 	if from.Profile.AncestryName != "" && from.Profile.AncestryName == to.Profile.AncestryName {
-		kinship += 0.08
+		kinship += 0.12
 	}
-	if kinship == 0 {
+	if kinship == 0 && !polityRolesComplement(fromSphere, toSphere) {
 		return bonus
 	}
 
-	tradeStrength := clamp01((tradeAdj - 0.14) / 0.16)
-	ease := 1 - 0.55*clamp01(borderAdj/0.18) - 0.45*clamp01(competitionAdj/0.12)
+	affinityStrength := clamp01((affinity - 0.30) / 0.20)
+	roleComplement := 0.0
+	if polityRolesComplement(fromSphere, toSphere) {
+		roleComplement = 0.10 + 0.12*tradeStrength
+	}
+	if roleComplement == 0 && affinityStrength < 0.35 {
+		return bonus
+	}
+	ease := 1 - 0.48*clamp01(borderAdj/0.20) - 0.52*clamp01(competitionAdj/0.18)
 	if ease <= 0 {
 		return bonus
 	}
-	return bonus + kinship*tradeStrength*ease
+	return bonus + (kinship*(0.45*tradeStrength+0.55*affinityStrength)+roleComplement)*ease
+}
+
+func polityRolesComplement(a, b PolitySphere) bool {
+	if a.Coastal && b.River && !b.Coastal {
+		return true
+	}
+	if b.Coastal && a.River && !a.Coastal {
+		return true
+	}
+	if a.Style == ProtoCivilizationMaritime && b.Style == ProtoCivilizationRiverine {
+		return true
+	}
+	if b.Style == ProtoCivilizationMaritime && a.Style == ProtoCivilizationRiverine {
+		return true
+	}
+	if a.Style == ProtoCivilizationHighland && (b.Style == ProtoCivilizationRiverine || b.Style == ProtoCivilizationMaritime) {
+		return true
+	}
+	if b.Style == ProtoCivilizationHighland && (a.Style == ProtoCivilizationRiverine || a.Style == ProtoCivilizationMaritime) {
+		return true
+	}
+	return false
 }
 
 func classifyPolityAttitude(score float64) PolityAttitudeStance {
@@ -439,7 +473,10 @@ func classifyPolityAttitude(score float64) PolityAttitudeStance {
 }
 
 func classifyDetailedPolityAttitude(score, allianceBonus float64, suzerainty bool) PolityAttitudeStance {
-	if suzerainty && allianceBonus >= 0.18 && score >= 0.30 {
+	if suzerainty && allianceBonus >= 0.38 && score >= 0.00 {
+		return PolityAttitudeAllied
+	}
+	if suzerainty && allianceBonus >= 0.18 && score >= 0.24 {
 		return PolityAttitudeAllied
 	}
 	if allianceBonus >= 0.16 && score >= 0.52 {
