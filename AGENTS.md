@@ -48,6 +48,14 @@
 - Add focused tests for new loaders, validators, and scoring behavior.
 - Run targeted Go tests after substantial changes:
   - `env GOCACHE=/tmp/go-build-cache go test ./climgen ./cmd/review_planets`
+- For long validation sweeps, prefer a user systemd unit with repo-persisted logs instead of `/tmp`, `nohup`, or an open exec session. `/tmp` may be cleared by reboot, and background children may be cleaned up when the command wrapper exits.
+- Use an absolute Go binary path for `systemd-run`, because it may not inherit the interactive shell `PATH`:
+  - `mkdir -p output/review_planets/sweeps`
+  - `systemd-run --user --unit=worldgen-l6-sweep --working-directory=/home/ktritz/projects/worldgen /usr/bin/zsh -lc 'GOCACHE=/tmp/go-build-cache /usr/local/go/bin/go run ./cmd/review_planets -level 6 -seeds 4,6,7,42,55,84,91,101,128,144,177,202,255,314,512,777,999,1337 -width 64 -render=false -maritime-compare-vessels caravel > output/review_planets/sweeps/worldgen_l6_overnight_sweep.txt 2> output/review_planets/sweeps/worldgen_l6_overnight_sweep.err'`
+- Check long sweep progress with:
+  - `systemctl --user status worldgen-l6-sweep.service --no-pager`
+  - `tail -80 output/review_planets/sweeps/worldgen_l6_overnight_sweep.txt`
+  - `python3 scripts/summarize_review_planets.py output/review_planets/sweeps/worldgen_l6_overnight_sweep.txt`
 
 ## Current Expectations
 
