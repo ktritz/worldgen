@@ -159,6 +159,7 @@ func buildPolityAttitudes(
 			tradeAdj := tradeBonus[[2]int{from.ID, to.ID}]
 			borderAdj := borderPenalty[[2]int{from.ID, to.ID}]
 			competitionAdj := polityCompetitionPenalty(fromAssignment, toAssignment, borderAdj, tradeAdj)
+			competitionAdj += polityTerritorialRivalryPenalty(from, to, fromAssignment, toAssignment, borderAdj, tradeAdj, polities.Relations)
 			allianceAdj := polityAllianceBonus(from.ID, to.ID, fromAssignment, toAssignment, tradeAdj, borderAdj, competitionAdj, polities.Relations)
 			strategicTension := borderAdj + competitionAdj
 			score := affinity + tradeAdj + allianceAdj - strategicTension
@@ -273,6 +274,75 @@ func polityCompetitionPenalty(
 		penalty *= 1 - 0.50*clamp01(tradeAdj/0.32)
 	}
 	return penalty
+}
+
+func polityTerritorialRivalryPenalty(
+	from PolitySphere,
+	to PolitySphere,
+	fromAssignment PolityProfileAssignment,
+	toAssignment PolityProfileAssignment,
+	borderAdj float64,
+	tradeAdj float64,
+	relations []PolitySphereRelation,
+) float64 {
+	if borderAdj <= 0 {
+		return 0
+	}
+	borderFactor := clamp01(borderAdj / 0.30)
+	nicheOverlap := overlapScore(
+		fromAssignment.EnvironmentTags,
+		toAssignment.EnvironmentTags,
+		[]string{"river", "lowland", "floodplain", "alluvial", "marsh", "delta", "forest", "mountain", "arid", "coastal", "lacustrine"},
+	)
+	economicOverlap := overlapScore(
+		fromAssignment.ContextTags,
+		toAssignment.ContextTags,
+		[]string{"mercantile", "agrarian", "urban", "pastoral", "frontier", "clan", "fortress"},
+	)
+
+	kinRivalry := 0.0
+	if fromAssignment.Profile.AncestryName != "" && fromAssignment.Profile.AncestryName == toAssignment.Profile.AncestryName {
+		kinRivalry += 0.08
+	}
+	if fromAssignment.Profile.CultureName != "" && fromAssignment.Profile.CultureName == toAssignment.Profile.CultureName {
+		kinRivalry += 0.18
+	}
+
+	meanSupport := math.Min(from.MeanSupport, to.MeanSupport)
+	if meanSupport <= 0 {
+		meanSupport = 0.30
+	}
+	scarcity := clamp01((0.36 - meanSupport) / 0.22)
+	crowding := clamp01((170.0 - math.Min(float64(from.TerritoryCells), float64(to.TerritoryCells))) / 140.0)
+	ambition := profileRivalryDisposition(fromAssignment.Profile, toAssignment.Profile)
+
+	penalty := borderFactor * (0.16 + 0.28*nicheOverlap + 0.18*economicOverlap + kinRivalry + 0.16*scarcity + 0.12*crowding)
+	penalty *= 0.72 + 0.56*ambition
+	if tradeAdj > 0 {
+		penalty *= 1 - 0.34*clamp01(tradeAdj/0.36)
+	}
+	if hasSuzeraintyRelation(from.ID, to.ID, relations) {
+		penalty *= 0.70
+	}
+	return penalty
+}
+
+func profileRivalryDisposition(a, b ResolvedProfile) float64 {
+	return (profileConflictDisposition(a) + profileConflictDisposition(b)) / 2
+}
+
+func profileConflictDisposition(profile ResolvedProfile) float64 {
+	aggression := 0.30
+	honor := 0.35
+	xenophilia := 0.45
+	if profile.Attitudes != nil {
+		aggression = profile.Attitudes.Aggression
+		honor = profile.Attitudes.HonorBias
+		xenophilia = profile.Attitudes.Xenophilia
+	}
+	warlike := profile.Traits["warlike"]
+	chaos := profile.Traits["chaos"]
+	return clamp01(0.42*aggression + 0.22*honor + 0.16*(1-xenophilia) + 0.12*warlike + 0.08*chaos)
 }
 
 func overlapScore(a, b, candidates []string) float64 {

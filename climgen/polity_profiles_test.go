@@ -83,6 +83,44 @@ func TestPolityCompetitionPenaltyRewardsSharedTradeLessThanSharedRivalNiche(t *t
 	}
 }
 
+func TestPolityTerritorialRivalryPenalizesCrowdedSameNicheBorders(t *testing.T) {
+	from := PolityProfileAssignment{
+		Profile: ResolvedProfile{
+			AncestryName: "Human",
+			CultureName:  "River Confederacy",
+			Attitudes:    &ProfileAttitudeModule{Aggression: 0.34, HonorBias: 0.48, Xenophilia: 0.30},
+			Traits:       map[string]float64{"warlike": 0.20},
+		},
+		ContextTags:     []string{"polity", "mercantile", "agrarian", "urban"},
+		EnvironmentTags: []string{"surface", "river", "lowland", "floodplain", "alluvial"},
+	}
+	to := PolityProfileAssignment{
+		Profile: ResolvedProfile{
+			AncestryName: "Human",
+			CultureName:  "River Confederacy",
+			Attitudes:    &ProfileAttitudeModule{Aggression: 0.34, HonorBias: 0.48, Xenophilia: 0.30},
+			Traits:       map[string]float64{"warlike": 0.20},
+		},
+		ContextTags:     []string{"polity", "mercantile", "agrarian", "urban"},
+		EnvironmentTags: []string{"surface", "river", "lowland", "floodplain", "alluvial"},
+	}
+	fromSphere := PolitySphere{ID: 1, TerritoryCells: 86, MeanSupport: 0.22}
+	toSphere := PolitySphere{ID: 2, TerritoryCells: 92, MeanSupport: 0.24}
+
+	rivalry := polityTerritorialRivalryPenalty(fromSphere, toSphere, from, to, 0.36, 0, nil)
+	buffered := polityTerritorialRivalryPenalty(fromSphere, toSphere, from, to, 0.36, 0.32, nil)
+	noBorder := polityTerritorialRivalryPenalty(fromSphere, toSphere, from, to, 0, 0, nil)
+	if rivalry < 0.40 {
+		t.Fatalf("expected crowded same-niche border to create strong rivalry, got %.3f", rivalry)
+	}
+	if !(buffered < rivalry) {
+		t.Fatalf("expected trade to soften rivalry, got no-trade=%.3f trade=%.3f", rivalry, buffered)
+	}
+	if noBorder != 0 {
+		t.Fatalf("expected no rivalry without border pressure, got %.3f", noBorder)
+	}
+}
+
 func TestClassifyPolityAttitudeLeavesModerateNegativesWary(t *testing.T) {
 	if stance := classifyPolityAttitude(-0.20); stance != PolityAttitudeWary {
 		t.Fatalf("expected moderate negative score to be wary, got %s", PolityAttitudeStanceName(stance))
