@@ -5,7 +5,7 @@ import (
 	"io/fs"
 )
 
-//go:embed config/profile_catalog_fantasy.json config/profiles/fantasy/ancestries/*.json config/profiles/fantasy/cultures/*.json config/profiles/fantasy/compositions/*.json config/settlement_profiles.json config/maritime_vessels_earthlike.json config/maritime_ports_earthlike.json config/coastal_trade_earthlike.json config/ocean_trade_earthlike.json
+//go:embed config/profile_catalog_fantasy.json config/profiles/fantasy/ancestries/*.json config/profiles/fantasy/cultures/*.json config/profiles/fantasy/compositions/*.json config/settlement_profiles.json config/maritime_vessels_earthlike.json config/maritime_ports_earthlike.json config/coastal_trade_earthlike.json config/ocean_trade_earthlike.json config/trade_goods_earthlike.json
 var embeddedDefaultsFS embed.FS
 
 func EmbeddedProfileCatalogFantasy() []byte {
@@ -35,6 +35,11 @@ func EmbeddedCoastalTradeSettings() []byte {
 
 func EmbeddedOceanTradeSettings() []byte {
 	data, _ := fs.ReadFile(embeddedDefaultsFS, "config/ocean_trade_earthlike.json")
+	return append([]byte(nil), data...)
+}
+
+func EmbeddedTradeGoodsSettings() []byte {
+	data, _ := fs.ReadFile(embeddedDefaultsFS, "config/trade_goods_earthlike.json")
 	return append([]byte(nil), data...)
 }
 

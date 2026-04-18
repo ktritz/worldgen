@@ -1,0 +1,1093 @@
+{
+  "schemaVersion": "trade-goods/v1",
+  "scarcity": {
+    "rawAvailability": {
+      "meanWeight": 0.34,
+      "coverageWeight": 0.28,
+      "strongCoverageWeight": 0.18,
+      "peakWeight": 0.20,
+      "coverageThreshold": 0.10,
+      "strongCoverageThreshold": 0.30
+    },
+    "inputAvailability": {
+      "minWeight": 0.42,
+      "avgWeight": 0.58
+    },
+    "categoryAvailabilityFit": {
+      "processed": {"offset": 0.04, "scale": 0.96},
+      "finished": {"offset": 0.02, "scale": 0.92},
+      "luxury": {"offset": 0.00, "scale": 0.82},
+      "strategic": {"offset": 0.00, "scale": 0.88}
+    },
+    "categoryScarcityPower": {
+      "raw": 0.50,
+      "processed": 0.60,
+      "finished": 0.55,
+      "luxury": 0.48,
+      "strategic": 0.52,
+      "default": 0.58
+    },
+    "demandResponse": {
+      "raw": {"base": 0.28, "slope": 0.42},
+      "processed": {"base": 0.20, "slope": 0.54},
+      "finished": {"base": 0.18, "slope": 0.62},
+      "luxury": {"base": 0.12, "slope": 0.48},
+      "strategic": {"base": 0.20, "slope": 0.72},
+      "default": {"base": 0.20, "slope": 0.50}
+    },
+    "supplyResponse": {
+      "raw": {"base": 0.94, "slope": 0.10},
+      "processed": {"base": 0.94, "slope": 0.18},
+      "finished": {"base": 0.96, "slope": 0.20},
+      "luxury": {"base": 0.92, "slope": 0.16},
+      "strategic": {"base": 0.96, "slope": 0.22},
+      "default": {"base": 0.94, "slope": 0.16}
+    },
+    "tradeValueResponse": {
+      "raw": {"base": 0.86, "slope": 0.36},
+      "processed": {"base": 0.90, "slope": 0.42},
+      "finished": {"base": 0.92, "slope": 0.46},
+      "luxury": {"base": 0.96, "slope": 0.34},
+      "strategic": {"base": 0.96, "slope": 0.48},
+      "default": {"base": 0.90, "slope": 0.40}
+    }
+  },
+  "multimodal": {
+    "capacityScaleByMode": {
+      "land": 17.0,
+      "river": 23.0,
+      "coastal": 29.0,
+      "ocean": 38.0,
+      "default": 20.0
+    },
+    "capacityFactorByMode": {
+      "land": 0.88,
+      "river": 1.04,
+      "coastal": 1.12,
+      "ocean": 1.20,
+      "default": 1.00
+    },
+    "volumeBaseByMode": {
+      "land": 16.0,
+      "river": 22.0,
+      "coastal": 26.0,
+      "ocean": 32.0,
+      "default": 20.0
+    },
+    "localNeedResponse": {
+      "raw": {"base": 0.74, "slope": 0.48},
+      "processed": {"base": 0.80, "slope": 0.56},
+      "finished": {"base": 0.84, "slope": 0.64},
+      "luxury": {"base": 0.70, "slope": 0.42},
+      "strategic": {"base": 0.84, "slope": 0.70},
+      "default": {"base": 0.78, "slope": 0.50}
+    },
+    "globalRarityResponse": {
+      "raw": {"base": 0.92, "slope": 0.16},
+      "processed": {"base": 0.92, "slope": 0.20},
+      "finished": {"base": 0.94, "slope": 0.24},
+      "luxury": {"base": 0.96, "slope": 0.28},
+      "strategic": {"base": 0.96, "slope": 0.30},
+      "default": {"base": 0.93, "slope": 0.20}
+    },
+    "singleMarketWealthBase": 0.35,
+    "singleMarketWealthScale": 0.70,
+    "dualMarketWealthBase": 0.35,
+    "dualMarketWealthScale": 0.85,
+    "singleMarketFeederScale": 0.05,
+    "dualMarketFeederScale": 0.06,
+    "lowCapacityVolumeThreshold": 2.5
+  },
+  "production": {
+    "categorySupplyScale": {
+      "raw": 1.12,
+      "processed": 1.06,
+      "finished": 1.04,
+      "luxury": 1.00,
+      "strategic": 1.08,
+      "default": 1.00
+    },
+    "categorySpecializationScale": {
+      "raw": 0.70,
+      "processed": 0.42,
+      "finished": 0.34,
+      "luxury": 0.28,
+      "strategic": 0.38,
+      "default": 0.30
+    },
+    "manufacturingBaseScale": {
+      "raw": 0.30,
+      "processed": 0.52,
+      "finished": 0.48,
+      "luxury": 0.40,
+      "strategic": 0.50,
+      "default": 0.45
+    },
+    "manufacturingWorkshopScale": {
+      "raw": 0.20,
+      "processed": 0.78,
+      "finished": 0.92,
+      "luxury": 1.00,
+      "strategic": 0.94,
+      "default": 0.55
+    },
+    "marketWorkshopBias": {
+      "raw": 0.84,
+      "processed": 1.04,
+      "finished": 1.22,
+      "luxury": 1.18,
+      "strategic": 1.20,
+      "default": 1.00
+    },
+    "marketInputRichnessScale": {
+      "raw": 0.04,
+      "processed": 0.18,
+      "finished": 0.28,
+      "luxury": 0.24,
+      "strategic": 0.26,
+      "default": 0.14
+    },
+    "marketConversionShare": {
+      "raw": 0.08,
+      "processed": 0.54,
+      "finished": 0.60,
+      "luxury": 0.48,
+      "strategic": 0.50,
+      "default": 0.40
+    },
+    "marketDominancePenalty": {
+      "raw": 0.00,
+      "processed": 0.14,
+      "finished": 0.08,
+      "luxury": 0.08,
+      "strategic": 0.12,
+      "default": 0.10
+    },
+    "marketImportedInputSupportScale": {
+      "salt": 0.80,
+      "default": 0.00
+    },
+    "marketExternalInputSupportScale": {
+      "salt": 1.20,
+      "default": 0.00
+    },
+    "marketInputReservationByInput": {
+      "iron_ore": 1.00,
+      "iron_goods": 0.55,
+      "coal": 0.60,
+      "fish": 0.85,
+      "salt": 0.65,
+      "default": 0.00
+    },
+    "marketInputReservationStrength": 0.24,
+    "marketInputReservationCap": 0.30,
+    "rawCatchmentSpecializationScale": 0.62,
+    "rawCatchmentSpecializationFloor": 0.68,
+    "rawPotentialPivot": 0.36,
+    "manufacturingPivot": 0.48
+  },
+  "demand": {
+    "categoryDemandScale": {
+      "raw": 0.94,
+      "processed": 1.00,
+      "finished": 1.04,
+      "luxury": 0.96,
+      "strategic": 1.02,
+      "default": 1.00
+    },
+    "localSupplyReliefByCategory": {
+      "raw": 0.48,
+      "processed": 0.26,
+      "finished": 0.16,
+      "luxury": 0.06,
+      "strategic": 0.12,
+      "default": 0.18
+    },
+    "driverSpecializationScale": {
+      "raw": 0.36,
+      "processed": 0.44,
+      "finished": 0.52,
+      "luxury": 0.58,
+      "strategic": 0.54,
+      "default": 0.42
+    },
+    "marketCategoryDemandScale": {
+      "raw": 0.96,
+      "processed": 1.04,
+      "finished": 1.10,
+      "luxury": 1.08,
+      "strategic": 1.06,
+      "default": 1.00
+    },
+    "marketWealthPullScale": {
+      "raw": 0.06,
+      "processed": 0.12,
+      "finished": 0.22,
+      "luxury": 0.26,
+      "strategic": 0.18,
+      "default": 0.10
+    },
+    "marketFeederPullScale": {
+      "raw": 0.04,
+      "processed": 0.10,
+      "finished": 0.16,
+      "luxury": 0.12,
+      "strategic": 0.14,
+      "default": 0.08
+    },
+    "driverSpecializationPivot": 0.44
+  },
+  "goods": [
+    {
+      "name": "grain",
+      "category": "raw",
+      "baseValue": 0.42,
+      "bulkiness": 0.86,
+      "perishability": 0.38,
+      "rawCatchmentSensitivity": 0.72,
+      "sourceWeights": {
+        "crop": 1.0
+      },
+      "productionDrivers": {
+        "river": 0.6,
+        "settled-core": 0.3
+      },
+      "demandDrivers": {
+        "urban": 0.7,
+        "highland": 0.4,
+        "cold": 0.2
+      },
+      "profileProductionAffinity": {
+        "River Confederacy": 1.25,
+        "Halfling": 1.15,
+        "Dwarf": 0.82
+      },
+      "profileDemandAffinity": {
+        "Dwarf": 1.25,
+        "Orc": 1.10,
+        "Aarakocra": 1.12
+      }
+    },
+    {
+      "name": "livestock",
+      "category": "raw",
+      "baseValue": 0.46,
+      "bulkiness": 0.72,
+      "perishability": 0.28,
+      "rawCatchmentSensitivity": 1.04,
+      "sourceWeights": {
+        "pasture": 0.84,
+        "game": 0.16
+      },
+      "productionDrivers": {
+        "arid": 0.65,
+        "highland": 0.45,
+        "frontier": 0.45,
+        "cold": 0.20
+      },
+      "demandDrivers": {
+        "urban": 0.4,
+        "arid": 0.5,
+        "highland": 0.3
+      },
+      "profileProductionAffinity": {
+        "Desert Caravan": 1.25,
+        "Gnoll": 1.15,
+        "Halfling": 1.08
+      }
+    },
+    {
+      "name": "wool",
+      "category": "raw",
+      "baseValue": 0.52,
+      "bulkiness": 0.42,
+      "perishability": 0.08,
+      "rawCatchmentSensitivity": 1.12,
+      "sourceWeights": {
+        "pasture": 0.76,
+        "pelts": 0.24
+      },
+      "productionDrivers": {
+        "cold": 0.6,
+        "highland": 0.5,
+        "frontier": 0.3
+      },
+      "demandDrivers": {
+        "cold": 0.5,
+        "urban": 0.4,
+        "mercantile": 0.2
+      },
+      "profileProductionAffinity": {
+        "Halfling": 1.16,
+        "Dwarf": 1.12,
+        "Gnoll": 1.10
+      },
+      "profileDemandAffinity": {
+        "Dwarf": 1.16,
+        "Human": 1.08,
+        "Elf": 1.06
+      }
+    },
+    {
+      "name": "fish",
+      "category": "raw",
+      "baseValue": 0.38,
+      "bulkiness": 0.62,
+      "perishability": 0.78,
+      "rawCatchmentSensitivity": 1.46,
+      "sourceWeights": {
+        "fish": 1.0
+      },
+      "productionDrivers": {
+        "coastal": 0.9,
+        "river": 0.6,
+        "delta": 0.4,
+        "wetland": 0.2
+      },
+      "demandDrivers": {
+        "coastal": 0.5,
+        "urban": 0.3,
+        "river": 0.2
+      },
+      "profileProductionAffinity": {
+        "Merchant League": 1.20,
+        "Lizardfolk": 1.25,
+        "tag:maritime": 1.22
+      }
+    },
+    {
+      "name": "salt",
+      "category": "raw",
+      "baseValue": 0.62,
+      "bulkiness": 0.38,
+      "perishability": 0.0,
+      "rawCatchmentSensitivity": 1.42,
+      "sourceWeights": {
+        "salt": 0.7,
+        "evaporite": 0.3
+      },
+      "productionDrivers": {
+        "coastal": 0.6,
+        "arid": 0.6
+      },
+      "demandDrivers": {
+        "urban": 0.5,
+        "warlike": 0.2,
+        "arid": 0.2
+      },
+      "profileProductionAffinity": {
+        "Desert Caravan": 1.20,
+        "Merchant League": 1.12
+      },
+      "profileDemandAffinity": {
+        "Dwarf": 1.10,
+        "Hobgoblin": 1.12
+      }
+    },
+    {
+      "name": "timber",
+      "category": "raw",
+      "baseValue": 0.44,
+      "bulkiness": 0.92,
+      "perishability": 0.08,
+      "rawCatchmentSensitivity": 1.06,
+      "sourceWeights": {
+        "timber": 1.0
+      },
+      "productionDrivers": {
+        "forest": 0.7,
+        "wooded": 0.6,
+        "highland": 0.2,
+        "cold": 0.2
+      },
+      "demandDrivers": {
+        "urban": 0.5,
+        "coastal": 0.5,
+        "highland": 0.2
+      },
+      "profileProductionAffinity": {
+        "Elf": 1.18,
+        "Gnome": 1.08
+      },
+      "profileDemandAffinity": {
+        "Merchant League": 1.18,
+        "Dwarf": 1.12,
+        "tag:maritime": 1.22
+      }
+    },
+    {
+      "name": "fiber",
+      "category": "raw",
+      "baseValue": 0.40,
+      "bulkiness": 0.58,
+      "perishability": 0.18,
+      "rawCatchmentSensitivity": 0.76,
+      "sourceWeights": {
+        "fiber": 1.0
+      },
+      "productionDrivers": {
+        "river": 0.4,
+        "wetland": 0.4,
+        "delta": 0.2
+      },
+      "demandDrivers": {
+        "urban": 0.5,
+        "mercantile": 0.2,
+        "coastal": 0.2
+      },
+      "profileProductionAffinity": {
+        "Halfling": 1.15,
+        "Lizardfolk": 1.12,
+        "River Confederacy": 1.10
+      }
+    },
+    {
+      "name": "dye_plants",
+      "category": "raw",
+      "baseValue": 0.68,
+      "bulkiness": 0.34,
+      "perishability": 0.26,
+      "rawCatchmentSensitivity": 1.42,
+      "sourceWeights": {
+        "dye_plants": 1.0
+      },
+      "productionDrivers": {
+        "wetland": 0.7,
+        "marsh": 0.6,
+        "delta": 0.4,
+        "coastal": 0.2
+      },
+      "demandDrivers": {
+        "luxury": 0.6,
+        "urban": 0.3,
+        "mercantile": 0.3
+      },
+      "profileProductionAffinity": {
+        "Lizardfolk": 1.20,
+        "Elf": 1.16,
+        "Gnome": 1.12
+      },
+      "profileDemandAffinity": {
+        "Merchant League": 1.18,
+        "Elf": 1.10
+      }
+    },
+    {
+      "name": "herbs",
+      "category": "raw",
+      "baseValue": 0.64,
+      "bulkiness": 0.24,
+      "perishability": 0.34,
+      "rawCatchmentSensitivity": 1.34,
+      "sourceWeights": {
+        "herbs": 1.0
+      },
+      "productionDrivers": {
+        "wetland": 0.5,
+        "marsh": 0.4,
+        "wooded": 0.3,
+        "arid": 0.3
+      },
+      "demandDrivers": {
+        "luxury": 0.5,
+        "urban": 0.4,
+        "arid": 0.2
+      },
+      "profileProductionAffinity": {
+        "Elf": 1.18,
+        "Lizardfolk": 1.16,
+        "Desert Caravan": 1.12
+      },
+      "profileDemandAffinity": {
+        "Merchant League": 1.15,
+        "Human": 1.06
+      }
+    },
+    {
+      "name": "resin",
+      "category": "raw",
+      "baseValue": 0.56,
+      "bulkiness": 0.42,
+      "perishability": 0.10,
+      "rawCatchmentSensitivity": 1.16,
+      "sourceWeights": {
+        "resin": 1.0
+      },
+      "productionDrivers": {
+        "forest": 0.7,
+        "wooded": 0.6,
+        "highland": 0.2
+      },
+      "demandDrivers": {
+        "coastal": 0.5,
+        "urban": 0.3,
+        "mercantile": 0.2
+      },
+      "profileDemandAffinity": {
+        "Merchant League": 1.12,
+        "tag:maritime": 1.20
+      }
+    },
+    {
+      "name": "iron_ore",
+      "category": "raw",
+      "baseValue": 0.60,
+      "bulkiness": 0.95,
+      "perishability": 0.0,
+      "rawCatchmentSensitivity": 1.56,
+      "sourceWeights": {
+        "iron_ore": 1.0
+      },
+      "productionDrivers": {
+        "highland": 0.9,
+        "mountain": 0.6,
+        "cold": 0.2
+      },
+      "demandDrivers": {
+        "warlike": 0.5,
+        "urban": 0.4,
+        "highland": 0.2
+      },
+      "profileProductionAffinity": {
+        "Dwarf": 1.36,
+        "Hobgoblin": 1.12
+      }
+    },
+    {
+      "name": "copper_ore",
+      "category": "raw",
+      "baseValue": 0.56,
+      "bulkiness": 0.88,
+      "perishability": 0.0,
+      "rawCatchmentSensitivity": 1.22,
+      "sourceWeights": {
+        "copper_ore": 1.0
+      },
+      "productionDrivers": {
+        "highland": 0.7,
+        "mountain": 0.4
+      },
+      "demandDrivers": {
+        "urban": 0.4,
+        "mercantile": 0.3
+      },
+      "profileProductionAffinity": {
+        "Dwarf": 1.18,
+        "Gnome": 1.12
+      }
+    },
+    {
+      "name": "precious_ore",
+      "category": "raw",
+      "baseValue": 0.82,
+      "bulkiness": 0.22,
+      "perishability": 0.0,
+      "rawCatchmentSensitivity": 1.52,
+      "sourceWeights": {
+        "gold_ore": 0.42,
+        "lead_silver_ore": 0.36,
+        "gemstones": 0.22
+      },
+      "productionDrivers": {
+        "highland": 0.7,
+        "mountain": 0.5
+      },
+      "demandDrivers": {
+        "luxury": 0.7,
+        "mercantile": 0.4
+      },
+      "profileProductionAffinity": {
+        "Dwarf": 1.30,
+        "Gnome": 1.16
+      },
+      "profileDemandAffinity": {
+        "Merchant League": 1.18,
+        "Dragonborn": 1.12
+      }
+    },
+    {
+      "name": "clay",
+      "category": "raw",
+      "baseValue": 0.28,
+      "bulkiness": 0.96,
+      "perishability": 0.0,
+      "rawCatchmentSensitivity": 0.70,
+      "sourceWeights": {
+        "clay": 1.0
+      },
+      "productionDrivers": {
+        "river": 0.6,
+        "wetland": 0.4,
+        "delta": 0.3
+      },
+      "demandDrivers": {
+        "urban": 0.6,
+        "river": 0.2
+      }
+    },
+    {
+      "name": "stone",
+      "category": "raw",
+      "baseValue": 0.30,
+      "bulkiness": 1.0,
+      "perishability": 0.0,
+      "rawCatchmentSensitivity": 0.76,
+      "sourceWeights": {
+        "stone": 1.0
+      },
+      "productionDrivers": {
+        "highland": 0.8,
+        "mountain": 0.5
+      },
+      "demandDrivers": {
+        "urban": 0.6,
+        "highland": 0.3
+      },
+      "profileProductionAffinity": {
+        "Dwarf": 1.20,
+        "Gnome": 1.08
+      }
+    },
+    {
+      "name": "coal",
+      "category": "raw",
+      "baseValue": 0.52,
+      "bulkiness": 0.88,
+      "perishability": 0.0,
+      "rawCatchmentSensitivity": 1.20,
+      "sourceWeights": {
+        "coal": 1.0
+      },
+      "productionDrivers": {
+        "highland": 0.8,
+        "cold": 0.4,
+        "mountain": 0.5
+      },
+      "demandDrivers": {
+        "urban": 0.5,
+        "cold": 0.4,
+        "highland": 0.2
+      },
+      "profileDemandAffinity": {
+        "Dwarf": 1.15,
+        "Hobgoblin": 1.12
+      }
+    },
+    {
+      "name": "preserved_food",
+      "category": "processed",
+      "baseValue": 0.56,
+      "bulkiness": 0.62,
+      "perishability": 0.12,
+      "marketConversionScale": 0.36,
+      "marketContextSensitivity": 1.18,
+      "marketInputReservePriority": 0.90,
+      "marketMinNodeKind": "town",
+      "marketInputCapabilityFloor": {
+        "fish": 0.30,
+        "salt": 0.35
+      },
+      "inputs": {
+        "fish": 0.35,
+        "salt": 0.20
+      },
+      "productionDrivers": {
+        "coastal": 0.8,
+        "river": 0.7,
+        "mercantile": 0.4,
+        "cold": 0.2
+      },
+      "demandDrivers": {
+        "urban": 0.4,
+        "warlike": 0.5,
+        "coastal": 0.25,
+        "river": 0.2,
+        "cold": 0.15
+      },
+      "profileProductionAffinity": {
+        "Merchant League": 1.16,
+        "Lizardfolk": 1.12
+      },
+      "profileDemandAffinity": {
+        "Hobgoblin": 1.18,
+        "Dwarf": 1.12
+      }
+    },
+    {
+      "name": "soap",
+      "category": "processed",
+      "baseValue": 0.62,
+      "bulkiness": 0.20,
+      "perishability": 0.02,
+      "marketConversionScale": 0.38,
+      "marketContextSensitivity": 1.22,
+      "marketMinNodeKind": "town",
+      "marketInputCapabilityFloor": {
+        "salt": 0.25,
+        "livestock": 0.20
+      },
+      "inputs": {
+        "salt": 0.14,
+        "livestock": 0.10,
+        "herbs": 0.03
+      },
+      "demandDrivers": {
+        "urban": 0.75,
+        "cold": 0.35,
+        "mercantile": 0.25,
+        "arid": 0.15,
+        "luxury": 0.10
+      },
+      "profileProductionAffinity": {
+        "Merchant League": 1.16,
+        "Gnome": 1.12,
+        "Human": 1.10,
+        "Dwarf": 1.08
+      },
+      "profileDemandAffinity": {
+        "Human": 1.14,
+        "Dwarf": 1.14,
+        "Merchant League": 1.14,
+        "Gnome": 1.08
+      }
+    },
+    {
+      "name": "cloth",
+      "category": "processed",
+      "baseValue": 0.62,
+      "bulkiness": 0.38,
+      "perishability": 0.06,
+      "marketConversionScale": 0.28,
+      "marketContextSensitivity": 0.66,
+      "marketDominancePenalty": 0.18,
+      "inputs": {
+        "fiber": 0.45,
+        "dye_plants": 0.12
+      },
+      "demandDrivers": {
+        "urban": 0.6,
+        "mercantile": 0.3,
+        "luxury": 0.2
+      },
+      "profileProductionAffinity": {
+        "Halfling": 1.18,
+        "Gnome": 1.12,
+        "Merchant League": 1.12
+      },
+      "profileDemandAffinity": {
+        "Human": 1.08,
+        "Elf": 1.10
+      }
+    },
+    {
+      "name": "paper",
+      "category": "processed",
+      "baseValue": 0.64,
+      "bulkiness": 0.18,
+      "perishability": 0.04,
+      "marketConversionScale": 0.18,
+      "marketContextSensitivity": 0.92,
+      "marketDominancePenalty": 0.26,
+      "marketMinNodeKind": "town",
+      "inputs": {
+        "fiber": 0.34,
+        "resin": 0.10
+      },
+      "demandDrivers": {
+        "urban": 0.6,
+        "mercantile": 0.4,
+        "imperial": 0.3,
+        "luxury": 0.1
+      },
+      "profileProductionAffinity": {
+        "Merchant League": 1.16,
+        "Gnome": 1.14,
+        "Human": 1.10
+      },
+      "profileDemandAffinity": {
+        "Merchant League": 1.18,
+        "Human": 1.10,
+        "Gnome": 1.08
+      }
+    },
+    {
+      "name": "woolens",
+      "category": "processed",
+      "baseValue": 0.66,
+      "bulkiness": 0.34,
+      "perishability": 0.05,
+      "marketConversionScale": 0.28,
+      "marketContextSensitivity": 0.98,
+      "inputs": {
+        "wool": 0.44,
+        "dye_plants": 0.10
+      },
+      "demandDrivers": {
+        "cold": 0.6,
+        "urban": 0.4,
+        "luxury": 0.2
+      },
+      "profileProductionAffinity": {
+        "Dwarf": 1.18,
+        "Halfling": 1.14,
+        "Gnome": 1.10
+      },
+      "profileDemandAffinity": {
+        "Dwarf": 1.18,
+        "Human": 1.08,
+        "Elf": 1.08
+      }
+    },
+    {
+      "name": "iron_goods",
+      "category": "finished",
+      "baseValue": 0.72,
+      "bulkiness": 0.54,
+      "perishability": 0.0,
+      "marketConversionScale": 0.94,
+      "marketContextSensitivity": 1.30,
+      "marketInputReservePriority": 1.00,
+      "marketMinNodeKind": "town",
+      "marketInputCapabilityFloor": {
+        "iron_ore": 0.25,
+        "coal": 0.20
+      },
+      "inputs": {
+        "iron_ore": 0.40,
+        "coal": 0.10
+      },
+      "demandDrivers": {
+        "urban": 0.4,
+        "warlike": 0.5,
+        "highland": 0.2
+      },
+      "profileProductionAffinity": {
+        "Dwarf": 1.35,
+        "Hobgoblin": 1.22,
+        "Gnome": 1.10
+      },
+      "profileDemandAffinity": {
+        "Human": 1.08,
+        "Orc": 1.16,
+        "Hobgoblin": 1.15
+      }
+    },
+    {
+      "name": "leather",
+      "category": "processed",
+      "baseValue": 0.48,
+      "bulkiness": 0.42,
+      "perishability": 0.08,
+      "marketConversionScale": 0.18,
+      "marketContextSensitivity": 1.05,
+      "inputs": {
+        "livestock": 0.30,
+        "salt": 0.08
+      },
+      "demandDrivers": {
+        "warlike": 0.35,
+        "arid": 0.35,
+        "frontier": 0.30,
+        "urban": 0.15
+      },
+      "profileProductionAffinity": {
+        "Desert Caravan": 1.16,
+        "Gnoll": 1.14,
+        "Orc": 1.10
+      }
+    },
+    {
+      "name": "weapons_armor",
+      "category": "strategic",
+      "baseValue": 0.82,
+      "bulkiness": 0.50,
+      "perishability": 0.0,
+      "marketConversionScale": 0.62,
+      "marketContextSensitivity": 1.48,
+      "marketInputReservePriority": 0.55,
+      "marketMinNodeKind": "town",
+      "marketInputCapabilityFloor": {
+        "iron_goods": 0.25,
+        "leather": 0.15
+      },
+      "inputs": {
+        "iron_goods": 0.38,
+        "leather": 0.12
+      },
+      "demandDrivers": {
+        "warlike": 0.9,
+        "urban": 0.3,
+        "highland": 0.25
+      },
+      "profileProductionAffinity": {
+        "Dwarf": 1.28,
+        "Hobgoblin": 1.35,
+        "Orc": 1.12
+      },
+      "profileDemandAffinity": {
+        "Hobgoblin": 1.30,
+        "Orc": 1.24,
+        "Gnoll": 1.14
+      }
+    },
+    {
+      "name": "ceramics",
+      "category": "finished",
+      "baseValue": 0.48,
+      "bulkiness": 0.58,
+      "perishability": 0.0,
+      "marketConversionScale": 0.27,
+      "marketContextSensitivity": 0.94,
+      "marketDominancePenalty": 0.24,
+      "inputs": {
+        "clay": 0.36,
+        "timber": 0.12
+      },
+      "demandDrivers": {
+        "urban": 0.6,
+        "mercantile": 0.2
+      },
+      "profileProductionAffinity": {
+        "Gnome": 1.18,
+        "Human": 1.08
+      }
+    },
+    {
+      "name": "ships",
+      "category": "strategic",
+      "baseValue": 0.86,
+      "bulkiness": 0.98,
+      "perishability": 0.02,
+      "marketConversionScale": 0.34,
+      "marketContextSensitivity": 1.28,
+      "marketDominancePenalty": 0.22,
+      "marketMinNodeKind": "town",
+      "marketInputCapabilityFloor": {
+        "timber": 0.35,
+        "fiber": 0.20,
+        "resin": 0.18
+      },
+      "inputs": {
+        "timber": 0.55,
+        "fiber": 0.22,
+        "resin": 0.18
+      },
+      "demandDrivers": {
+        "coastal": 0.8,
+        "mercantile": 0.5,
+        "urban": 0.2
+      },
+      "profileProductionAffinity": {
+        "Merchant League": 1.28,
+        "Human": 1.08,
+        "Gnome": 1.10
+      },
+      "profileDemandAffinity": {
+        "Merchant League": 1.30,
+        "tag:maritime": 1.25
+      }
+    },
+    {
+      "name": "perfumes",
+      "category": "luxury",
+      "baseValue": 0.82,
+      "bulkiness": 0.12,
+      "perishability": 0.18,
+      "marketConversionScale": 0.34,
+      "marketContextSensitivity": 1.26,
+      "marketMinNodeKind": "town",
+      "marketInputCapabilityFloor": {
+        "herbs": 0.25,
+        "resin": 0.20
+      },
+      "inputs": {
+        "herbs": 0.35,
+        "resin": 0.18,
+        "ceramics": 0.08
+      },
+      "demandDrivers": {
+        "luxury": 0.8,
+        "urban": 0.4,
+        "mercantile": 0.3
+      },
+      "profileProductionAffinity": {
+        "Elf": 1.18,
+        "Gnome": 1.16,
+        "Desert Caravan": 1.20,
+        "Merchant League": 1.14
+      },
+      "profileDemandAffinity": {
+        "Merchant League": 1.20,
+        "Dragonborn": 1.16,
+        "Elf": 1.12
+      }
+    },
+    {
+      "name": "jewelry",
+      "category": "luxury",
+      "baseValue": 0.90,
+      "bulkiness": 0.08,
+      "perishability": 0.0,
+      "marketConversionScale": 0.40,
+      "marketContextSensitivity": 1.34,
+      "marketMinNodeKind": "town",
+      "marketInputCapabilityFloor": {
+        "precious_ore": 0.25,
+        "copper_ore": 0.15
+      },
+      "inputs": {
+        "precious_ore": 0.36,
+        "copper_ore": 0.04
+      },
+      "demandDrivers": {
+        "luxury": 0.9,
+        "urban": 0.4,
+        "mercantile": 0.3
+      },
+      "profileProductionAffinity": {
+        "Dwarf": 1.30,
+        "Gnome": 1.24,
+        "Dragonborn": 1.12
+      },
+      "profileDemandAffinity": {
+        "Dragonborn": 1.22,
+        "Merchant League": 1.18,
+        "Dwarf": 1.08
+      }
+    },
+    {
+      "name": "fine_clothing",
+      "category": "luxury",
+      "baseValue": 0.78,
+      "bulkiness": 0.24,
+      "perishability": 0.04,
+      "marketConversionScale": 0.30,
+      "marketContextSensitivity": 1.12,
+      "marketMinNodeKind": "town",
+      "marketInputCapabilityFloor": {
+        "cloth": 0.25,
+        "dye_plants": 0.15
+      },
+      "inputs": {
+        "cloth": 0.42,
+        "dye_plants": 0.20
+      },
+      "demandDrivers": {
+        "luxury": 0.7,
+        "urban": 0.5,
+        "mercantile": 0.3
+      },
+      "profileProductionAffinity": {
+        "Halfling": 1.20,
+        "Gnome": 1.18,
+        "Merchant League": 1.16,
+        "Elf": 1.10
+      },
+      "profileDemandAffinity": {
+        "Elf": 1.16,
+        "Merchant League": 1.16,
+        "Human": 1.08
+      }
+    }
+  ]
+}

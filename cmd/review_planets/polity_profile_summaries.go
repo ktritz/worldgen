@@ -50,6 +50,18 @@ func printPolityProfileSummary(result *climgen.PolityProfileResult) {
 			attitude.Competition,
 		)
 	}
+	for _, attitude := range topTradeLinkedPolityAttitudes(result, 4) {
+		fmt.Printf(
+			"      tradeAttitude[%d->%d]: %s score=%.2f trade=%.2f cultural=%.2f strategic=%.2f\n",
+			attitude.From,
+			attitude.To,
+			climgen.PolityAttitudeStanceName(attitude.Stance),
+			attitude.Score,
+			attitude.TradeBonus,
+			attitude.Cultural,
+			attitude.StrategicTension,
+		)
+	}
 }
 
 type polityProfileCount struct {
@@ -76,6 +88,28 @@ func topPolityAttitudes(result *climgen.PolityProfileResult, limit int) []climge
 	sorted := append([]climgen.PolityAttitude(nil), result.Attitudes...)
 	sort.Slice(sorted, func(i, j int) bool {
 		return abs(sorted[i].Score) > abs(sorted[j].Score)
+	})
+	if len(sorted) < limit {
+		limit = len(sorted)
+	}
+	return sorted[:limit]
+}
+
+func topTradeLinkedPolityAttitudes(result *climgen.PolityProfileResult, limit int) []climgen.PolityAttitude {
+	if result == nil || len(result.Attitudes) == 0 {
+		return nil
+	}
+	sorted := make([]climgen.PolityAttitude, 0, len(result.Attitudes))
+	for _, attitude := range result.Attitudes {
+		if attitude.TradeBonus > 0.005 {
+			sorted = append(sorted, attitude)
+		}
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].TradeBonus != sorted[j].TradeBonus {
+			return sorted[i].TradeBonus > sorted[j].TradeBonus
+		}
+		return sorted[i].Score > sorted[j].Score
 	})
 	if len(sorted) < limit {
 		limit = len(sorted)

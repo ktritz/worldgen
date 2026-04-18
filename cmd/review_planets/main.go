@@ -28,6 +28,7 @@ func main() {
 	climateCoastalResources := flag.Bool("climate-coastal-resources", true, "report coarse coastal and marine-adjacent resource access from climate, hydrology, soils, and vegetation")
 	climateWaterResources := flag.Bool("climate-water-resources", true, "report coarse freshwater resource access from climate, soils, and hydrology")
 	climateResources := flag.Bool("climate-resources", true, "report coarse geological resource provinces")
+	climateTradeGoods := flag.Bool("climate-trade-goods", true, "report trade-good endowments and polity-level supply/demand from resources and profiles")
 	climateSettlements := flag.Bool("climate-settlements", true, "report coarse settlement suitability from climate, hydrology, soils, vegetation, and resources")
 	climatePopulation := flag.Bool("climate-population", true, "report coarse population support and urban potential from settlement, food, water, access, and resources")
 	climateSettlementNetwork := flag.Bool("climate-settlement-network", true, "extract coarse settlement nodes and connectivity corridors from support fields")
@@ -45,6 +46,7 @@ func main() {
 	coastalResourceFile := flag.String("coastal-resources-file", "config/coastal_resources_earthlike.json", "JSON coastal resource productivity configuration")
 	waterResourceFile := flag.String("water-resources-file", "config/water_resources_earthlike.json", "JSON freshwater resource productivity configuration")
 	resourceAbundanceFile := flag.String("resource-abundance-file", "config/resource_abundance_earthlike.json", "JSON resource abundance/scarcity configuration")
+	tradeGoodsFile := flag.String("trade-goods-file", "config/trade_goods_earthlike.json", "JSON trade goods catalog and profile supply/demand preferences")
 	populationSupportFile := flag.String("population-support-file", "config/population_support_earthlike.json", "JSON population support configuration")
 	landRouteFile := flag.String("land-route-file", "config/land_routes_earthlike.json", "JSON overland trade route mode configuration")
 	riverRouteFile := flag.String("river-route-file", "config/river_routes_earthlike.json", "JSON river route mode configuration")
@@ -115,6 +117,7 @@ func main() {
 	profileCatalog := loadProfileCatalogWithFallback(*profileCatalogFile)
 	profiles := extractSettlementProfilesFromCatalog(*settlementProfiles, profileCatalog)
 	resourceSettings := loadResourceAbundanceSettings(*resourceAbundanceFile)
+	tradeGoodsSettings := loadTradeGoodsSettings(*tradeGoodsFile)
 	agricultureSettings := loadAgricultureSettings(*agricultureFile)
 	wildlifeSettings := loadWildlifeSettings(*wildlifeFile)
 	coastalResourceSettings := loadCoastalResourceSettings(*coastalResourceFile)
@@ -165,6 +168,7 @@ func main() {
 			var agricultureResult *climgen.AgricultureResult
 			var wildlifeResult *climgen.WildlifeResult
 			var coastalResourceResult *climgen.CoastalResourceResult
+			var tradeGoodResult *climgen.TradeGoodResult
 			if *climateSoils || *climateVegetation {
 				soilResult = computeSoils(climateCells, seasonalClimate, biomeResult, elevation, diagnostics.Hydrology.Scaffold)
 			}
@@ -226,6 +230,25 @@ func main() {
 					renderResourcePotentialMap(sites, index, resourceResult, climgen.ResourceLeadSilverOre, prefix+"_resource_leadsilver_potential.png", width, height)
 					renderResourcePotentialMap(sites, index, resourceResult, climgen.ResourceGemstones, prefix+"_resource_gems_potential.png", width, height)
 				}
+			}
+			if *climateTradeGoods {
+				tradeGoodResult = climgen.ComputeTradeGoodEndowments(
+					climgen.TradeGoodInputs{
+						Biome:       biomeResult,
+						Vegetation:  vegetationResult,
+						Soils:       soilResult,
+						Agriculture: agricultureResult,
+						Wildlife:    wildlifeResult,
+						Water:       waterResourceResult,
+						Coastal:     coastalResourceResult,
+						Resources:   resourceResult,
+						Elevation:   elevation,
+						SeaLevel:    0,
+						Hydro:       hydrologyBiomeInputsFromScaffold(diagnostics.Hydrology.Scaffold),
+					},
+					tradeGoodsSettings,
+				)
+				printTradeGoodSummary(tradeGoodResult)
 			}
 			if *climateSettlements && soilResult != nil {
 				settlementResult := computeSettlement(climateCells, seasonalClimate, biomeResult, soilResult, vegetationResult, waterResourceResult, resourceResult, elevation, diagnostics.Hydrology.Scaffold)
@@ -294,6 +317,8 @@ func main() {
 								}
 								var riverRouteResult *climgen.RiverRouteResult
 								var riverTradeResult *climgen.RiverTradeResult
+								var coastalTradeForGoods *climgen.CoastalTradeResult
+								var oceanTradeForGoods *climgen.OceanTradeResult
 								if *climateRiverTrade {
 									riverRouteResult = computeRiverRoutes(
 										settlementResult,
@@ -348,6 +373,7 @@ func main() {
 												elevation,
 												coastalTradeSettings,
 											)
+											coastalTradeForGoods = coastalTradeResult
 											printCoastalTradeSummary(coastalTradeResult, networkResult)
 											if *renderMaps {
 												renderCoastalTradeMap(sites, elevation, index, coastalTradeResult, networkResult, prefix+"_coastal_trade"+suffix+".png", width, height)
@@ -364,6 +390,7 @@ func main() {
 												elevation,
 												oceanTradeSettings,
 											)
+											oceanTradeForGoods = oceanTradeResult
 											printOceanTradeSummary(oceanTradeResult, networkResult)
 											if *renderMaps {
 												renderOceanTradeMap(sites, elevation, index, oceanTradeResult, networkResult, prefix+"_ocean_trade"+suffix+".png", width, height)
@@ -378,7 +405,21 @@ func main() {
 										renderPolitySphereMap(sites, elevation, index, polityResult, networkResult, prefix+"_polity_spheres.png", width, height)
 									}
 									polityProfiles := computePolityProfiles(climateCells, polityResult, networkResult, tradeResult, biomeResult, vegetationResult, soilResult, diagnostics.Hydrology.Scaffold, profileCatalog)
-									printPolityProfileSummary(polityProfiles)
+									if *climateTradeGoods && tradeGoodResult != nil {
+										nodeGoods := climgen.ComputeNodeGoods(climateCells, tradeGoodResult, tradeGoodsSettings, polityResult, polityProfiles, networkResult, tradeResult)
+										printNodeGoodsSummary(nodeGoods, networkResult)
+										polityGoods := climgen.ComputePolityGoodsWithNodeMarkets(tradeGoodResult, tradeGoodsSettings, polityResult, polityProfiles, networkResult, tradeResult, nodeGoods)
+										nodeMarkets := climgen.ComputeTradeNodeMarketsWithRouteSupport(climateCells, tradeGoodResult, tradeGoodsSettings, polityResult, polityProfiles, networkResult, tradeResult, riverTradeResult, coastalTradeForGoods, oceanTradeForGoods, polityGoods, nodeGoods)
+										printTradeNodeMarketSummary(nodeMarkets, networkResult, tradeGoodsSettings)
+										printTradeChainSummary(nodeGoods, nodeMarkets, networkResult)
+										multimodalTrade := climgen.ComputeMultimodalTradeWithNodeMarkets(polityGoods, tradeGoodsSettings, polityResult, networkResult, tradeResult, riverTradeResult, coastalTradeForGoods, oceanTradeForGoods, nodeMarkets)
+										polityProfiles = climgen.ApplyMultimodalTradeToPolityProfiles(polityProfiles, multimodalTrade)
+										printPolityProfileSummary(polityProfiles)
+										printPolityGoodsSummary(polityGoods, tradeGoodsSettings)
+										printMultimodalTradeSummary(multimodalTrade)
+									} else {
+										printPolityProfileSummary(polityProfiles)
+									}
 								}
 							}
 						}
