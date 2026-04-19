@@ -76,6 +76,7 @@
     },
     "endpointNeedShareByCategory": {
       "processed": 0.60,
+      "finished": 0.20,
       "default": 0.0
     },
     "localNeedResponse": {
