@@ -109,11 +109,16 @@ func tradeGoodSourceFields(inputs TradeGoodInputs) map[string][]float64 {
 			coal[i] = tradeGoodResourceFieldValue(inputs, i, inputs.Resources.Diagnostics.CoalAffinity, ResourceCoal, 0.82)
 			evaporitePotential = tradeGoodResourceFieldValue(inputs, i, inputs.Resources.Diagnostics.EvaporiteAffinity, ResourceEvaporite, 0.80)
 			evaporite[i] = evaporitePotential
-			clay[i] = tradeGoodResourceFieldValue(inputs, i, inputs.Resources.Diagnostics.ClayAffinity, ResourceClayAggregate, 0.78)
+			clay[i] = tradeGoodClayPotential(
+				inputs,
+				i,
+				tradeGoodResourceFieldValue(inputs, i, inputs.Resources.Diagnostics.ClayAffinity, ResourceClayAggregate, 0.78),
+			)
 			stone[i] = tradeGoodResourceFieldValue(inputs, i, inputs.Resources.Diagnostics.StoneAffinity, ResourceIndustrialStone, 0.78)
 		}
 		if inputs.Resources == nil || inputs.Resources.Diagnostics == nil {
 			iron[i] = tradeGoodIronOrePotential(inputs, i, 0)
+			clay[i] = tradeGoodClayPotential(inputs, i, 0)
 		}
 		salt[i] = tradeGoodSaltPotential(inputs, i, evaporitePotential)
 		if inputs.Vegetation != nil && inputs.Vegetation.Diagnostics != nil {

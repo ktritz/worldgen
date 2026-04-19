@@ -101,6 +101,42 @@ func tradeGoodIronOrePotential(inputs TradeGoodInputs, idx int, hardRock float64
 	return clamp01(maxFloat(hardRock, 0.42*bogIron))
 }
 
+func tradeGoodClayPotential(inputs TradeGoodInputs, idx int, base float64) float64 {
+	alluvial := 0.0
+	drainage := 0.0
+	rockiness := 0.0
+	if inputs.Soils != nil && inputs.Soils.Diagnostics != nil {
+		alluvial = safeSliceValue(inputs.Soils.Diagnostics.Alluvial, idx)
+		drainage = safeSliceValue(inputs.Soils.Diagnostics.Drainage, idx)
+		rockiness = safeSliceValue(inputs.Soils.Diagnostics.Rockiness, idx)
+	}
+
+	lake := 0.0
+	if inputs.Water != nil && inputs.Water.Diagnostics != nil {
+		lake = safeSliceValue(inputs.Water.Diagnostics.LakeAccess, idx)
+	}
+
+	wetland := 0.0
+	if inputs.Vegetation != nil && inputs.Vegetation.Diagnostics != nil {
+		wetland = safeSliceValue(inputs.Vegetation.Diagnostics.WetlandCover, idx)
+	}
+
+	runoff := hydrologyValue(inputs.Hydro, idx, func(h *HydrologyBiomeInputs) []float64 { return h.Runoff })
+	channel := hydrologyValue(inputs.Hydro, idx, func(h *HydrologyBiomeInputs) []float64 { return h.ChannelStrength })
+	depositionalClass := hydrologyClassFactor(inputs.Hydro, idx)
+	depositionalSignal := clamp01(
+		0.30*alluvial +
+			0.20*depositionalClass +
+			0.16*lake +
+			0.12*wetland +
+			0.10*(1-smoothstep01(0.45, 0.92, drainage)) +
+			0.07*smoothstep01(10, 80, runoff) +
+			0.05*smoothstep01(0.5, 2.0, channel) +
+			0.08*(1-rockiness),
+	)
+	return clamp01(maxFloat(base, 0.62*depositionalSignal))
+}
+
 func tradeGoodCopperOrePotential(inputs TradeGoodInputs, idx int, base float64, placerBoost float64) float64 {
 	alluvial := 0.0
 	if inputs.Soils != nil && inputs.Soils.Diagnostics != nil {

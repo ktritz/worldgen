@@ -243,6 +243,8 @@ func polityDemandDriverValue(driver string, sphere PolitySphere, assignment Poli
 		return bool01(sphere.Style == ProtoCivilizationArid || hasProfileTag(assignment.EnvironmentTags, "arid"))
 	case "cold":
 		return bool01(hasProfileTag(assignment.EnvironmentTags, "cold"))
+	case "hot":
+		return bool01(hasProfileTag(assignment.EnvironmentTags, "hot"))
 	case "warlike":
 		if assignment.Profile.Attitudes != nil {
 			return clamp01(assignment.Profile.Attitudes.Aggression)

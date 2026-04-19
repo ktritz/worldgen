@@ -70,8 +70,8 @@ func TestComputeTradeGoodEndowmentsSupportsCoastalShellfishForFish(t *testing.T)
 	result := ComputeTradeGoodEndowments(TradeGoodInputs{
 		Elevation: []float64{100},
 		Coastal: &CoastalResourceResult{Diagnostics: &CoastalResourceDiagnostics{
-			OpenFishery:      []float64{0.20},
-			EstuarineFishery: []float64{0.18},
+			OpenFishery:        []float64{0.20},
+			EstuarineFishery:   []float64{0.18},
 			ShellfishPotential: []float64{0.92},
 		}},
 	}, settings)
@@ -139,6 +139,37 @@ func TestComputeTradeGoodEndowmentsSupportsBogIronSources(t *testing.T) {
 	}, settings)
 	if result.Goods[0].Potential[0] <= 0.20 {
 		t.Fatalf("expected wet alluvial context to create low-grade bog iron potential, got %.2f", result.Goods[0].Potential[0])
+	}
+}
+
+func TestComputeTradeGoodEndowmentsSupportsDepositionalClaySources(t *testing.T) {
+	settings := TradeGoodsSettings{
+		SchemaVersion: TradeGoodsSchemaVersion,
+		Goods: []TradeGoodSpec{
+			{Name: "clay", Category: "raw", SourceWeights: map[string]float64{"clay": 1}},
+		},
+	}
+	result := ComputeTradeGoodEndowments(TradeGoodInputs{
+		Elevation: []float64{100},
+		Soils: &SoilResult{Diagnostics: &SoilDiagnostics{
+			Alluvial:  []float64{0.84},
+			Drainage:  []float64{0.28},
+			Rockiness: []float64{0.08},
+		}},
+		Water: &WaterResourceResult{Diagnostics: &WaterResourceDiagnostics{
+			LakeAccess: []float64{0.58},
+		}},
+		Vegetation: &VegetationResult{Diagnostics: &VegetationDiagnostics{
+			WetlandCover: []float64{0.42},
+		}},
+		Hydro: &HydrologyBiomeInputs{
+			Runoff:          []float64{44},
+			ChannelStrength: []float64{1.2},
+			CellClass:       []string{"floodplain"},
+		},
+	}, settings)
+	if result.Goods[0].Potential[0] <= 0.22 {
+		t.Fatalf("expected depositional floodplain context to create clay potential, got %.2f", result.Goods[0].Potential[0])
 	}
 }
 

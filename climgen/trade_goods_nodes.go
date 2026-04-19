@@ -192,6 +192,8 @@ func nodeDemandDriverValue(driver string, node SettlementNode, assignment Polity
 		return bool01(hasProfileTag(assignment.EnvironmentTags, "arid"))
 	case "cold":
 		return bool01(hasProfileTag(assignment.EnvironmentTags, "cold"))
+	case "hot":
+		return bool01(hasProfileTag(assignment.EnvironmentTags, "hot"))
 	case "warlike":
 		if assignment.Profile.Attitudes != nil {
 			return clamp01(assignment.Profile.Attitudes.Aggression)

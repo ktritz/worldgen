@@ -238,6 +238,41 @@ func TestBuildPolityEnvironmentContextDistinguishesFloodplainFromMarsh(t *testin
 	}
 }
 
+func TestBuildPolityEnvironmentContextAddsThermalTags(t *testing.T) {
+	hot := buildPolityEnvironmentContext(
+		PolitySphere{Style: ProtoCivilizationMaritime, Coastal: true},
+		&SettlementNetworkResult{},
+		nil,
+		PolityEcologyMetrics{
+			MeanTemp:   26,
+			MeanIce:    0.02,
+			ForestFrac: 0.28,
+		},
+	)
+	if !hasProfileTag(hot.Tags, "hot") {
+		t.Fatalf("expected hot tag for warm polity, got %v", hot.Tags)
+	}
+	if hasProfileTag(hot.Tags, "cold") {
+		t.Fatalf("did not expect cold tag for warm polity, got %v", hot.Tags)
+	}
+
+	cold := buildPolityEnvironmentContext(
+		PolitySphere{Style: ProtoCivilizationHighland},
+		&SettlementNetworkResult{},
+		nil,
+		PolityEcologyMetrics{
+			MeanTemp: 3,
+			MeanIce:  0.08,
+		},
+	)
+	if !hasProfileTag(cold.Tags, "cold") {
+		t.Fatalf("expected cold tag for cool polity, got %v", cold.Tags)
+	}
+	if hasProfileTag(cold.Tags, "hot") {
+		t.Fatalf("did not expect hot tag for cool polity, got %v", cold.Tags)
+	}
+}
+
 func TestAncestryPrevalenceAdjustmentDampsOnSpecialistMismatch(t *testing.T) {
 	human := AncestryProfile{Name: "Human", BaselinePrevalence: 1.0, Tags: []string{"adaptable"}}
 	lizardfolk := AncestryProfile{Name: "Lizardfolk", BaselinePrevalence: 0.14, Tags: []string{"wetland", "delta", "marsh"}}

@@ -14,6 +14,8 @@ type chainValue struct {
 
 func printTradeChainSummary(nodeGoods *climgen.NodeGoodsResult, markets *climgen.TradeNodeMarketResult, network *climgen.SettlementNetworkResult) {
 	printSpecificTradeChainSummary("fish", "preserved_food", nodeGoods, markets, network)
+	printSpecificTradeChainSummary("wool", "woolens", nodeGoods, markets, network)
+	printSpecificTradeChainSummary("cloth", "fine_clothing", nodeGoods, markets, network)
 }
 
 func printSpecificTradeChainSummary(rawGood, processedGood string, nodeGoods *climgen.NodeGoodsResult, markets *climgen.TradeNodeMarketResult, network *climgen.SettlementNetworkResult) {
@@ -77,6 +79,16 @@ func printSpecificTradeChainSummary(rawGood, processedGood string, nodeGoods *cl
 		formatChainValues(topMarketChainValues(rawGood, markets, network, 3), 3),
 	)
 	fmt.Printf(
+		"      %sImportMarkets=%s\n",
+		rawGood,
+		formatChainValues(topMarketImportChainValues(rawGood, markets, network, 3), 3),
+	)
+	fmt.Printf(
+		"      %sMakers=%s\n",
+		processedGood,
+		formatChainValues(topMarketManufacturedChainValues(processedGood, markets, network, 3), 3),
+	)
+	fmt.Printf(
 		"      blocked%s=%s\n",
 		processedGood,
 		formatBlockedChainMarkets(processedGood, markets, network, 3),
@@ -131,6 +143,54 @@ func topMarketChainValues(good string, markets *climgen.TradeNodeMarketResult, n
 	return values[:limit]
 }
 
+func topMarketImportChainValues(good string, markets *climgen.TradeNodeMarketResult, network *climgen.SettlementNetworkResult, limit int) []chainValue {
+	values := make([]chainValue, 0, len(markets.Markets))
+	for _, market := range markets.Markets {
+		deficit := reviewMaxFloat(-market.Surplus[good], 0)
+		if deficit <= 0 {
+			continue
+		}
+		values = append(values, chainValue{
+			label: formatChainNodeLabel(market.NodeID, network),
+			value: deficit,
+		})
+	}
+	sort.Slice(values, func(i, j int) bool {
+		if values[i].value != values[j].value {
+			return values[i].value > values[j].value
+		}
+		return values[i].label < values[j].label
+	})
+	if len(values) < limit {
+		limit = len(values)
+	}
+	return values[:limit]
+}
+
+func topMarketManufacturedChainValues(good string, markets *climgen.TradeNodeMarketResult, network *climgen.SettlementNetworkResult, limit int) []chainValue {
+	values := make([]chainValue, 0, len(markets.Markets))
+	for _, market := range markets.Markets {
+		made := market.Manufactured[good]
+		if made <= 0 {
+			continue
+		}
+		values = append(values, chainValue{
+			label: formatChainNodeLabel(market.NodeID, network),
+			value: made,
+		})
+	}
+	sort.Slice(values, func(i, j int) bool {
+		if values[i].value != values[j].value {
+			return values[i].value > values[j].value
+		}
+		return values[i].label < values[j].label
+	})
+	if len(values) < limit {
+		limit = len(values)
+	}
+	return values[:limit]
+}
+
 func formatBlockedChainMarkets(processedGood string, markets *climgen.TradeNodeMarketResult, network *climgen.SettlementNetworkResult, limit int) string {
 	values := make([]chainValue, 0)
 	lines := make(map[string]string)
@@ -146,13 +206,16 @@ func formatBlockedChainMarkets(processedGood string, markets *climgen.TradeNodeM
 			}
 			values = append(values, chainValue{label: label, value: score})
 			lines[label] = fmt.Sprintf(
-				"%s:p%.2f@%s raw=%.2f eff=%.2f need=%.2f",
+				"%s:p%.2f@%s raw=%.2f eff=%.2f need=%.2f procGap=%.2f rawGap=%.2f made=%.2f",
 				label,
 				score,
 				blocked.Bottleneck,
 				blocked.BottleneckAvailable,
 				blocked.BottleneckEffective,
 				blocked.BottleneckNeed,
+				reviewMaxFloat(market.Demand[processedGood]-market.Supply[processedGood], 0),
+				reviewMaxFloat(-market.Surplus[blocked.Bottleneck], 0),
+				market.Manufactured[processedGood],
 			)
 			break
 		}

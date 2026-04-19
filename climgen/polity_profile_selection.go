@@ -9,6 +9,7 @@ type PolityEnvironmentContext struct {
 
 type PolityEcologyMetrics struct {
 	MeanAridity      float64
+	MeanTemp         float64
 	MeanWetland      float64
 	MeanRelief       float64
 	MeanRock         float64
@@ -106,8 +107,11 @@ func buildPolityEnvironmentContext(
 	if metrics.MeanRelief >= 520 || metrics.MeanRock >= 0.58 {
 		tags = append(tags, "mountain", "rugged")
 	}
-	if metrics.MeanIce >= 0.35 {
+	if metrics.MeanIce >= 0.35 || metrics.MeanTemp <= 8 {
 		tags = append(tags, "cold")
+	}
+	if metrics.MeanTemp >= 22 && metrics.MeanIce < 0.12 {
+		tags = append(tags, "hot")
 	}
 	if metrics.ForestFrac >= 0.22 {
 		tags = append(tags, "forest")
@@ -167,6 +171,9 @@ func computePolityEcologyMetrics(
 			if idx < len(biomes.Diagnostics.AridityRatio) {
 				out.MeanAridity += biomes.Diagnostics.AridityRatio[idx]
 			}
+			if idx < len(biomes.Diagnostics.AnnualMeanTempC) {
+				out.MeanTemp += biomes.Diagnostics.AnnualMeanTempC[idx]
+			}
 			if idx < len(biomes.Diagnostics.WetlandAffinity) {
 				out.MeanWetland += biomes.Diagnostics.WetlandAffinity[idx]
 			}
@@ -211,6 +218,7 @@ func computePolityEcologyMetrics(
 		return out
 	}
 	out.MeanAridity /= count
+	out.MeanTemp /= count
 	out.MeanWetland /= count
 	out.MeanIce /= count
 	out.MeanRelief /= count

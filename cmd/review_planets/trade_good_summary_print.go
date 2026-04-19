@@ -137,6 +137,8 @@ func printTradeNodeMarketSummary(result *climgen.TradeNodeMarketResult, network 
 			impMix,
 		)
 	}
+	printTradeMarketCategorySummary(result, network, settings, "luxury")
+	printTradeMarketCategorySummary(result, network, settings, "strategic")
 }
 
 func printMultimodalTradeSummary(result *climgen.MultimodalTradeResult) {

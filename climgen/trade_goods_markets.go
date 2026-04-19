@@ -341,7 +341,7 @@ func localTradeNodeProductionDriverValue(driver string, node LocalTradeNode, ass
 		return clamp01(0.15 + 0.25*localTradeNodeKindScale(node.Kind))
 	case "mercantile":
 		return clamp01(0.42*node.Score + 0.34*node.Waystation + 0.24*node.Support)
-	case "coastal", "river", "highland", "arid", "cold", "wetland", "marsh", "delta", "wooded", "forest", "frontier":
+	case "coastal", "river", "highland", "arid", "cold", "hot", "wetland", "marsh", "delta", "wooded", "forest", "frontier":
 		return bool01(hasProfileTag(assignment.EnvironmentTags, driver) || hasProfileTag(assignment.ContextTags, driver) || hasProfileTag(assignment.Profile.Tags, driver))
 	case "warlike":
 		if assignment.Profile.Attitudes != nil {
