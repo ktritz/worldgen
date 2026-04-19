@@ -24,6 +24,12 @@ type categoryValue struct {
 	volume   float64
 }
 
+type categoryGoodFlow struct {
+	good   string
+	score  float64
+	volume float64
+}
+
 func printTradeMarketCategorySummary(result *climgen.TradeNodeMarketResult, network *climgen.SettlementNetworkResult, settings climgen.TradeGoodsSettings, category string) {
 	exporters := topTradeNodeMarketsByCategory(result, network, settings, category, true, false, 3)
 	importers := topTradeNodeMarketsByCategory(result, network, settings, category, false, false, 3)
@@ -128,6 +134,15 @@ func printTradeFlowCategorySummary(result *climgen.MultimodalTradeResult, settin
 		volume,
 		formatCategoryPairFlows(pairs, 3),
 	)
+	printTradeFlowCategoryGoodsSummary(result, settings, category)
+}
+
+func printTradeFlowCategoryGoodsSummary(result *climgen.MultimodalTradeResult, settings climgen.TradeGoodsSettings, category string) {
+	goods := tradeFlowCategoryGoods(result, settings, category)
+	if len(goods) == 0 {
+		return
+	}
+	fmt.Printf("      categoryGoods[%s]=%s\n", category, formatCategoryGoodFlows(goods, 4))
 }
 
 func printTradeFlowCategoryMix(result *climgen.MultimodalTradeResult, settings climgen.TradeGoodsSettings) {
@@ -222,6 +237,60 @@ func formatCategoryPairFlows(values []categoryPairFlow, limit int) string {
 			out += ", "
 		}
 		out += fmt.Sprintf("%s:s%.2f/v%.2f", values[i].label, values[i].score, values[i].volume)
+	}
+	return out
+}
+
+func tradeFlowCategoryGoods(result *climgen.MultimodalTradeResult, settings climgen.TradeGoodsSettings, category string) []categoryGoodFlow {
+	if result == nil || len(result.Pairs) == 0 {
+		return nil
+	}
+	specByGood := tradeGoodCategoryLookup(settings)
+	totals := make(map[string]categoryGoodFlow)
+	for _, pair := range result.Pairs {
+		for _, good := range pair.Goods {
+			if specByGood[good.Good] != category {
+				continue
+			}
+			entry := totals[good.Good]
+			entry.good = good.Good
+			entry.score += good.Score
+			entry.volume += good.Volume
+			totals[good.Good] = entry
+		}
+	}
+	values := make([]categoryGoodFlow, 0, len(totals))
+	for _, entry := range totals {
+		if entry.score <= 0 && entry.volume <= 0 {
+			continue
+		}
+		values = append(values, entry)
+	}
+	sort.Slice(values, func(i, j int) bool {
+		if values[i].score != values[j].score {
+			return values[i].score > values[j].score
+		}
+		if values[i].volume != values[j].volume {
+			return values[i].volume > values[j].volume
+		}
+		return values[i].good < values[j].good
+	})
+	return values
+}
+
+func formatCategoryGoodFlows(values []categoryGoodFlow, limit int) string {
+	if len(values) == 0 {
+		return "none"
+	}
+	if len(values) < limit {
+		limit = len(values)
+	}
+	out := ""
+	for i := 0; i < limit; i++ {
+		if i > 0 {
+			out += ", "
+		}
+		out += fmt.Sprintf("%s:s%.2f/v%.2f", values[i].good, values[i].score, values[i].volume)
 	}
 	return out
 }
