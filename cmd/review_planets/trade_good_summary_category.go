@@ -18,6 +18,12 @@ type categoryPairFlow struct {
 	volume float64
 }
 
+type categoryValue struct {
+	category string
+	score    float64
+	volume   float64
+}
+
 func printTradeMarketCategorySummary(result *climgen.TradeNodeMarketResult, network *climgen.SettlementNetworkResult, settings climgen.TradeGoodsSettings, category string) {
 	exporters := topTradeNodeMarketsByCategory(result, network, settings, category, true, false, 3)
 	importers := topTradeNodeMarketsByCategory(result, network, settings, category, false, false, 3)
@@ -124,6 +130,22 @@ func printTradeFlowCategorySummary(result *climgen.MultimodalTradeResult, settin
 	)
 }
 
+func printTradeFlowCategoryMix(result *climgen.MultimodalTradeResult, settings climgen.TradeGoodsSettings) {
+	values := tradeFlowCategoryMix(result, settings)
+	if len(values) == 0 {
+		return
+	}
+	fmt.Printf("      categoryFlowMix=%s\n", formatCategoryValues(values, 5))
+}
+
+func printTradeFlowCategoryModeSummary(result *climgen.MultimodalTradeResult, settings climgen.TradeGoodsSettings, category string) {
+	values := tradeFlowCategoryModeMix(result, settings, category)
+	if len(values) == 0 {
+		return
+	}
+	fmt.Printf("      categoryMode[%s]=%s\n", category, formatModeValues(values, 4))
+}
+
 func tradeFlowCategoryTotals(result *climgen.MultimodalTradeResult, settings climgen.TradeGoodsSettings, category string) (float64, float64, []categoryPairFlow) {
 	if result == nil || len(result.Pairs) == 0 {
 		return 0, 0, nil
@@ -178,6 +200,83 @@ func formatCategoryPairFlows(values []categoryPairFlow, limit int) string {
 			out += ", "
 		}
 		out += fmt.Sprintf("%s:s%.2f/v%.2f", values[i].label, values[i].score, values[i].volume)
+	}
+	return out
+}
+
+func tradeFlowCategoryMix(result *climgen.MultimodalTradeResult, settings climgen.TradeGoodsSettings) []categoryValue {
+	if result == nil || len(result.Pairs) == 0 {
+		return nil
+	}
+	specByGood := tradeGoodCategoryLookup(settings)
+	totals := map[string]categoryValue{}
+	for _, pair := range result.Pairs {
+		for _, good := range pair.Goods {
+			category := specByGood[good.Good]
+			if category == "" {
+				continue
+			}
+			entry := totals[category]
+			entry.category = category
+			entry.score += good.Score
+			entry.volume += good.Volume
+			totals[category] = entry
+		}
+	}
+	values := make([]categoryValue, 0, len(totals))
+	for _, entry := range totals {
+		if entry.score <= 0 && entry.volume <= 0 {
+			continue
+		}
+		values = append(values, entry)
+	}
+	sort.Slice(values, func(i, j int) bool {
+		if values[i].score != values[j].score {
+			return values[i].score > values[j].score
+		}
+		if values[i].volume != values[j].volume {
+			return values[i].volume > values[j].volume
+		}
+		return values[i].category < values[j].category
+	})
+	return values
+}
+
+func tradeFlowCategoryModeMix(result *climgen.MultimodalTradeResult, settings climgen.TradeGoodsSettings, category string) []climgen.TradeModeValue {
+	if result == nil || len(result.Exchanges) == 0 {
+		return nil
+	}
+	specByGood := tradeGoodCategoryLookup(settings)
+	totals := map[string]float64{}
+	for _, exchange := range result.Exchanges {
+		modeTotal := 0.0
+		for _, good := range exchange.Goods {
+			if specByGood[good.Good] != category {
+				continue
+			}
+			modeTotal += good.Score
+		}
+		if modeTotal <= 0 {
+			continue
+		}
+		totals[exchange.Mode] += modeTotal
+	}
+	return topSummaryModeValues(totals, len(totals))
+}
+
+func formatCategoryValues(values []categoryValue, limit int) string {
+	if len(values) == 0 {
+		return "none"
+	}
+	if len(values) < limit {
+		limit = len(values)
+	}
+	out := ""
+	for i := 0; i < limit; i++ {
+		if i > 0 {
+			out += ", "
+		}
+		out += fmt.Sprintf("%s:s%.2f/v%.2f", values[i].category, values[i].score, values[i].volume)
 	}
 	return out
 }

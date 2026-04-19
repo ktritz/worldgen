@@ -184,8 +184,11 @@ func printMultimodalTradeSummary(result *climgen.MultimodalTradeResult, settings
 		result.Diagnostics.LowMarketFit,
 		result.Diagnostics.LowScoreFiltered,
 	)
+	printTradeFlowCategoryMix(result, settings)
 	printTradeFlowCategorySummary(result, settings, "luxury")
+	printTradeFlowCategoryModeSummary(result, settings, "luxury")
 	printTradeFlowCategorySummary(result, settings, "strategic")
+	printTradeFlowCategoryModeSummary(result, settings, "strategic")
 	limit := 5
 	if len(result.Pairs) < limit {
 		limit = len(result.Pairs)
