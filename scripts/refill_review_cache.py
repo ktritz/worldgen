@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import os
 import re
 import subprocess
@@ -148,13 +149,61 @@ def write_summary(out_dir: Path, rows: list[dict[str, str]]) -> None:
     temp_path.replace(path)
 
 
+def write_progress(
+    out_dir: Path,
+    *,
+    level: int,
+    seeds: list[int],
+    rows: list[dict[str, str]],
+    status: str,
+    active_seed: int | None,
+    started_at_epoch: float,
+) -> None:
+    completed = len(rows)
+    last_completed = rows[-1] if rows else None
+    payload = {
+        "status": status,
+        "level": level,
+        "total_seeds": len(seeds),
+        "completed_seeds": completed,
+        "pending_seeds": seeds[completed:] if active_seed is None else [seed for seed in seeds if str(seed) not in {row["seed"] for row in rows} and seed != active_seed],
+        "active_seed": active_seed,
+        "started_at_epoch": started_at_epoch,
+        "updated_at_epoch": time.time(),
+        "last_completed_seed": None if last_completed is None else int(last_completed["seed"]),
+        "last_completed_elapsed_sec": None if last_completed is None else last_completed["elapsed_sec"],
+        "rows": rows,
+    }
+    write_text_atomic(out_dir / "progress.json", json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
 def main() -> int:
     args = parse_args()
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    seeds = parse_seed_list(args.seeds)
+    started_at_epoch = time.time()
     rows: list[dict[str, str]] = []
-    for seed in parse_seed_list(args.seeds):
+    write_progress(
+        out_dir,
+        level=args.level,
+        seeds=seeds,
+        rows=rows,
+        status="starting",
+        active_seed=None,
+        started_at_epoch=started_at_epoch,
+    )
+    for seed in seeds:
+        write_progress(
+            out_dir,
+            level=args.level,
+            seeds=seeds,
+            rows=rows,
+            status="running",
+            active_seed=seed,
+            started_at_epoch=started_at_epoch,
+        )
         row = run_seed(args, out_dir, seed)
         rows.append(row)
         print(
@@ -162,8 +211,35 @@ def main() -> int:
             f"cache_hits={row['cache_hits']} trade={row['trade_score']}/{row['trade_volume']}"
         )
         write_summary(out_dir, rows)
+        write_progress(
+            out_dir,
+            level=args.level,
+            seeds=seeds,
+            rows=rows,
+            status="running",
+            active_seed=None,
+            started_at_epoch=started_at_epoch,
+        )
         if not row["status"].startswith("ok") and row["status"] != "cached":
+            write_progress(
+                out_dir,
+                level=args.level,
+                seeds=seeds,
+                rows=rows,
+                status="failed",
+                active_seed=None,
+                started_at_epoch=started_at_epoch,
+            )
             return 1
+    write_progress(
+        out_dir,
+        level=args.level,
+        seeds=seeds,
+        rows=rows,
+        status="complete",
+        active_seed=None,
+        started_at_epoch=started_at_epoch,
+    )
     return 0
 
 
