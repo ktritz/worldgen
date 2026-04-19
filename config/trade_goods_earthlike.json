@@ -762,9 +762,9 @@
       "baseValue": 0.62,
       "bulkiness": 0.38,
       "perishability": 0.06,
-      "marketConversionScale": 0.25,
-      "marketContextSensitivity": 0.82,
-      "marketDominancePenalty": 0.22,
+      "marketConversionScale": 0.23,
+      "marketContextSensitivity": 0.92,
+      "marketDominancePenalty": 0.28,
       "marketInputCapabilityFloor": {
         "fiber": 0.18
       },
@@ -773,9 +773,9 @@
         "dye_plants": 0.12
       },
       "productionDrivers": {
-        "hot": 0.35,
-        "mercantile": 0.30,
-        "urban": 0.20,
+        "hot": 0.42,
+        "mercantile": 0.24,
+        "urban": 0.16,
         "river": 0.15
       },
       "demandDrivers": {
@@ -800,9 +800,9 @@
       "baseValue": 0.64,
       "bulkiness": 0.18,
       "perishability": 0.04,
-      "marketConversionScale": 0.16,
-      "marketContextSensitivity": 1.10,
-      "marketDominancePenalty": 0.30,
+      "marketConversionScale": 0.14,
+      "marketContextSensitivity": 1.18,
+      "marketDominancePenalty": 0.36,
       "marketMinNodeKind": "town",
       "marketInputCapabilityFloor": {
         "fiber": 0.18,
@@ -813,9 +813,9 @@
         "resin": 0.10
       },
       "productionDrivers": {
-        "urban": 0.55,
-        "mercantile": 0.35,
-        "imperial": 0.30,
+        "urban": 0.48,
+        "mercantile": 0.28,
+        "imperial": 0.36,
         "river": 0.10
       },
       "demandDrivers": {
@@ -977,9 +977,9 @@
       "baseValue": 0.48,
       "bulkiness": 0.58,
       "perishability": 0.0,
-      "marketConversionScale": 0.18,
-      "marketContextSensitivity": 1.22,
-      "marketDominancePenalty": 0.38,
+      "marketConversionScale": 0.15,
+      "marketContextSensitivity": 1.36,
+      "marketDominancePenalty": 0.48,
       "marketInputCapabilityFloor": {
         "clay": 0.18,
         "timber": 0.08
@@ -989,10 +989,10 @@
         "timber": 0.12
       },
       "productionDrivers": {
-        "urban": 0.35,
-        "mercantile": 0.20,
-        "river": 0.20,
-        "arid": 0.25
+        "urban": 0.28,
+        "mercantile": 0.16,
+        "river": 0.24,
+        "arid": 0.30
       },
       "demandDrivers": {
         "urban": 0.6,
@@ -1009,9 +1009,9 @@
       "baseValue": 0.86,
       "bulkiness": 0.98,
       "perishability": 0.02,
-      "marketConversionScale": 0.28,
-      "marketContextSensitivity": 1.56,
-      "marketDominancePenalty": 0.30,
+      "marketConversionScale": 0.25,
+      "marketContextSensitivity": 1.64,
+      "marketDominancePenalty": 0.36,
       "marketMinNodeKind": "town",
       "marketInputCapabilityFloor": {
         "timber": 0.35,
@@ -1024,9 +1024,9 @@
         "resin": 0.18
       },
       "productionDrivers": {
-        "coastal": 0.82,
-        "mercantile": 0.32,
-        "river": 0.18
+        "coastal": 0.88,
+        "mercantile": 0.24,
+        "river": 0.12
       },
       "demandDrivers": {
         "coastal": 0.8,
