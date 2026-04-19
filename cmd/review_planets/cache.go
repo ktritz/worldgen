@@ -20,7 +20,7 @@ const (
 	reviewDerivedCacheVersion      = "derived-v1"
 	reviewCivilizationCacheVersion = "civilization-v1"
 	reviewMaritimeCacheVersion     = "maritime-v1"
-	reviewEconomyCacheVersion      = "economy-v3"
+	reviewEconomyCacheVersion      = "economy-v4"
 )
 
 type reviewCacheStore struct {
@@ -131,8 +131,8 @@ func maritimeCacheKey(civilizationKey, vesselName, settingsDigest string) string
 	return stableCacheKey(raw)
 }
 
-func economyCacheKey(civilizationKey, maritimeKey string) string {
-	raw := fmt.Sprintf("%s|civilization=%s|maritime=%s", reviewEconomyCacheVersion, civilizationKey, maritimeKey)
+func economyCacheKey(civilizationKey, maritimeKey, settingsDigest string) string {
+	raw := fmt.Sprintf("%s|civilization=%s|maritime=%s|settings=%s", reviewEconomyCacheVersion, civilizationKey, maritimeKey, settingsDigest)
 	return stableCacheKey(raw)
 }
 
@@ -257,7 +257,29 @@ func (s *reviewCacheStore) writeJSON(path string, value any) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o644)
+	tmpFile, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmpFile.Name()
+	defer func() {
+		_ = os.Remove(tmpPath)
+	}()
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tmpFile.Close()
+		return err
+	}
+	if err := tmpFile.Sync(); err != nil {
+		_ = tmpFile.Close()
+		return err
+	}
+	if err := tmpFile.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmpPath, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
 }
 
 func (s *reviewCacheStore) readJSON(path string, value any) (bool, error) {

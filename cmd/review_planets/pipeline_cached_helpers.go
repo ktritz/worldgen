@@ -174,7 +174,7 @@ func loadOrGenerateEconomyReview(
 	maritime *cachedMaritimeReview,
 	settings climgen.TradeGoodsSettings,
 ) (*cachedEconomyReview, string) {
-	cacheKey := economyCacheKey(civilizationKey, maritimeKey)
+	cacheKey := economyCacheKey(civilizationKey, maritimeKey, cacheSettingsDigest(settings))
 	if cacheStore != nil {
 		if cached, ok, err := cacheStore.LoadEconomy(cacheKey); err != nil {
 			fmt.Printf("  economy cache load failed, recomputing: %v\n", err)

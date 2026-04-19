@@ -2,7 +2,9 @@ package main
 
 import (
 	"math"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"worldgen/climgen"
@@ -15,7 +17,7 @@ func TestReviewCacheStoreRoundTrip(t *testing.T) {
 	derivedKey := derivedCacheKey(terrainKey, climateKey, true, cacheSettingsDigest("settings-v1"))
 	civilizationKey := civilizationCacheKey(derivedKey, cacheSettingsDigest("civilization-v1"))
 	maritimeKey := maritimeCacheKey(civilizationKey, "coastal-sloop", cacheSettingsDigest("maritime-v1"))
-	economyKey := economyCacheKey(civilizationKey, maritimeKey)
+	economyKey := economyCacheKey(civilizationKey, maritimeKey, cacheSettingsDigest(climgen.DefaultTradeGoodsSettings()))
 
 	terrainValue := &cachedTerrainReview{
 		Elevation: []float64{1, 2, 3},
@@ -139,5 +141,61 @@ func TestReviewCacheStoreSanitizesNonFiniteFloats(t *testing.T) {
 	}
 	if math.IsInf(loaded.LandRoutes.Diagnostics.BaseCost[0], 0) || math.IsNaN(loaded.LandRoutes.Diagnostics.BaseCost[0]) || loaded.LandRoutes.Diagnostics.BaseCost[0] <= 1e8 {
 		t.Fatalf("expected sanitized large finite value, got %v", loaded.LandRoutes.Diagnostics.BaseCost[0])
+	}
+}
+
+func TestEconomyCacheKeyIncludesSettingsDigest(t *testing.T) {
+	civilizationKey := civilizationCacheKey("derived-key", cacheSettingsDigest("civilization-v1"))
+	maritimeKey := maritimeCacheKey(civilizationKey, "coastal-sloop", cacheSettingsDigest("maritime-v1"))
+	base := climgen.DefaultTradeGoodsSettings()
+	alt := climgen.DefaultTradeGoodsSettings()
+	alt.Multimodal.EndpointNeedShareByCategory["processed"] = 0.99
+
+	baseKey := economyCacheKey(civilizationKey, maritimeKey, cacheSettingsDigest(base))
+	altKey := economyCacheKey(civilizationKey, maritimeKey, cacheSettingsDigest(alt))
+	if baseKey == altKey {
+		t.Fatalf("expected economy cache key to change when trade settings change")
+	}
+}
+
+func TestReviewCacheStoreReadJSONHandlesCorruptPayload(t *testing.T) {
+	store := newReviewCacheStore(t.TempDir())
+	key := terrainCacheKey(5, 12, 0.29, 55)
+	path := store.terrainPath(key)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir cache dir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("{not-json"), 0o644); err != nil {
+		t.Fatalf("write corrupt cache: %v", err)
+	}
+
+	_, ok, err := store.LoadTerrain(key)
+	if ok {
+		t.Fatalf("expected corrupt cache read to report cache miss")
+	}
+	if err == nil {
+		t.Fatalf("expected corrupt cache read to return an error")
+	}
+}
+
+func TestReviewCacheStoreWritesAtomically(t *testing.T) {
+	store := newReviewCacheStore(t.TempDir())
+	key := terrainCacheKey(5, 12, 0.29, 77)
+	value := &cachedTerrainReview{
+		Elevation: []float64{1, 2, 3},
+		IsLand:    []bool{true, false, true},
+	}
+	if err := store.SaveTerrain(key, value); err != nil {
+		t.Fatalf("save terrain: %v", err)
+	}
+
+	dirEntries, err := os.ReadDir(filepath.Dir(store.terrainPath(key)))
+	if err != nil {
+		t.Fatalf("read cache dir: %v", err)
+	}
+	for _, entry := range dirEntries {
+		if strings.Contains(entry.Name(), ".tmp-") {
+			t.Fatalf("expected no temp cache files to remain, found %q", entry.Name())
+		}
 	}
 }
