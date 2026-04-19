@@ -21,6 +21,7 @@ from typing import Callable
 
 
 CACHE_HIT_RE = re.compile(r"^\s+([a-z]+) cache hit:")
+CACHE_LOAD_FAILED_RE = re.compile(r"^\s+([a-z_]+) cache load failed")
 TRADE_RE = re.compile(r"multimodalTrade: .*?score=([0-9.]+) volume=([0-9.]+)")
 PHASE_START_RE = re.compile(r"^\s+phase start: layer=([a-z_]+) started_at=(\d+)")
 PHASE_DONE_RE = re.compile(r"^\s+phase done: layer=([a-z_]+) cache=([a-z_]+) elapsed_ms=(\d+)(?:\s|$)")
@@ -105,6 +106,41 @@ def parse_latest_phase(text: str) -> dict[str, str | int] | None:
             }
     return latest
 
+
+def parse_phase_stats(text: str) -> dict[str, dict[str, int]]:
+    stats: dict[str, dict[str, int]] = {}
+    for line in text.splitlines():
+        load_failed_match = CACHE_LOAD_FAILED_RE.search(line)
+        if load_failed_match:
+            layer = load_failed_match.group(1)
+            layer_stats = stats.setdefault(layer, {"hit": 0, "miss": 0, "load_failed": 0, "elapsed_ms": 0})
+            layer_stats["load_failed"] += 1
+            continue
+        done_match = PHASE_DONE_RE.search(line)
+        if done_match:
+            layer = done_match.group(1)
+            cache = done_match.group(2)
+            elapsed_ms = int(done_match.group(3))
+            layer_stats = stats.setdefault(layer, {"hit": 0, "miss": 0, "load_failed": 0, "elapsed_ms": 0})
+            if cache == "hit":
+                layer_stats["hit"] += 1
+            else:
+                layer_stats["miss"] += 1
+            layer_stats["elapsed_ms"] += elapsed_ms
+    return stats
+
+
+def format_phase_summary(stats: dict[str, dict[str, int]]) -> str:
+    parts: list[str] = []
+    for layer in ("terrain", "climate", "derived", "civilization", "maritime", "economy"):
+        layer_stats = stats.get(layer)
+        if not layer_stats:
+            continue
+        parts.append(
+            f"{layer}:h{layer_stats['hit']}/m{layer_stats['miss']}/f{layer_stats['load_failed']}/t{layer_stats['elapsed_ms']}"
+        )
+    return ";".join(parts)
+
 def run_seed(
     args: argparse.Namespace,
     out_dir: Path,
@@ -121,6 +157,7 @@ def run_seed(
             "status": "cached",
             "elapsed_sec": timing,
             "cache_hits": parse_cache_hits(text),
+            "phase_summary": format_phase_summary(parse_phase_stats(text)),
             "trade_score": score,
             "trade_volume": volume,
         }
@@ -179,11 +216,13 @@ def run_seed(
 
     score, volume = parse_trade_metrics(stdout_text)
     status = "ok" if return_code == 0 else f"failed:{return_code}"
+    phase_stats = parse_phase_stats(stdout_text)
     return {
         "seed": str(seed),
         "status": status,
         "elapsed_sec": f"{elapsed:.2f}",
         "cache_hits": parse_cache_hits(stdout_text),
+        "phase_summary": format_phase_summary(phase_stats),
         "trade_score": score,
         "trade_volume": volume,
     }
@@ -191,7 +230,7 @@ def run_seed(
 
 def write_summary(out_dir: Path, rows: list[dict[str, str]]) -> None:
     path = out_dir / "summary.tsv"
-    fieldnames = ["seed", "status", "elapsed_sec", "cache_hits", "trade_score", "trade_volume"]
+    fieldnames = ["seed", "status", "elapsed_sec", "cache_hits", "phase_summary", "trade_score", "trade_volume"]
     with tempfile.NamedTemporaryFile("w", dir=out_dir, delete=False, encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter="\t")
         writer.writeheader()
