@@ -446,7 +446,7 @@ func main() {
 										polityProfiles = climgen.ApplyMultimodalTradeToPolityProfiles(polityProfiles, multimodalTrade)
 										printPolityProfileSummary(polityProfiles)
 										printPolityGoodsSummary(polityGoods, tradeGoodsSettings)
-										printMultimodalTradeSummary(multimodalTrade)
+										printMultimodalTradeSummary(multimodalTrade, tradeGoodsSettings)
 									} else {
 										printPolityProfileSummary(polityProfiles)
 									}

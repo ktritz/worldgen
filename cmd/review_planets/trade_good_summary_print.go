@@ -141,7 +141,7 @@ func printTradeNodeMarketSummary(result *climgen.TradeNodeMarketResult, network 
 	printTradeMarketCategorySummary(result, network, settings, "strategic")
 }
 
-func printMultimodalTradeSummary(result *climgen.MultimodalTradeResult) {
+func printMultimodalTradeSummary(result *climgen.MultimodalTradeResult, settings climgen.TradeGoodsSettings) {
 	if result == nil || len(result.Exchanges) == 0 {
 		fmt.Println("    multimodalTrade: exchanges=0 pairs=0")
 		return
@@ -184,6 +184,8 @@ func printMultimodalTradeSummary(result *climgen.MultimodalTradeResult) {
 		result.Diagnostics.LowMarketFit,
 		result.Diagnostics.LowScoreFiltered,
 	)
+	printTradeFlowCategorySummary(result, settings, "luxury")
+	printTradeFlowCategorySummary(result, settings, "strategic")
 	limit := 5
 	if len(result.Pairs) < limit {
 		limit = len(result.Pairs)
