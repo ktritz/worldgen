@@ -2,6 +2,23 @@
 
 Procedural climate simulation for planet generation. Generates physically-motivated ocean currents, wind patterns, temperature distributions, and biomes.
 
+## Schema Entry Points
+
+When changing authored JSON packs, start with the Go schema/types file instead
+of inferring fields from examples.
+
+- Trade goods:
+  - schema: `trade_goods_settings_types.go`
+  - defaults: `trade_goods_settings_defaults.go`
+  - merge: `trade_goods_settings_merge.go`
+  - validation: `trade_goods_settings_validate.go`
+  - pack: `../config/trade_goods_earthlike.json`
+- Human-readable schema index:
+  - `../docs/CONFIG_SCHEMAS.md`
+
+If a JSON field is added, renamed, or repurposed, update the schema doc in the
+same change.
+
 ## File Organization
 
 Files are prefixed by system (`currents_`, `wind_`, `temp_`, `biome_`):

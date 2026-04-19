@@ -22,6 +22,27 @@
   - `config/profiles/fantasy/...`
 - If a subsystem has many entries, prefer modular directories plus a small manifest/pack file.
 
+## Schema Discovery
+
+- When working with authored config, look for schema/types first before inferring field names from JSON examples.
+- Primary schema entry points:
+  - `climgen/trade_goods_settings_types.go`
+  - `climgen/land_routes_settings_types.go`
+  - `climgen/river_routes_settings_types.go`
+  - `climgen/maritime_route_settings_types.go`
+  - `climgen/resource_abundance_settings.go`
+  - `climgen/population_support_settings.go`
+- Primary authored packs:
+  - `config/trade_goods_earthlike.json`
+  - `config/land_routes_earthlike.json`
+  - `config/river_routes_earthlike.json`
+  - `config/maritime_vessels_earthlike.json`
+  - `config/resource_abundance_earthlike.json`
+  - `config/population_support_earthlike.json`
+- Human-readable schema index:
+  - `docs/CONFIG_SCHEMAS.md`
+- If you add or rename JSON fields, update both the Go schema/types and `docs/CONFIG_SCHEMAS.md` in the same change.
+
 ## Modularity
 
 - Keep files near a soft limit of roughly `400-500` lines.
