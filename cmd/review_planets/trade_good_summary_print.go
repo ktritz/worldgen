@@ -137,6 +137,8 @@ func printTradeNodeMarketSummary(result *climgen.TradeNodeMarketResult, network 
 			impMix,
 		)
 	}
+	printTradeMarketCategorySummary(result, network, settings, "processed")
+	printTradeMarketCategorySummary(result, network, settings, "finished")
 	printTradeMarketCategorySummary(result, network, settings, "luxury")
 	printTradeMarketCategorySummary(result, network, settings, "strategic")
 }
@@ -184,11 +186,12 @@ func printMultimodalTradeSummary(result *climgen.MultimodalTradeResult, settings
 		result.Diagnostics.LowMarketFit,
 		result.Diagnostics.LowScoreFiltered,
 	)
+	printTradeFlowCategoryDiagnostics(result)
 	printTradeFlowCategoryMix(result, settings)
-	printTradeFlowCategorySummary(result, settings, "luxury")
-	printTradeFlowCategoryModeSummary(result, settings, "luxury")
-	printTradeFlowCategorySummary(result, settings, "strategic")
-	printTradeFlowCategoryModeSummary(result, settings, "strategic")
+	for _, category := range []string{"processed", "finished", "luxury", "strategic"} {
+		printTradeFlowCategorySummary(result, settings, category)
+		printTradeFlowCategoryModeSummary(result, settings, category)
+	}
 	limit := 5
 	if len(result.Pairs) < limit {
 		limit = len(result.Pairs)

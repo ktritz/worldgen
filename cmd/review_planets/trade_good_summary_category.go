@@ -138,6 +138,28 @@ func printTradeFlowCategoryMix(result *climgen.MultimodalTradeResult, settings c
 	fmt.Printf("      categoryFlowMix=%s\n", formatCategoryValues(values, 5))
 }
 
+func printTradeFlowCategoryDiagnostics(result *climgen.MultimodalTradeResult) {
+	values := tradeFlowCategoryDiagnostics(result)
+	for _, value := range values {
+		fmt.Printf(
+			"      categoryDiag[%s]: cand=%d accepted=%d score=%.2f volume=%.2f noSurplus=%d noNeed=%d noEndpoint=%d srcCap=%d needCap=%d lowCap=%d lowFit=%d lowScore=%d\n",
+			value.Category,
+			value.CandidateGoods,
+			value.AcceptedGoods,
+			value.TotalScore,
+			value.TotalVolume,
+			value.NoSourceSurplus,
+			value.NoSinkNeed,
+			value.NoEndpointSupply,
+			value.SourceConstrained,
+			value.NeedConstrained,
+			value.LowCapacity,
+			value.LowMarketFit,
+			value.LowScoreFiltered,
+		)
+	}
+}
+
 func printTradeFlowCategoryModeSummary(result *climgen.MultimodalTradeResult, settings climgen.TradeGoodsSettings, category string) {
 	values := tradeFlowCategoryModeMix(result, settings, category)
 	if len(values) == 0 {
@@ -262,6 +284,26 @@ func tradeFlowCategoryModeMix(result *climgen.MultimodalTradeResult, settings cl
 		totals[exchange.Mode] += modeTotal
 	}
 	return topSummaryModeValues(totals, len(totals))
+}
+
+func tradeFlowCategoryDiagnostics(result *climgen.MultimodalTradeResult) []climgen.MultimodalTradeCategoryDiagnostics {
+	if result == nil || len(result.Diagnostics.ByCategory) == 0 {
+		return nil
+	}
+	values := make([]climgen.MultimodalTradeCategoryDiagnostics, 0, len(result.Diagnostics.ByCategory))
+	for _, value := range result.Diagnostics.ByCategory {
+		values = append(values, value)
+	}
+	sort.Slice(values, func(i, j int) bool {
+		if values[i].TotalScore != values[j].TotalScore {
+			return values[i].TotalScore > values[j].TotalScore
+		}
+		if values[i].AcceptedGoods != values[j].AcceptedGoods {
+			return values[i].AcceptedGoods > values[j].AcceptedGoods
+		}
+		return values[i].Category < values[j].Category
+	})
+	return values
 }
 
 func formatCategoryValues(values []categoryValue, limit int) string {

@@ -65,9 +65,6 @@ func aggregateTradeGoodPairs(exchanges []TradeGoodExchange) []TradeGoodPairFlow 
 			}
 			return goods[i].Good < goods[j].Good
 		})
-		if len(goods) > 5 {
-			goods = goods[:5]
-		}
 		out = append(out, TradeGoodPairFlow{
 			FromPolity: acc.from,
 			ToPolity:   acc.to,

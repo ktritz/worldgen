@@ -181,6 +181,11 @@ func validateTradeGoodsMultimodalSettings(settings TradeGoodsMultimodalSettings)
 			return fmt.Errorf("trade goods multimodal volumeBaseByMode[%q] must be > 0", mode)
 		}
 	}
+	for category, value := range settings.EndpointNeedShareByCategory {
+		if value < 0 || value > 1 {
+			return fmt.Errorf("trade goods multimodal endpointNeedShareByCategory[%q] must be in [0,1]", category)
+		}
+	}
 	if err := validateTradeGoodsResponseCurves(settings.LocalNeedResponse, "localNeedResponse"); err != nil {
 		return err
 	}

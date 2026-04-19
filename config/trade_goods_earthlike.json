@@ -74,6 +74,10 @@
       "ocean": 32.0,
       "default": 20.0
     },
+    "endpointNeedShareByCategory": {
+      "processed": 0.60,
+      "default": 0.0
+    },
     "localNeedResponse": {
       "raw": {"base": 0.74, "slope": 0.48},
       "processed": {"base": 0.80, "slope": 0.56},

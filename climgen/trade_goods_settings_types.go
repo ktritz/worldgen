@@ -46,18 +46,19 @@ type TradeGoodsResponseCurve struct {
 }
 
 type TradeGoodsMultimodalSettings struct {
-	CapacityScaleByMode        map[string]float64                 `json:"capacityScaleByMode,omitempty"`
-	CapacityFactorByMode       map[string]float64                 `json:"capacityFactorByMode,omitempty"`
-	VolumeBaseByMode           map[string]float64                 `json:"volumeBaseByMode,omitempty"`
-	LocalNeedResponse          map[string]TradeGoodsResponseCurve `json:"localNeedResponse,omitempty"`
-	GlobalRarityResponse       map[string]TradeGoodsResponseCurve `json:"globalRarityResponse,omitempty"`
-	SingleMarketWealthBase     float64                            `json:"singleMarketWealthBase,omitempty"`
-	SingleMarketWealthScale    float64                            `json:"singleMarketWealthScale,omitempty"`
-	DualMarketWealthBase       float64                            `json:"dualMarketWealthBase,omitempty"`
-	DualMarketWealthScale      float64                            `json:"dualMarketWealthScale,omitempty"`
-	SingleMarketFeederScale    float64                            `json:"singleMarketFeederScale,omitempty"`
-	DualMarketFeederScale      float64                            `json:"dualMarketFeederScale,omitempty"`
-	LowCapacityVolumeThreshold float64                            `json:"lowCapacityVolumeThreshold,omitempty"`
+	CapacityScaleByMode         map[string]float64                 `json:"capacityScaleByMode,omitempty"`
+	CapacityFactorByMode        map[string]float64                 `json:"capacityFactorByMode,omitempty"`
+	VolumeBaseByMode            map[string]float64                 `json:"volumeBaseByMode,omitempty"`
+	EndpointNeedShareByCategory map[string]float64                 `json:"endpointNeedShareByCategory,omitempty"`
+	LocalNeedResponse           map[string]TradeGoodsResponseCurve `json:"localNeedResponse,omitempty"`
+	GlobalRarityResponse        map[string]TradeGoodsResponseCurve `json:"globalRarityResponse,omitempty"`
+	SingleMarketWealthBase      float64                            `json:"singleMarketWealthBase,omitempty"`
+	SingleMarketWealthScale     float64                            `json:"singleMarketWealthScale,omitempty"`
+	DualMarketWealthBase        float64                            `json:"dualMarketWealthBase,omitempty"`
+	DualMarketWealthScale       float64                            `json:"dualMarketWealthScale,omitempty"`
+	SingleMarketFeederScale     float64                            `json:"singleMarketFeederScale,omitempty"`
+	DualMarketFeederScale       float64                            `json:"dualMarketFeederScale,omitempty"`
+	LowCapacityVolumeThreshold  float64                            `json:"lowCapacityVolumeThreshold,omitempty"`
 }
 
 type TradeGoodsProductionSettings struct {

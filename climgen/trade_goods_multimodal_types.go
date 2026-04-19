@@ -52,6 +52,22 @@ type MultimodalTradeResult struct {
 	Diagnostics MultimodalTradeDiagnostics
 }
 
+type MultimodalTradeCategoryDiagnostics struct {
+	Category          string
+	TotalScore        float64
+	TotalVolume       float64
+	CandidateGoods    int
+	AcceptedGoods     int
+	NoSourceSurplus   int
+	NoSinkNeed        int
+	NoEndpointSupply  int
+	SourceConstrained int
+	NeedConstrained   int
+	LowCapacity       int
+	LowMarketFit      int
+	LowScoreFiltered  int
+}
+
 type MultimodalTradeDiagnostics struct {
 	TotalScore        float64
 	TotalVolume       float64
@@ -71,4 +87,5 @@ type MultimodalTradeDiagnostics struct {
 	LowCapacity       int
 	LowMarketFit      int
 	LowScoreFiltered  int
+	ByCategory        map[string]MultimodalTradeCategoryDiagnostics
 }

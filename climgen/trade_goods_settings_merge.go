@@ -84,6 +84,11 @@ func (settings TradeGoodsMultimodalSettings) withDefaults() TradeGoodsMultimodal
 			defaults.VolumeBaseByMode[mode] = value
 		}
 	}
+	for category, value := range settings.EndpointNeedShareByCategory {
+		if value >= 0 {
+			defaults.EndpointNeedShareByCategory[category] = value
+		}
+	}
 	for category, curve := range settings.LocalNeedResponse {
 		if curve.Base == 0 && curve.Slope == 0 {
 			continue

@@ -244,6 +244,9 @@ func TestLoadTradeGoodsSettingsDataAppliesMultimodalOverrides(t *testing.T) {
 	settings, err := loadTradeGoodsSettingsData([]byte(`{
 		"schemaVersion": "trade-goods/v1",
 		"multimodal": {
+			"endpointNeedShareByCategory": {
+				"processed": 0.4
+			},
 			"volumeBaseByMode": {
 				"river": 30.0
 			},
@@ -265,6 +268,9 @@ func TestLoadTradeGoodsSettingsDataAppliesMultimodalOverrides(t *testing.T) {
 	}
 	if settings.Multimodal.VolumeBaseByMode["river"] != 30.0 {
 		t.Fatalf("expected multimodal river volume override, got %+v", settings.Multimodal.VolumeBaseByMode)
+	}
+	if settings.Multimodal.EndpointNeedShareByCategory["processed"] != 0.4 {
+		t.Fatalf("expected multimodal endpoint need override, got %+v", settings.Multimodal.EndpointNeedShareByCategory)
 	}
 	if settings.Multimodal.LowCapacityVolumeThreshold != 3.5 {
 		t.Fatalf("expected multimodal low-capacity threshold override, got %+v", settings.Multimodal)

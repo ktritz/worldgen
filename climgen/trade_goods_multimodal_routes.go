@@ -106,18 +106,33 @@ func matchedRouteGoods(
 		if diagnostics != nil {
 			diagnostics.CandidateGoods++
 		}
+		recordCategoryTradeDiagnostic(diagnostics, spec.Category, func(entry *MultimodalTradeCategoryDiagnostics) {
+			entry.CandidateGoods++
+		})
 		surplus := from.Surplus[good]
 		if surplus <= 0 {
 			if diagnostics != nil {
 				diagnostics.NoSourceSurplus++
 			}
+			recordCategoryTradeDiagnostic(diagnostics, spec.Category, func(entry *MultimodalTradeCategoryDiagnostics) {
+				entry.NoSourceSurplus++
+			})
 			continue
 		}
 		need := -to.Surplus[good]
+		if toMarket != nil {
+			endpointNeedShare := tradeGoodsCategorySetting(multimodal.EndpointNeedShareByCategory, spec.Category, 0)
+			if endpointNeedShare > 0 {
+				need = math.Max(need, endpointNeedShare*marketSinkCapacity(good, *toMarket))
+			}
+		}
 		if need <= 0 {
 			if diagnostics != nil {
 				diagnostics.NoSinkNeed++
 			}
+			recordCategoryTradeDiagnostic(diagnostics, spec.Category, func(entry *MultimodalTradeCategoryDiagnostics) {
+				entry.NoSinkNeed++
+			})
 			continue
 		}
 		sourceCapacity := surplus
@@ -127,6 +142,9 @@ func matchedRouteGoods(
 				if diagnostics != nil {
 					diagnostics.NoEndpointSupply++
 				}
+				recordCategoryTradeDiagnostic(diagnostics, spec.Category, func(entry *MultimodalTradeCategoryDiagnostics) {
+					entry.NoEndpointSupply++
+				})
 				continue
 			}
 			sourceCapacity = math.Min(sourceCapacity, marketSource)
@@ -134,8 +152,18 @@ func matchedRouteGoods(
 		if sourceCapacity < surplus && diagnostics != nil {
 			diagnostics.SourceConstrained++
 		}
+		if sourceCapacity < surplus {
+			recordCategoryTradeDiagnostic(diagnostics, spec.Category, func(entry *MultimodalTradeCategoryDiagnostics) {
+				entry.SourceConstrained++
+			})
+		}
 		if need < sourceCapacity && diagnostics != nil {
 			diagnostics.NeedConstrained++
+		}
+		if need < sourceCapacity {
+			recordCategoryTradeDiagnostic(diagnostics, spec.Category, func(entry *MultimodalTradeCategoryDiagnostics) {
+				entry.NeedConstrained++
+			})
 		}
 		matched := math.Min(sourceCapacity, need)
 		if matched <= 0 {
@@ -145,8 +173,18 @@ func matchedRouteGoods(
 		if marketFit < 0.70 && diagnostics != nil {
 			diagnostics.LowMarketFit++
 		}
+		if marketFit < 0.70 {
+			recordCategoryTradeDiagnostic(diagnostics, spec.Category, func(entry *MultimodalTradeCategoryDiagnostics) {
+				entry.LowMarketFit++
+			})
+		}
 		if volumeCapacity < multimodal.LowCapacityVolumeThreshold && diagnostics != nil {
 			diagnostics.LowCapacity++
+		}
+		if volumeCapacity < multimodal.LowCapacityVolumeThreshold {
+			recordCategoryTradeDiagnostic(diagnostics, spec.Category, func(entry *MultimodalTradeCategoryDiagnostics) {
+				entry.LowCapacity++
+			})
 		}
 		volume := matched * volumeCapacity * marketFit
 		transport := tradeGoodTransportValue(spec, mode)
@@ -157,11 +195,19 @@ func matchedRouteGoods(
 			if diagnostics != nil {
 				diagnostics.LowScoreFiltered++
 			}
+			recordCategoryTradeDiagnostic(diagnostics, spec.Category, func(entry *MultimodalTradeCategoryDiagnostics) {
+				entry.LowScoreFiltered++
+			})
 			continue
 		}
 		if diagnostics != nil {
 			diagnostics.AcceptedGoods++
 		}
+		recordCategoryTradeDiagnostic(diagnostics, spec.Category, func(entry *MultimodalTradeCategoryDiagnostics) {
+			entry.AcceptedGoods++
+			entry.TotalScore += score
+			entry.TotalVolume += volume
+		})
 		out = append(out, TradeGoodFlowValue{
 			Good:      good,
 			Score:     score,
@@ -179,9 +225,6 @@ func matchedRouteGoods(
 		}
 		return out[i].Good < out[j].Good
 	})
-	if len(out) > 5 {
-		out = out[:5]
-	}
 	return out
 }
 

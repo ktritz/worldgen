@@ -78,6 +78,9 @@ func DefaultTradeGoodsMultimodalSettings() TradeGoodsMultimodalSettings {
 			"ocean":   32.0,
 			"default": 20.0,
 		},
+		EndpointNeedShareByCategory: map[string]float64{
+			"default": 0.0,
+		},
 		LocalNeedResponse: map[string]TradeGoodsResponseCurve{
 			"raw":       {Base: 0.74, Slope: 0.48},
 			"processed": {Base: 0.80, Slope: 0.56},
