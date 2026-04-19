@@ -16,9 +16,11 @@ func loadOrGenerateTerrain(
 	seed int64,
 	landFrac float64,
 ) ([]float64, []bool, terrain.PlanetGenerationDiagnostics) {
+	phaseStart := reviewPhaseStart("terrain")
 	var elevation []float64
 	var isLand []bool
 	var diagnostics terrain.PlanetGenerationDiagnostics
+	cacheStatus := "miss"
 	if cacheStore != nil {
 		if cached, ok, err := cacheStore.LoadTerrain(terrainKey); err != nil {
 			fmt.Printf("  terrain cache load failed, regenerating: %v\n", err)
@@ -27,6 +29,7 @@ func loadOrGenerateTerrain(
 			elevation = cached.Elevation
 			isLand = cached.IsLand
 			diagnostics = cached.Diagnostics
+			cacheStatus = "hit"
 		}
 	}
 	if elevation == nil {
@@ -41,6 +44,7 @@ func loadOrGenerateTerrain(
 			}
 		}
 	}
+	reviewPhaseDone("terrain", cacheStatus, phaseStart, fmt.Sprintf("key=%s", terrainKey))
 	return elevation, isLand, diagnostics
 }
 
@@ -57,14 +61,17 @@ func loadOrGenerateClimate(
 	if !enabled {
 		return nil
 	}
+	phaseStart := reviewPhaseStart("climate")
 	var seasonalClimate *climgen.SeasonalClimateResult
 	climateKey := climateCacheKey(terrainKey, seed)
+	cacheStatus := "miss"
 	if cacheStore != nil {
 		if cached, ok, err := cacheStore.LoadClimate(climateKey); err != nil {
 			fmt.Printf("  climate cache load failed, recomputing: %v\n", err)
 		} else if ok {
 			fmt.Printf("  climate cache hit: %s\n", climateKey)
 			seasonalClimate = cached
+			cacheStatus = "hit"
 		}
 	}
 	if seasonalClimate == nil {
@@ -80,6 +87,7 @@ func loadOrGenerateClimate(
 			}
 		}
 	}
+	reviewPhaseDone("climate", cacheStatus, phaseStart, fmt.Sprintf("key=%s", climateKey))
 	return seasonalClimate
 }
 

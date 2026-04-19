@@ -22,6 +22,8 @@ from typing import Callable
 
 CACHE_HIT_RE = re.compile(r"^\s+([a-z]+) cache hit:")
 TRADE_RE = re.compile(r"multimodalTrade: .*?score=([0-9.]+) volume=([0-9.]+)")
+PHASE_START_RE = re.compile(r"^\s+phase start: layer=([a-z_]+) started_at=(\d+)")
+PHASE_DONE_RE = re.compile(r"^\s+phase done: layer=([a-z_]+) cache=([a-z_]+) elapsed_ms=(\d+)(?:\s|$)")
 
 
 def parse_args() -> argparse.Namespace:
@@ -81,11 +83,33 @@ def parse_trade_metrics(text: str) -> tuple[str, str]:
         return "", ""
     return match.group(1), match.group(2)
 
+
+def parse_latest_phase(text: str) -> dict[str, str | int] | None:
+    latest: dict[str, str | int] | None = None
+    for line in text.splitlines():
+        done_match = PHASE_DONE_RE.search(line)
+        if done_match:
+            latest = {
+                "layer": done_match.group(1),
+                "state": "done",
+                "cache": done_match.group(2),
+                "elapsed_ms": int(done_match.group(3)),
+            }
+            continue
+        start_match = PHASE_START_RE.search(line)
+        if start_match:
+            latest = {
+                "layer": start_match.group(1),
+                "state": "running",
+                "started_at_epoch": int(start_match.group(2)),
+            }
+    return latest
+
 def run_seed(
     args: argparse.Namespace,
     out_dir: Path,
     seed: int,
-    progress_callback: Callable[[int, float, int], None] | None = None,
+    progress_callback: Callable[[int, float, int, dict[str, str | int] | None], None] | None = None,
 ) -> dict[str, str]:
     paths = seed_paths(out_dir, seed)
     if not args.force and output_complete(paths["txt"]) and paths["time"].exists():
@@ -132,7 +156,10 @@ def run_seed(
             elapsed = time.monotonic() - start
             if progress_callback is not None:
                 output_bytes = stdout_tmp.stat().st_size if stdout_tmp.exists() else 0
-                progress_callback(seed, elapsed, output_bytes)
+                latest_phase = None
+                if stdout_tmp.exists():
+                    latest_phase = parse_latest_phase(stdout_tmp.read_text(encoding="utf-8", errors="replace"))
+                progress_callback(seed, elapsed, output_bytes, latest_phase)
             if return_code is not None:
                 break
             time.sleep(1.0)
@@ -185,6 +212,7 @@ def write_progress(
     active_seed: int | None,
     active_elapsed_sec: float | None,
     active_output_bytes: int | None,
+    active_phase: dict[str, str | int] | None,
     started_at_epoch: float,
 ) -> None:
     completed = len(rows)
@@ -198,6 +226,7 @@ def write_progress(
         "active_seed": active_seed,
         "active_elapsed_sec": None if active_elapsed_sec is None else round(active_elapsed_sec, 2),
         "active_output_bytes": active_output_bytes,
+        "active_phase": active_phase,
         "started_at_epoch": started_at_epoch,
         "updated_at_epoch": time.time(),
         "last_completed_seed": None if last_completed is None else int(last_completed["seed"]),
@@ -224,6 +253,7 @@ def main() -> int:
         active_seed=None,
         active_elapsed_sec=None,
         active_output_bytes=None,
+        active_phase=None,
         started_at_epoch=started_at_epoch,
     )
     for seed in seeds:
@@ -236,13 +266,14 @@ def main() -> int:
             active_seed=seed,
             active_elapsed_sec=0.0,
             active_output_bytes=0,
+            active_phase=None,
             started_at_epoch=started_at_epoch,
         )
         row = run_seed(
             args,
             out_dir,
             seed,
-            progress_callback=lambda active_seed, elapsed, output_bytes: write_progress(
+            progress_callback=lambda active_seed, elapsed, output_bytes, active_phase: write_progress(
                 out_dir,
                 level=args.level,
                 seeds=seeds,
@@ -251,6 +282,7 @@ def main() -> int:
                 active_seed=active_seed,
                 active_elapsed_sec=elapsed,
                 active_output_bytes=output_bytes,
+                active_phase=active_phase,
                 started_at_epoch=started_at_epoch,
             ),
         )
@@ -269,6 +301,7 @@ def main() -> int:
             active_seed=None,
             active_elapsed_sec=None,
             active_output_bytes=None,
+            active_phase=None,
             started_at_epoch=started_at_epoch,
         )
         if not row["status"].startswith("ok") and row["status"] != "cached":
@@ -281,6 +314,7 @@ def main() -> int:
                 active_seed=None,
                 active_elapsed_sec=None,
                 active_output_bytes=None,
+                active_phase=None,
                 started_at_epoch=started_at_epoch,
             )
             return 1
@@ -293,6 +327,7 @@ def main() -> int:
         active_seed=None,
         active_elapsed_sec=None,
         active_output_bytes=None,
+        active_phase=None,
         started_at_epoch=started_at_epoch,
     )
     return 0

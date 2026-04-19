@@ -35,11 +35,14 @@ func loadOrGenerateCivilizationReview(
 ) (*cachedCivilizationReview, string) {
 	settingsDigest := cacheSettingsDigest(settings)
 	cacheKey := civilizationCacheKey(derivedKey, settingsDigest)
+	phaseStart := reviewPhaseStart("civilization")
+	cacheStatus := "miss"
 	if cacheStore != nil {
 		if cached, ok, err := cacheStore.LoadCivilization(cacheKey); err != nil {
 			fmt.Printf("  civilization cache load failed, recomputing: %v\n", err)
 		} else if ok {
 			fmt.Printf("  civilization cache hit: %s\n", cacheKey)
+			reviewPhaseDone("civilization", "hit", phaseStart, fmt.Sprintf("key=%s", cacheKey))
 			return cached, cacheKey
 		}
 	}
@@ -91,6 +94,7 @@ func loadOrGenerateCivilizationReview(
 			fmt.Printf("  civilization cache save failed: %v\n", err)
 		}
 	}
+	reviewPhaseDone("civilization", cacheStatus, phaseStart, fmt.Sprintf("key=%s", cacheKey))
 	return out, cacheKey
 }
 
@@ -108,11 +112,14 @@ func loadOrGenerateMaritimeReview(
 ) (*cachedMaritimeReview, string) {
 	settingsDigest := cacheSettingsDigest(settings)
 	cacheKey := maritimeCacheKey(civilizationKey, settings.VesselName, settingsDigest)
+	phaseStart := reviewPhaseStart("maritime")
+	cacheStatus := "miss"
 	if cacheStore != nil {
 		if cached, ok, err := cacheStore.LoadMaritime(cacheKey); err != nil {
 			fmt.Printf("  maritime cache load failed, recomputing: %v\n", err)
 		} else if ok {
 			fmt.Printf("  maritime cache hit: %s\n", cacheKey)
+			reviewPhaseDone("maritime", "hit", phaseStart, fmt.Sprintf("key=%s", cacheKey))
 			return cached, cacheKey
 		}
 	}
@@ -161,6 +168,7 @@ func loadOrGenerateMaritimeReview(
 			fmt.Printf("  maritime cache save failed: %v\n", err)
 		}
 	}
+	reviewPhaseDone("maritime", cacheStatus, phaseStart, fmt.Sprintf("key=%s", cacheKey), fmt.Sprintf("vessel=%s", settings.VesselName))
 	return out, cacheKey
 }
 
@@ -175,11 +183,14 @@ func loadOrGenerateEconomyReview(
 	settings climgen.TradeGoodsSettings,
 ) (*cachedEconomyReview, string) {
 	cacheKey := economyCacheKey(civilizationKey, maritimeKey, cacheSettingsDigest(settings))
+	phaseStart := reviewPhaseStart("economy")
+	cacheStatus := "miss"
 	if cacheStore != nil {
 		if cached, ok, err := cacheStore.LoadEconomy(cacheKey); err != nil {
 			fmt.Printf("  economy cache load failed, recomputing: %v\n", err)
 		} else if ok {
 			fmt.Printf("  economy cache hit: %s\n", cacheKey)
+			reviewPhaseDone("economy", "hit", phaseStart, fmt.Sprintf("key=%s", cacheKey))
 			return cached, cacheKey
 		}
 	}
@@ -217,5 +228,6 @@ func loadOrGenerateEconomyReview(
 			fmt.Printf("  economy cache save failed: %v\n", err)
 		}
 	}
+	reviewPhaseDone("economy", cacheStatus, phaseStart, fmt.Sprintf("key=%s", cacheKey))
 	return out, cacheKey
 }

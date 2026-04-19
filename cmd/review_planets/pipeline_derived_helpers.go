@@ -31,11 +31,14 @@ func loadOrGenerateDerivedReview(
 ) *cachedDerivedReview {
 	settingsDigest := cacheSettingsDigest(settings)
 	derivedKey := derivedCacheKey(terrainKey, climateKey, climateHydrology, settingsDigest)
+	phaseStart := reviewPhaseStart("derived")
+	cacheStatus := "miss"
 	if cacheStore != nil {
 		if cached, ok, err := cacheStore.LoadDerived(derivedKey); err != nil {
 			fmt.Printf("  derived cache load failed, recomputing: %v\n", err)
 		} else if ok {
 			fmt.Printf("  derived cache hit: %s\n", derivedKey)
+			reviewPhaseDone("derived", "hit", phaseStart, fmt.Sprintf("key=%s", derivedKey))
 			return cached
 		}
 	}
@@ -86,5 +89,6 @@ func loadOrGenerateDerivedReview(
 			fmt.Printf("  derived cache save failed: %v\n", err)
 		}
 	}
+	reviewPhaseDone("derived", cacheStatus, phaseStart, fmt.Sprintf("key=%s", derivedKey))
 	return derived
 }
