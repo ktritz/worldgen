@@ -5,16 +5,22 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 
 	"worldgen/climgen"
 	"worldgen/landgen/terrain"
 )
 
 const (
-	reviewTerrainCacheVersion = "terrain-v1"
-	reviewClimateCacheVersion = "climate-v3"
+	reviewTerrainCacheVersion      = "terrain-v1"
+	reviewClimateCacheVersion      = "climate-v3"
+	reviewDerivedCacheVersion      = "derived-v1"
+	reviewCivilizationCacheVersion = "civilization-v1"
+	reviewMaritimeCacheVersion     = "maritime-v1"
+	reviewEconomyCacheVersion      = "economy-v1"
 )
 
 type reviewCacheStore struct {
@@ -25,6 +31,44 @@ type cachedTerrainReview struct {
 	Elevation   []float64                           `json:"elevation"`
 	IsLand      []bool                              `json:"isLand"`
 	Diagnostics terrain.PlanetGenerationDiagnostics `json:"diagnostics"`
+}
+
+type cachedDerivedReview struct {
+	Biome            *climgen.BiomeResult           `json:"biome,omitempty"`
+	Soils            *climgen.SoilResult            `json:"soils,omitempty"`
+	Vegetation       *climgen.VegetationResult      `json:"vegetation,omitempty"`
+	Agriculture      *climgen.AgricultureResult     `json:"agriculture,omitempty"`
+	Wildlife         *climgen.WildlifeResult        `json:"wildlife,omitempty"`
+	WaterResources   *climgen.WaterResourceResult   `json:"waterResources,omitempty"`
+	CoastalResources *climgen.CoastalResourceResult `json:"coastalResources,omitempty"`
+	Resources        *climgen.ResourceResult        `json:"resources,omitempty"`
+	TradeGoods       *climgen.TradeGoodResult       `json:"tradeGoods,omitempty"`
+	Settlement       *climgen.SettlementResult      `json:"settlement,omitempty"`
+	Population       *climgen.PopulationResult      `json:"population,omitempty"`
+}
+
+type cachedCivilizationReview struct {
+	Network     *climgen.SettlementNetworkResult `json:"network,omitempty"`
+	Proto       *climgen.ProtoCivilizationResult `json:"proto,omitempty"`
+	LandRoutes  *climgen.LandRouteResult         `json:"landRoutes,omitempty"`
+	Trade       *climgen.TradeNetworkResult      `json:"trade,omitempty"`
+	RiverRoutes *climgen.RiverRouteResult        `json:"riverRoutes,omitempty"`
+	RiverTrade  *climgen.RiverTradeResult        `json:"riverTrade,omitempty"`
+	Polities    *climgen.PolitySphereResult      `json:"polities,omitempty"`
+	Profiles    *climgen.PolityProfileResult     `json:"profiles,omitempty"`
+	NodeGoods   *climgen.NodeGoodsResult         `json:"nodeGoods,omitempty"`
+	PolityGoods *climgen.PolityGoodsResult       `json:"polityGoods,omitempty"`
+}
+
+type cachedMaritimeReview struct {
+	CoastalPorts *climgen.CoastalPortResult  `json:"coastalPorts,omitempty"`
+	CoastalTrade *climgen.CoastalTradeResult `json:"coastalTrade,omitempty"`
+	OceanTrade   *climgen.OceanTradeResult   `json:"oceanTrade,omitempty"`
+}
+
+type cachedEconomyReview struct {
+	NodeMarkets *climgen.TradeNodeMarketResult `json:"nodeMarkets,omitempty"`
+	Multimodal  *climgen.MultimodalTradeResult `json:"multimodal,omitempty"`
 }
 
 func newReviewCacheStore(outputDir string) *reviewCacheStore {
@@ -39,6 +83,22 @@ func (s *reviewCacheStore) climatePath(key string) string {
 	return filepath.Join(s.rootDir, "climate", key+".json")
 }
 
+func (s *reviewCacheStore) derivedPath(key string) string {
+	return filepath.Join(s.rootDir, "derived", key+".json")
+}
+
+func (s *reviewCacheStore) civilizationPath(key string) string {
+	return filepath.Join(s.rootDir, "civilization", key+".json")
+}
+
+func (s *reviewCacheStore) maritimePath(key string) string {
+	return filepath.Join(s.rootDir, "maritime", key+".json")
+}
+
+func (s *reviewCacheStore) economyPath(key string) string {
+	return filepath.Join(s.rootDir, "economy", key+".json")
+}
+
 func terrainCacheKey(level, plates int, landFrac float64, seed int64) string {
 	raw := fmt.Sprintf("%s|level=%d|plates=%d|land=%.6f|seed=%d", reviewTerrainCacheVersion, level, plates, landFrac, seed)
 	return stableCacheKey(raw)
@@ -47,6 +107,44 @@ func terrainCacheKey(level, plates int, landFrac float64, seed int64) string {
 func climateCacheKey(terrainKey string, seed int64) string {
 	raw := fmt.Sprintf("%s|terrain=%s|seed=%d|numSeasons=%d|numCycles=%d|refEq=%t", reviewClimateCacheVersion, terrainKey, seed, 4, 3, true)
 	return stableCacheKey(raw)
+}
+
+func derivedCacheKey(terrainKey, climateKey string, climateHydrology bool, settingsDigest string) string {
+	raw := fmt.Sprintf(
+		"%s|terrain=%s|climate=%s|hydrology=%t|settings=%s",
+		reviewDerivedCacheVersion,
+		terrainKey,
+		climateKey,
+		climateHydrology,
+		settingsDigest,
+	)
+	return stableCacheKey(raw)
+}
+
+func civilizationCacheKey(derivedKey, settingsDigest string) string {
+	raw := fmt.Sprintf("%s|derived=%s|settings=%s", reviewCivilizationCacheVersion, derivedKey, settingsDigest)
+	return stableCacheKey(raw)
+}
+
+func maritimeCacheKey(civilizationKey, vesselName, settingsDigest string) string {
+	raw := fmt.Sprintf("%s|civilization=%s|vessel=%s|settings=%s", reviewMaritimeCacheVersion, civilizationKey, vesselName, settingsDigest)
+	return stableCacheKey(raw)
+}
+
+func economyCacheKey(civilizationKey, maritimeKey string) string {
+	raw := fmt.Sprintf("%s|civilization=%s|maritime=%s", reviewEconomyCacheVersion, civilizationKey, maritimeKey)
+	return stableCacheKey(raw)
+}
+
+func cacheSettingsDigest(values ...any) string {
+	hash := sha256.New()
+	enc := json.NewEncoder(hash)
+	for _, value := range values {
+		if err := enc.Encode(value); err != nil {
+			panic(fmt.Sprintf("encode cache settings: %v", err))
+		}
+	}
+	return hex.EncodeToString(hash.Sum(nil)[:8])
 }
 
 func stableCacheKey(raw string) string {
@@ -86,11 +184,76 @@ func (s *reviewCacheStore) SaveClimate(key string, cached *climgen.SeasonalClima
 	return s.writeJSON(s.climatePath(key), cached)
 }
 
+func (s *reviewCacheStore) LoadDerived(key string) (*cachedDerivedReview, bool, error) {
+	var cached cachedDerivedReview
+	ok, err := s.readJSON(s.derivedPath(key), &cached)
+	if err != nil || !ok {
+		return nil, ok, err
+	}
+	return &cached, true, nil
+}
+
+func (s *reviewCacheStore) SaveDerived(key string, cached *cachedDerivedReview) error {
+	if cached == nil {
+		return nil
+	}
+	return s.writeJSON(s.derivedPath(key), cached)
+}
+
+func (s *reviewCacheStore) LoadCivilization(key string) (*cachedCivilizationReview, bool, error) {
+	var cached cachedCivilizationReview
+	ok, err := s.readJSON(s.civilizationPath(key), &cached)
+	if err != nil || !ok {
+		return nil, ok, err
+	}
+	return &cached, true, nil
+}
+
+func (s *reviewCacheStore) SaveCivilization(key string, cached *cachedCivilizationReview) error {
+	if cached == nil {
+		return nil
+	}
+	return s.writeJSON(s.civilizationPath(key), cached)
+}
+
+func (s *reviewCacheStore) LoadMaritime(key string) (*cachedMaritimeReview, bool, error) {
+	var cached cachedMaritimeReview
+	ok, err := s.readJSON(s.maritimePath(key), &cached)
+	if err != nil || !ok {
+		return nil, ok, err
+	}
+	return &cached, true, nil
+}
+
+func (s *reviewCacheStore) SaveMaritime(key string, cached *cachedMaritimeReview) error {
+	if cached == nil {
+		return nil
+	}
+	return s.writeJSON(s.maritimePath(key), cached)
+}
+
+func (s *reviewCacheStore) LoadEconomy(key string) (*cachedEconomyReview, bool, error) {
+	var cached cachedEconomyReview
+	ok, err := s.readJSON(s.economyPath(key), &cached)
+	if err != nil || !ok {
+		return nil, ok, err
+	}
+	return &cached, true, nil
+}
+
+func (s *reviewCacheStore) SaveEconomy(key string, cached *cachedEconomyReview) error {
+	if cached == nil {
+		return nil
+	}
+	return s.writeJSON(s.economyPath(key), cached)
+}
+
 func (s *reviewCacheStore) writeJSON(path string, value any) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	data, err := json.Marshal(value)
+	sanitized := sanitizeCacheJSONValue(reflect.ValueOf(value))
+	data, err := json.Marshal(sanitized.Interface())
 	if err != nil {
 		return err
 	}
@@ -109,4 +272,76 @@ func (s *reviewCacheStore) readJSON(path string, value any) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+func sanitizeCacheJSONValue(v reflect.Value) reflect.Value {
+	if !v.IsValid() {
+		return v
+	}
+	switch v.Kind() {
+	case reflect.Pointer:
+		if v.IsNil() {
+			return reflect.Zero(v.Type())
+		}
+		out := reflect.New(v.Type().Elem())
+		out.Elem().Set(sanitizeCacheJSONValue(v.Elem()))
+		return out
+	case reflect.Interface:
+		if v.IsNil() {
+			return reflect.Zero(v.Type())
+		}
+		sanitized := sanitizeCacheJSONValue(v.Elem())
+		out := reflect.New(v.Type()).Elem()
+		out.Set(sanitized)
+		return out
+	case reflect.Struct:
+		out := reflect.New(v.Type()).Elem()
+		for i := 0; i < v.NumField(); i++ {
+			field := out.Field(i)
+			if !field.CanSet() {
+				continue
+			}
+			field.Set(sanitizeCacheJSONValue(v.Field(i)))
+		}
+		return out
+	case reflect.Slice:
+		if v.IsNil() {
+			return reflect.Zero(v.Type())
+		}
+		out := reflect.MakeSlice(v.Type(), v.Len(), v.Len())
+		for i := 0; i < v.Len(); i++ {
+			out.Index(i).Set(sanitizeCacheJSONValue(v.Index(i)))
+		}
+		return out
+	case reflect.Array:
+		out := reflect.New(v.Type()).Elem()
+		for i := 0; i < v.Len(); i++ {
+			out.Index(i).Set(sanitizeCacheJSONValue(v.Index(i)))
+		}
+		return out
+	case reflect.Map:
+		if v.IsNil() {
+			return reflect.Zero(v.Type())
+		}
+		out := reflect.MakeMapWithSize(v.Type(), v.Len())
+		iter := v.MapRange()
+		for iter.Next() {
+			out.SetMapIndex(iter.Key(), sanitizeCacheJSONValue(iter.Value()))
+		}
+		return out
+	case reflect.Float32, reflect.Float64:
+		f := v.Float()
+		if math.IsNaN(f) {
+			return reflect.ValueOf(0.0).Convert(v.Type())
+		}
+		if math.IsInf(f, 1) {
+			return reflect.ValueOf(1e30).Convert(v.Type())
+		}
+		if math.IsInf(f, -1) {
+			return reflect.ValueOf(-1e30).Convert(v.Type())
+		}
+		return v
+	default:
+		return v
+	}
 }
