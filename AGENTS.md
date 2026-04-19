@@ -69,6 +69,8 @@
 - Add focused tests for new loaders, validators, and scoring behavior.
 - Run targeted Go tests after substantial changes:
   - `env GOCACHE=/tmp/go-build-cache go test ./climgen ./cmd/review_planets`
+- Prefer permanent repo scripts for repeatable workflows such as cache refills, sweeps, audits, and summaries instead of ad hoc shell commands.
+- Prefer durable outputs under `output/` and resumable/skip-aware script behavior so long runs survive session issues and are easy to compare later.
 - For long validation sweeps, prefer a user systemd unit with repo-persisted logs instead of `/tmp`, `nohup`, or an open exec session. `/tmp` may be cleared by reboot, and background children may be cleaned up when the command wrapper exits.
 - Use an absolute Go binary path for `systemd-run`, because it may not inherit the interactive shell `PATH`:
   - `mkdir -p output/review_planets/sweeps`
