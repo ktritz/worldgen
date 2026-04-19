@@ -17,6 +17,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
+from typing import Callable
 
 
 CACHE_HIT_RE = re.compile(r"^\s+([a-z]+) cache hit:")
@@ -80,8 +81,12 @@ def parse_trade_metrics(text: str) -> tuple[str, str]:
         return "", ""
     return match.group(1), match.group(2)
 
-
-def run_seed(args: argparse.Namespace, out_dir: Path, seed: int) -> dict[str, str]:
+def run_seed(
+    args: argparse.Namespace,
+    out_dir: Path,
+    seed: int,
+    progress_callback: Callable[[int, float, int], None] | None = None,
+) -> dict[str, str]:
     paths = seed_paths(out_dir, seed)
     if not args.force and output_complete(paths["txt"]) and paths["time"].exists():
         text = paths["txt"].read_text(encoding="utf-8", errors="replace")
@@ -111,26 +116,47 @@ def run_seed(args: argparse.Namespace, out_dir: Path, seed: int) -> dict[str, st
     env["GOCACHE"] = args.gocache
 
     start = time.monotonic()
-    result = subprocess.run(
-        cmd,
-        cwd=Path(__file__).resolve().parents[1],
-        env=env,
-        text=True,
-        capture_output=True,
-    )
-    elapsed = time.monotonic() - start
+    with tempfile.NamedTemporaryFile("w+", dir=out_dir, delete=False, encoding="utf-8") as stdout_handle, tempfile.NamedTemporaryFile("w+", dir=out_dir, delete=False, encoding="utf-8") as stderr_handle:
+        stdout_tmp = Path(stdout_handle.name)
+        stderr_tmp = Path(stderr_handle.name)
+        process = subprocess.Popen(
+            cmd,
+            cwd=Path(__file__).resolve().parents[1],
+            env=env,
+            text=True,
+            stdout=stdout_handle,
+            stderr=stderr_handle,
+        )
+        while True:
+            return_code = process.poll()
+            elapsed = time.monotonic() - start
+            if progress_callback is not None:
+                output_bytes = stdout_tmp.stat().st_size if stdout_tmp.exists() else 0
+                progress_callback(seed, elapsed, output_bytes)
+            if return_code is not None:
+                break
+            time.sleep(1.0)
+        elapsed = time.monotonic() - start
+        stdout_handle.flush()
+        stderr_handle.flush()
+        os.fsync(stdout_handle.fileno())
+        os.fsync(stderr_handle.fileno())
 
-    write_text_atomic(paths["txt"], result.stdout)
-    write_text_atomic(paths["err"], result.stderr)
+    stdout_text = stdout_tmp.read_text(encoding="utf-8", errors="replace")
+    stderr_text = stderr_tmp.read_text(encoding="utf-8", errors="replace")
+    write_text_atomic(paths["txt"], stdout_text)
+    write_text_atomic(paths["err"], stderr_text)
     write_text_atomic(paths["time"], f"elapsed_sec={elapsed:.2f}\n")
+    stdout_tmp.unlink(missing_ok=True)
+    stderr_tmp.unlink(missing_ok=True)
 
-    score, volume = parse_trade_metrics(result.stdout)
-    status = "ok" if result.returncode == 0 else f"failed:{result.returncode}"
+    score, volume = parse_trade_metrics(stdout_text)
+    status = "ok" if return_code == 0 else f"failed:{return_code}"
     return {
         "seed": str(seed),
         "status": status,
         "elapsed_sec": f"{elapsed:.2f}",
-        "cache_hits": parse_cache_hits(result.stdout),
+        "cache_hits": parse_cache_hits(stdout_text),
         "trade_score": score,
         "trade_volume": volume,
     }
@@ -157,6 +183,8 @@ def write_progress(
     rows: list[dict[str, str]],
     status: str,
     active_seed: int | None,
+    active_elapsed_sec: float | None,
+    active_output_bytes: int | None,
     started_at_epoch: float,
 ) -> None:
     completed = len(rows)
@@ -168,6 +196,8 @@ def write_progress(
         "completed_seeds": completed,
         "pending_seeds": seeds[completed:] if active_seed is None else [seed for seed in seeds if str(seed) not in {row["seed"] for row in rows} and seed != active_seed],
         "active_seed": active_seed,
+        "active_elapsed_sec": None if active_elapsed_sec is None else round(active_elapsed_sec, 2),
+        "active_output_bytes": active_output_bytes,
         "started_at_epoch": started_at_epoch,
         "updated_at_epoch": time.time(),
         "last_completed_seed": None if last_completed is None else int(last_completed["seed"]),
@@ -192,6 +222,8 @@ def main() -> int:
         rows=rows,
         status="starting",
         active_seed=None,
+        active_elapsed_sec=None,
+        active_output_bytes=None,
         started_at_epoch=started_at_epoch,
     )
     for seed in seeds:
@@ -202,9 +234,26 @@ def main() -> int:
             rows=rows,
             status="running",
             active_seed=seed,
+            active_elapsed_sec=0.0,
+            active_output_bytes=0,
             started_at_epoch=started_at_epoch,
         )
-        row = run_seed(args, out_dir, seed)
+        row = run_seed(
+            args,
+            out_dir,
+            seed,
+            progress_callback=lambda active_seed, elapsed, output_bytes: write_progress(
+                out_dir,
+                level=args.level,
+                seeds=seeds,
+                rows=rows,
+                status="running",
+                active_seed=active_seed,
+                active_elapsed_sec=elapsed,
+                active_output_bytes=output_bytes,
+                started_at_epoch=started_at_epoch,
+            ),
+        )
         rows.append(row)
         print(
             f"seed={row['seed']} status={row['status']} elapsed={row['elapsed_sec']} "
@@ -218,6 +267,8 @@ def main() -> int:
             rows=rows,
             status="running",
             active_seed=None,
+            active_elapsed_sec=None,
+            active_output_bytes=None,
             started_at_epoch=started_at_epoch,
         )
         if not row["status"].startswith("ok") and row["status"] != "cached":
@@ -228,6 +279,8 @@ def main() -> int:
                 rows=rows,
                 status="failed",
                 active_seed=None,
+                active_elapsed_sec=None,
+                active_output_bytes=None,
                 started_at_epoch=started_at_epoch,
             )
             return 1
@@ -238,6 +291,8 @@ def main() -> int:
         rows=rows,
         status="complete",
         active_seed=None,
+        active_elapsed_sec=None,
+        active_output_bytes=None,
         started_at_epoch=started_at_epoch,
     )
     return 0
