@@ -55,6 +55,7 @@ func computePolityGoods(
 	if nodeGoods != nil && nodeGoods.PolityMarketWealth != nil {
 		marketWealth = nodeGoods.PolityMarketWealth
 	}
+	nodeSupplyMeanByPolity, nodeDemandMeanByPolity := aggregateNodeGoodMeansByPolity(nodeGoods)
 	out.Balances = make([]PolityGoodBalance, 0, len(polities.Spheres))
 	if goods.Diagnostics != nil && len(goods.Diagnostics.ScarcityByGood) > 0 {
 		out.GlobalScarcityByGood = cloneFloatMap(goods.Diagnostics.ScarcityByGood)
@@ -71,8 +72,14 @@ func computePolityGoods(
 		for _, spec := range settings.Goods {
 			scarcity := tradeGoodScarcity(goods, spec.Name)
 			supply := polityGoodSupply(spec, endowmentByGood, sphere, assignment, polities, network, trade, balance.Supply, balance.MarketWealth, scarcity, tuning, production)
+			if len(spec.Inputs) > 0 && nodeSupplyMeanByPolity != nil {
+				supply = clamp01(0.50*supply + 0.50*nodeSupplyMeanByPolity[sphere.ID][spec.Name])
+			}
 			balance.Supply[spec.Name] = supply
 			demand := polityGoodDemand(spec, sphere, assignment, network, trade, balance.Supply, balance.MarketWealth, scarcity, tuning, demandSettings)
+			if len(spec.Inputs) > 0 && nodeDemandMeanByPolity != nil {
+				demand = clamp01(0.50*demand + 0.50*nodeDemandMeanByPolity[sphere.ID][spec.Name])
+			}
 			balance.Demand[spec.Name] = demand
 			balance.Surplus[spec.Name] = supply - demand
 		}
@@ -81,6 +88,47 @@ func computePolityGoods(
 		out.Balances = append(out.Balances, balance)
 	}
 	return out
+}
+
+func aggregateNodeGoodMeansByPolity(nodeGoods *NodeGoodsResult) (map[int]map[string]float64, map[int]map[string]float64) {
+	if nodeGoods == nil || len(nodeGoods.Balances) == 0 {
+		return nil, nil
+	}
+	supplyByPolity := map[int]map[string]float64{}
+	demandByPolity := map[int]map[string]float64{}
+	weightByPolity := map[int]float64{}
+	for _, balance := range nodeGoods.Balances {
+		weight := 1.0 + balance.Wealth
+		supplyMap := supplyByPolity[balance.PolityID]
+		if supplyMap == nil {
+			supplyMap = map[string]float64{}
+			supplyByPolity[balance.PolityID] = supplyMap
+		}
+		demandMap := demandByPolity[balance.PolityID]
+		if demandMap == nil {
+			demandMap = map[string]float64{}
+			demandByPolity[balance.PolityID] = demandMap
+		}
+		weightByPolity[balance.PolityID] += weight
+		for good, value := range balance.Supply {
+			supplyMap[good] += value * weight
+		}
+		for good, value := range balance.Demand {
+			demandMap[good] += value * weight
+		}
+	}
+	for polityID, weight := range weightByPolity {
+		if weight <= 0 {
+			continue
+		}
+		for good, total := range supplyByPolity[polityID] {
+			supplyByPolity[polityID][good] = total / weight
+		}
+		for good, total := range demandByPolity[polityID] {
+			demandByPolity[polityID][good] = total / weight
+		}
+	}
+	return supplyByPolity, demandByPolity
 }
 
 func polityGoodSupply(
@@ -105,6 +153,9 @@ func polityGoodSupply(
 	tradeAccess := polityTradeAccess(sphere, trade)
 	productionDriver := polityProductionDrivers(spec.ProductionDrivers, sphere, assignment, network, trade)
 	if len(spec.Inputs) > 0 {
+		if !tradeGoodsHasLocalInputCapability(spec, currentSupply) {
+			return 0
+		}
 		inputAccess := 1.0
 		for input, need := range spec.Inputs {
 			if need <= 0 {

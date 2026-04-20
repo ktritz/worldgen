@@ -425,7 +425,6 @@ func main() {
 									if *climateTradeGoods && tradeGoodResult != nil {
 										nodeGoods := civilizationReview.NodeGoods
 										printNodeGoodsSummary(nodeGoods, networkResult)
-										polityGoods := civilizationReview.PolityGoods
 										economyReview, _ := loadOrGenerateEconomyReview(
 											cacheStore,
 											civilizationKey,
@@ -440,12 +439,15 @@ func main() {
 											tradeGoodsSettings,
 										)
 										nodeMarkets := economyReview.NodeMarkets
+										polityGoods := civilizationReview.PolityGoods
 										printTradeNodeMarketSummary(nodeMarkets, networkResult, tradeGoodsSettings)
 										printTradeChainSummary(nodeGoods, nodeMarkets, networkResult)
 										multimodalTrade := economyReview.Multimodal
 										polityProfiles = climgen.ApplyMultimodalTradeToPolityProfiles(polityProfiles, multimodalTrade)
 										printPolityProfileSummary(polityProfiles)
 										printPolityGoodsSummary(polityGoods, tradeGoodsSettings)
+										printTradeGoodPathSummary("paper", nodeGoods, nodeMarkets, polityGoods, multimodalTrade, networkResult)
+										printTradeGoodPathSummary("soap", nodeGoods, nodeMarkets, polityGoods, multimodalTrade, networkResult)
 										printMultimodalTradeSummary(multimodalTrade, tradeGoodsSettings)
 									} else {
 										printPolityProfileSummary(polityProfiles)

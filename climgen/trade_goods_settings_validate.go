@@ -53,6 +53,17 @@ func ValidateTradeGoodsSettings(settings TradeGoodsSettings) error {
 				return fmt.Errorf("trade good %q marketMinNodeKind %q is invalid", good.Name, good.MarketMinNodeKind)
 			}
 		}
+		for input, floor := range good.LocalInputCapabilityFloor {
+			if input == "" {
+				return fmt.Errorf("trade good %q has empty local input capability floor key", good.Name)
+			}
+			if floor < 0 || floor > 1 {
+				return fmt.Errorf("trade good %q localInputCapabilityFloor[%q] must be in [0,1]", good.Name, input)
+			}
+			if _, ok := good.Inputs[input]; !ok {
+				return fmt.Errorf("trade good %q localInputCapabilityFloor[%q] requires matching input", good.Name, input)
+			}
+		}
 		for input, floor := range good.MarketInputCapabilityFloor {
 			if input == "" {
 				return fmt.Errorf("trade good %q has empty market input capability floor key", good.Name)

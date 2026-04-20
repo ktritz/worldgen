@@ -727,6 +727,10 @@
       "marketConversionScale": 0.36,
       "marketContextSensitivity": 1.22,
       "marketMinNodeKind": "town",
+      "localInputCapabilityFloor": {
+        "salt": 0.22,
+        "livestock": 0.16
+      },
       "marketInputCapabilityFloor": {
         "salt": 0.25,
         "livestock": 0.20
@@ -804,6 +808,10 @@
       "marketContextSensitivity": 1.18,
       "marketDominancePenalty": 0.36,
       "marketMinNodeKind": "town",
+      "localInputCapabilityFloor": {
+        "fiber": 0.40,
+        "resin": 0.14
+      },
       "marketInputCapabilityFloor": {
         "fiber": 0.18,
         "resin": 0.08

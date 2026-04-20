@@ -103,6 +103,7 @@ type TradeGoodSpec struct {
 	MarketDominancePenalty     float64            `json:"marketDominancePenalty,omitempty"`
 	MarketInputReservePriority float64            `json:"marketInputReservePriority,omitempty"`
 	MarketMinNodeKind          string             `json:"marketMinNodeKind,omitempty"`
+	LocalInputCapabilityFloor  map[string]float64 `json:"localInputCapabilityFloor,omitempty"`
 	MarketInputCapabilityFloor map[string]float64 `json:"marketInputCapabilityFloor,omitempty"`
 	SourceWeights              map[string]float64 `json:"sourceWeights,omitempty"`
 	Inputs                     map[string]float64 `json:"inputs,omitempty"`

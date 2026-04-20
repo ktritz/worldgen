@@ -18,6 +18,84 @@ func printTradeChainSummary(nodeGoods *climgen.NodeGoodsResult, markets *climgen
 	printSpecificTradeChainSummary("cloth", "fine_clothing", nodeGoods, markets, network)
 }
 
+func printTradeGoodPathSummary(good string, nodeGoods *climgen.NodeGoodsResult, markets *climgen.TradeNodeMarketResult, polityGoods *climgen.PolityGoodsResult, multimodal *climgen.MultimodalTradeResult, network *climgen.SettlementNetworkResult) {
+	if nodeGoods == nil || markets == nil || polityGoods == nil || multimodal == nil {
+		return
+	}
+
+	nodeSupply := 0.0
+	nodeSurplus := 0.0
+	marketSupply := 0.0
+	marketDemand := 0.0
+	marketSurplus := 0.0
+	marketMade := 0.0
+	politySupply := 0.0
+	polityDemand := 0.0
+	politySurplus := 0.0
+	polityExporters := 0
+	polityImporters := 0
+	tradeScore := 0.0
+	tradeVolume := 0.0
+	tradePairs := 0
+
+	for _, balance := range nodeGoods.Balances {
+		nodeSupply += balance.Supply[good]
+		nodeSurplus += reviewMaxFloat(balance.Surplus[good], 0)
+	}
+	for _, market := range markets.Markets {
+		marketSupply += market.Supply[good]
+		marketDemand += market.Demand[good]
+		marketSurplus += reviewMaxFloat(market.Surplus[good], 0)
+		marketMade += market.Manufactured[good]
+	}
+	for _, balance := range polityGoods.Balances {
+		supply := balance.Supply[good]
+		demand := balance.Demand[good]
+		surplus := balance.Surplus[good]
+		politySupply += supply
+		polityDemand += demand
+		politySurplus += reviewMaxFloat(surplus, 0)
+		if surplus > 0 {
+			polityExporters++
+		}
+		if surplus < 0 {
+			polityImporters++
+		}
+	}
+	for _, pair := range multimodal.Pairs {
+		for _, flow := range pair.Goods {
+			if flow.Good != good {
+				continue
+			}
+			tradeScore += flow.Score
+			tradeVolume += flow.Volume
+			tradePairs++
+		}
+	}
+
+	fmt.Printf(
+		"      tradeGoodPath[%s]: nodeSupply=%.2f nodeSurplus=%.2f marketSupply=%.2f marketDemand=%.2f marketSurplus=%.2f made=%.2f politySupply=%.2f polityDemand=%.2f politySurplus=%.2f exporters=%d importers=%d tradeScore=%.2f tradeVolume=%.2f tradePairs=%d\n",
+		good,
+		nodeSupply,
+		nodeSurplus,
+		marketSupply,
+		marketDemand,
+		marketSurplus,
+		marketMade,
+		politySupply,
+		polityDemand,
+		politySurplus,
+		polityExporters,
+		polityImporters,
+		tradeScore,
+		tradeVolume,
+		tradePairs,
+	)
+	fmt.Printf("      %sPolities=%s\n", good, formatChainValues(topPolityChainValues(good, polityGoods, 4), 4))
+	fmt.Printf("      %sPolityImports=%s\n", good, formatChainValues(topPolityImportChainValues(good, polityGoods, 4), 4))
+	fmt.Printf("      %sTradePairs=%s\n", good, formatTradePairChainValues(good, multimodal, 4))
+}
+
 func printSpecificTradeChainSummary(rawGood, processedGood string, nodeGoods *climgen.NodeGoodsResult, markets *climgen.TradeNodeMarketResult, network *climgen.SettlementNetworkResult) {
 	if nodeGoods == nil || markets == nil {
 		return
@@ -189,6 +267,90 @@ func topMarketManufacturedChainValues(good string, markets *climgen.TradeNodeMar
 		limit = len(values)
 	}
 	return values[:limit]
+}
+
+func topPolityChainValues(good string, polityGoods *climgen.PolityGoodsResult, limit int) []chainValue {
+	values := make([]chainValue, 0, len(polityGoods.Balances))
+	for _, balance := range polityGoods.Balances {
+		surplus := reviewMaxFloat(balance.Surplus[good], 0)
+		if surplus <= 0 {
+			continue
+		}
+		values = append(values, chainValue{
+			label: fmt.Sprintf("%d", balance.PolityID),
+			value: surplus,
+		})
+	}
+	sort.Slice(values, func(i, j int) bool {
+		if values[i].value != values[j].value {
+			return values[i].value > values[j].value
+		}
+		return values[i].label < values[j].label
+	})
+	if len(values) < limit {
+		limit = len(values)
+	}
+	return values[:limit]
+}
+
+func topPolityImportChainValues(good string, polityGoods *climgen.PolityGoodsResult, limit int) []chainValue {
+	values := make([]chainValue, 0, len(polityGoods.Balances))
+	for _, balance := range polityGoods.Balances {
+		deficit := reviewMaxFloat(-balance.Surplus[good], 0)
+		if deficit <= 0 {
+			continue
+		}
+		values = append(values, chainValue{
+			label: fmt.Sprintf("%d", balance.PolityID),
+			value: deficit,
+		})
+	}
+	sort.Slice(values, func(i, j int) bool {
+		if values[i].value != values[j].value {
+			return values[i].value > values[j].value
+		}
+		return values[i].label < values[j].label
+	})
+	if len(values) < limit {
+		limit = len(values)
+	}
+	return values[:limit]
+}
+
+func formatTradePairChainValues(good string, multimodal *climgen.MultimodalTradeResult, limit int) string {
+	values := make([]chainValue, 0, len(multimodal.Pairs))
+	lines := make(map[string]string)
+	for _, pair := range multimodal.Pairs {
+		for _, flow := range pair.Goods {
+			if flow.Good != good {
+				continue
+			}
+			label := fmt.Sprintf("%d->%d", pair.FromPolity, pair.ToPolity)
+			values = append(values, chainValue{label: label, value: flow.Score})
+			lines[label] = fmt.Sprintf("%s:s%.2f/v%.2f", label, flow.Score, flow.Volume)
+			break
+		}
+	}
+	if len(values) == 0 {
+		return "none"
+	}
+	sort.Slice(values, func(i, j int) bool {
+		if values[i].value != values[j].value {
+			return values[i].value > values[j].value
+		}
+		return values[i].label < values[j].label
+	})
+	if len(values) < limit {
+		limit = len(values)
+	}
+	out := ""
+	for i := 0; i < limit; i++ {
+		if i > 0 {
+			out += ", "
+		}
+		out += lines[values[i].label]
+	}
+	return out
 }
 
 func formatBlockedChainMarkets(processedGood string, markets *climgen.TradeNodeMarketResult, network *climgen.SettlementNetworkResult, limit int) string {

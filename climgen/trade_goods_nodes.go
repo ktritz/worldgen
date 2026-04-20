@@ -100,6 +100,9 @@ func nodeGoodSupply(
 	kindScale := nodeKindScale(node)
 	productionDriver := nodeProductionDrivers(spec.ProductionDrivers, node, assignment, trade)
 	if len(spec.Inputs) > 0 {
+		if !tradeGoodsHasLocalInputCapability(spec, currentSupply) {
+			return 0
+		}
 		inputAccess := 1.0
 		for input, need := range spec.Inputs {
 			if need <= 0 {
