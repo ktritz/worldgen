@@ -16,6 +16,8 @@ Procedural world generation system for Earth-like planets.
   - `config/`
 - Human-readable schema index:
   - `docs/CONFIG_SCHEMAS.md`
+- Current project status and next-step snapshot:
+  - `docs/CURRENT_STATUS.md`
 
 ## Architecture
 
