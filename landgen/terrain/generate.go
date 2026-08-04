@@ -6,7 +6,6 @@ package terrain
 import (
 	"fmt"
 	"math"
-	"math/rand"
 )
 
 // GeneratePlanetElevation is the main entry point for tectonic planet generation
@@ -33,7 +32,6 @@ func GeneratePlanetElevationWithDiagnostics(
 	targetLandFraction float64,
 ) (elevation []float64, isLand []bool, diagnostics PlanetGenerationDiagnostics) {
 	numRegions := len(sites)
-	rng := rand.New(rand.NewSource(seed))
 
 	fmt.Println("=== TECTONIC PLANET GENERATION ===")
 	fmt.Printf("Regions: %d, Plates: %d\n", numRegions, numPlates)
@@ -51,7 +49,10 @@ func GeneratePlanetElevationWithDiagnostics(
 
 	// Step 3: Assign plates as oceanic/continental
 	fmt.Println("Step 2: Assigning plate types...")
-	plateIsOcean := AssignPlateTypes(sortedPlates, plateSizes, plateNeighbors, numRegions, targetLandFraction)
+	plateIsOcean := layout.plateIsOcean
+	if len(plateIsOcean) == 0 {
+		plateIsOcean = AssignPlateTypes(sortedPlates, plateSizes, plateNeighbors, numRegions, targetLandFraction)
+	}
 
 	// Report plate distribution
 	oceanicPlates, continentalPlates := 0, 0
@@ -73,11 +74,17 @@ func GeneratePlanetElevationWithDiagnostics(
 
 	// Step 4: Assign plate rotations (Euler poles for realistic curved motion)
 	fmt.Println("Step 3: Assigning plate rotations (Euler poles)...")
-	plateRot := AssignPlateRotations(sites, cells, plateR, plateIsOcean, plateNeighbors, rng)
+	plateRot := AssignPlateRotations(layout, plateIsOcean, plateNeighbors, seed)
 
 	// Step 5: Compute elevation
 	fmt.Println("Step 4: Computing elevation...")
-	elevation, coastlineR, mountainR, collisionR, arcR, ridgeR, trenchR := ComputeElevation(sites, cells, plateIsOcean, rPlate, plateRot, seed)
+	elevation, boundarySeeds := ComputeElevationWithSeeds(sites, cells, plateIsOcean, rPlate, plateRot, seed)
+	coastlineR := boundarySeeds.Coastline
+	mountainR := boundarySeeds.Mountain
+	collisionR := boundarySeeds.Collision
+	arcR := boundarySeeds.Arc
+	ridgeR := boundarySeeds.Ridge
+	trenchR := boundarySeeds.Trench
 
 	// Step 6: Compute distance from coast for continental slope
 	fmt.Println("  Computing continental distance from coast...")
@@ -93,6 +100,24 @@ func GeneratePlanetElevationWithDiagnostics(
 	componentMaxCollisionDist := ComputeContinentalComponentMaxTectonicDistance(cells, rPlate, plateIsOcean, distFromCollision)
 	distFromArc := ComputeDistanceFromMountainSeeds(cells, arcR, rPlate, plateIsOcean)
 	componentMaxArcDist := ComputeContinentalComponentMaxTectonicDistance(cells, rPlate, plateIsOcean, distFromArc)
+	// Continental rifts are seeded but were never rasterised; reuse the
+	// continental seed-distance walk so rift proximity is exportable too.
+	// Nothing downstream consumes this field, so terrain output is unchanged.
+	distFromRift := ComputeDistanceFromMountainSeeds(cells, boundarySeeds.Rift, rPlate, plateIsOcean)
+
+	// Export the tectonic scaffolding while the fields are still pristine. The
+	// snapshot copies every slice, so later elevation passes cannot alias or
+	// perturb what review and lithology tooling reads back.
+	diagnostics.Tectonics = buildTectonicDiagnostics(rPlate, plateIsOcean, boundarySeeds, tectonicDistanceFields{
+		coast:      distFromCoast,
+		oceanCoast: oceanDistFromCoast,
+		mountain:   distFromMountain,
+		collision:  distFromCollision,
+		arc:        distFromArc,
+		ridge:      distFromRidge,
+		trench:     distFromTrench,
+		rift:       distFromRift,
+	})
 
 	// Find max distance for normalization
 	maxDist := 0.0
@@ -185,8 +210,8 @@ func GeneratePlanetElevationWithDiagnostics(
 	// Step 11: Add hotspot island chains (AFTER hypsometry, works in meters)
 	// This slightly increases land percentage but creates realistic volcanic islands
 	fmt.Println("Step 7: Generating hotspot island chains...")
-	hotspotChains := PlaceHotspots(sites, cells, rPlate, plateRot, plateIsOcean, rng)
-	numIslandCells, _, hotspotCells := ApplyHotspotElevation(elevation, cells, sites, hotspotChains, rPlate, plateIsOcean, rng)
+	hotspotChains := PlaceHotspots(sites, cells, layout, plateRot, plateIsOcean, seed)
+	numIslandCells, _, hotspotCells := ApplyHotspotElevation(elevation, cells, sites, hotspotChains, rPlate, plateIsOcean, seed)
 	// Show chain lengths and type breakdown
 	oceanicCount, continentalCount := 0, 0
 	oceanicLengths := make([]int, 0)
