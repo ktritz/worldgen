@@ -90,12 +90,15 @@ func FindOceanBasins(
 		for len(unassigned) > 0 {
 			iteration++
 
-			// Find largest connected component in unassigned water
+			// Find largest connected component in unassigned water.
+			// MinComponentSize is in baseline-equivalent (L5) cells, so convert the
+			// raw count via the mesh area scale for resolution independence.
 			component := findLargestComponent(unassigned, adj, numVertices)
-			if len(component) < settings.MinComponentSize {
+			componentEquivalentCells := meshScaledTerritoryAreaCells(len(component), numVertices)
+			if len(component) == 0 || componentEquivalentCells < float64(settings.MinComponentSize) {
 				if settings.Verbose {
-					fmt.Printf("    Remaining component too small (%d < %d), done with zone\n",
-						len(component), settings.MinComponentSize)
+					fmt.Printf("    Remaining component too small (%d cells, %.1f baseline-equivalent < %d), done with zone\n",
+						len(component), componentEquivalentCells, settings.MinComponentSize)
 				}
 				break
 			}
