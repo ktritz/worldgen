@@ -111,22 +111,12 @@ func BuildPolitySpheres(
 	if len(spheres) == 0 {
 		return out
 	}
-	for _, sphere := range spheres {
-		if sphere.CapitalNode >= 0 && sphere.CapitalNode < len(out.Diagnostics.CapitalByNode) {
-			out.Diagnostics.CapitalByNode[sphere.CapitalNode] = true
-		}
-	}
-
 	assignPolitySphereTerritories(cells, network, trade, spheres, population, settlements, elevation, seaLevel, out.Diagnostics, settings)
 	spheres = finalizePolitySpheres(spheres, out.Diagnostics, population, settings)
 	out.MergedMinor = initialSphereCount - len(spheres)
 	out.Relations = buildPolitySphereRelations(spheres)
 	out.Spheres = spheres
-	for i, sphere := range spheres {
-		if sphere.CapitalNode >= 0 && sphere.CapitalNode < len(out.Diagnostics.PolityByNode) {
-			out.Diagnostics.PolityByNode[sphere.CapitalNode] = i
-		}
-	}
+	assignPolityNodeOwnership(network, trade, out.Spheres, out.Diagnostics)
 	return out
 }
 
@@ -150,7 +140,9 @@ func politySphereSeeds(
 		existingCapital[civ.CenterNode] = struct{}{}
 	}
 
-	adj := buildTradeAdjacency(network, nil)
+	// landRoutes is nil here, so only the stepScale-corrected SettlementLink.TravelCost
+	// fallback is used and the mesh cell count is irrelevant (0 => baseline scale).
+	adj := buildTradeAdjacency(network, nil, 0)
 	for _, civ := range proto.Civilizations {
 		bestNode := -1
 		bestScore := -1.0
@@ -169,18 +161,19 @@ func politySphereSeeds(
 			if nodeIdx < len(trade.Diagnostics.HubScore) {
 				hubScore = trade.Diagnostics.HubScore[nodeIdx]
 			}
+			effectiveHubScore := hubScore * SettlementNodePhysicalSupportWeight(node)
 			threshold := settings.SecondaryHubThreshold
-			if civ.TerritoryCells >= settings.SecondaryLargeProtoCells {
+			if polityProtoTerritoryAreaEq(civ, trade) >= float64(settings.SecondaryLargeProtoCells) {
 				threshold = settings.SecondaryLargeHubThreshold
 			}
-			if hubScore < threshold {
+			if effectiveHubScore < threshold {
 				continue
 			}
 			path := shortestTradeNodePath(civ.CenterNode, nodeIdx, network, adj, settings.ClaimMaxTravel)
 			if !path.ok || path.cost < settings.SecondaryMinDistance {
 				continue
 			}
-			score := hubScore + 0.02*math.Min(path.cost, 12.0)
+			score := effectiveHubScore + 0.02*math.Min(path.cost, 12.0)
 			if score > bestScore {
 				bestScore = score
 				bestNode = nodeIdx
@@ -203,6 +196,14 @@ func politySphereSeeds(
 	return spheres
 }
 
+func polityProtoTerritoryAreaEq(civ ProtoCivilization, trade *TradeNetworkResult) float64 {
+	cellCount := 0
+	if trade != nil && trade.Diagnostics != nil {
+		cellCount = len(trade.Diagnostics.RouteIntensity)
+	}
+	return meshScaledTerritoryAreaCells(civ.TerritoryCells, cellCount)
+}
+
 func assignPolitySphereTerritories(
 	cells []VoronoiCell,
 	network *SettlementNetworkResult,
@@ -219,11 +220,8 @@ func assignPolitySphereTerritories(
 		node := network.Nodes[sphere.CapitalNode]
 		maxTravel := polityClaimLimit(node, sphere, trade, settings)
 		dist, _ := shortestPathsFromNode(node.CellIndex, cells, network.Diagnostics.MovementCost, maxTravel)
-		centrality := 0.0
-		if trade.Diagnostics != nil && sphere.CapitalNode < len(trade.Diagnostics.NodeCentrality) {
-			centrality = trade.Diagnostics.NodeCentrality[sphere.CapitalNode]
-		}
-		influence := 1.0 + 0.30*node.Score + 0.14*float64(node.Kind) + 0.18*centrality
+		centrality := tradeNodePoliticalCentrality(sphere.CapitalNode, trade)
+		influence := 1.0 + 0.30*node.Score*SettlementNodePhysicalSupportWeight(node) + 0.14*settlementNodeEffectiveRank(node) + 0.18*centrality
 		if sphere.Secondary {
 			influence *= 0.88
 		}
@@ -257,11 +255,8 @@ func claimablePolityCell(idx int, settlements *SettlementResult, population *Pop
 }
 
 func polityClaimLimit(node SettlementNode, sphere PolitySphere, trade *TradeNetworkResult, settings PolitySphereSettings) float64 {
-	centrality := 0.0
-	if trade.Diagnostics != nil && node.ID < len(trade.Diagnostics.NodeCentrality) {
-		centrality = trade.Diagnostics.NodeCentrality[node.ID]
-	}
-	limit := settings.ClaimBaseTravel + 2.0*float64(node.Kind) + 4.0*math.Min(centrality, 1.0)
+	centrality := tradeNodePoliticalCentrality(node.ID, trade)
+	limit := settings.ClaimBaseTravel + 2.0*settlementNodeEffectiveRank(node) + 4.0*math.Min(centrality, 1.0)
 	if sphere.Coastal {
 		limit += 1.2
 	}
@@ -272,6 +267,19 @@ func polityClaimLimit(node SettlementNode, sphere PolitySphere, trade *TradeNetw
 		limit -= 1.0
 	}
 	return math.Min(limit, settings.ClaimMaxTravel)
+}
+
+func tradeNodePoliticalCentrality(nodeID int, trade *TradeNetworkResult) float64 {
+	if trade == nil || trade.Diagnostics == nil || nodeID < 0 {
+		return 0
+	}
+	if nodeID < len(trade.Diagnostics.TrunkCentrality) {
+		return trade.Diagnostics.TrunkCentrality[nodeID]
+	}
+	if nodeID < len(trade.Diagnostics.NodeCentrality) {
+		return trade.Diagnostics.NodeCentrality[nodeID]
+	}
+	return 0
 }
 
 func finalizePolitySpheres(
@@ -301,8 +309,9 @@ func finalizePolitySpheres(
 	for i := range oldToNew {
 		oldToNew[i] = -1
 	}
+	cellCount := len(diagnostics.PolityByCell)
 	for i, sphere := range spheres {
-		if territory[i] < settings.MinTerritoryCells {
+		if meshScaledTerritoryAreaCells(territory[i], cellCount) < float64(settings.MinTerritoryCells) {
 			continue
 		}
 		sphere.ID = len(filtered)
@@ -319,6 +328,75 @@ func finalizePolitySpheres(
 		}
 	}
 	return filtered
+}
+
+func assignPolityNodeOwnership(
+	network *SettlementNetworkResult,
+	trade *TradeNetworkResult,
+	spheres []PolitySphere,
+	diagnostics *PolitySphereDiagnostics,
+) {
+	if network == nil || diagnostics == nil {
+		return
+	}
+	for i := range diagnostics.PolityByNode {
+		diagnostics.PolityByNode[i] = -1
+	}
+	for i := range diagnostics.CapitalByNode {
+		diagnostics.CapitalByNode[i] = false
+	}
+
+	primaryByProto := primaryPolityByProto(spheres)
+	for nodeIdx, node := range network.Nodes {
+		owner := -1
+		if node.CellIndex >= 0 && node.CellIndex < len(diagnostics.PolityByCell) {
+			owner = diagnostics.PolityByCell[node.CellIndex]
+		}
+		if owner < 0 && trade != nil && trade.Diagnostics != nil && nodeIdx < len(trade.Diagnostics.CivilizationByNode) {
+			if primary, ok := primaryByProto[trade.Diagnostics.CivilizationByNode[nodeIdx]]; ok {
+				owner = primary
+			}
+		}
+		if nodeIdx >= 0 && nodeIdx < len(diagnostics.PolityByNode) {
+			diagnostics.PolityByNode[nodeIdx] = owner
+		}
+	}
+	for _, sphere := range spheres {
+		if sphere.CapitalNode < 0 || sphere.CapitalNode >= len(diagnostics.PolityByNode) {
+			continue
+		}
+		diagnostics.PolityByNode[sphere.CapitalNode] = sphere.ID
+		if sphere.CapitalNode < len(diagnostics.CapitalByNode) {
+			diagnostics.CapitalByNode[sphere.CapitalNode] = true
+		}
+	}
+}
+
+func primaryPolityByProto(spheres []PolitySphere) map[int]int {
+	primary := make(map[int]int)
+	byID := make(map[int]PolitySphere, len(spheres))
+	for _, sphere := range spheres {
+		byID[sphere.ID] = sphere
+	}
+	for _, sphere := range spheres {
+		current, ok := primary[sphere.ProtoCivilizationID]
+		if !ok {
+			primary[sphere.ProtoCivilizationID] = sphere.ID
+			continue
+		}
+		currentSphere := byID[current]
+		if sphere.Secondary && !currentSphere.Secondary {
+			continue
+		}
+		if !sphere.Secondary && currentSphere.Secondary {
+			primary[sphere.ProtoCivilizationID] = sphere.ID
+			continue
+		}
+		if sphere.TerritoryCells > currentSphere.TerritoryCells {
+			primary[sphere.ProtoCivilizationID] = sphere.ID
+		}
+	}
+	return primary
 }
 
 func buildPolitySphereRelations(spheres []PolitySphere) []PolitySphereRelation {
