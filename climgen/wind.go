@@ -255,6 +255,25 @@ type WindResult struct {
 
 // GenerateWindField is the main entry point for wind generation.
 // Uses pressure-driven geostrophic balance with friction and orographic effects.
+// leeShadowIterationCount converts the fixed ~0.05 rad (~3 degree) physical
+// lee-shadow span into a per-mesh hop count. The floor is 1: the old floor of 3
+// forced coarse (L5) meshes to overshoot the physical target by ~2x. The cap of
+// 40 is a safety bound that stays above the ~12 hops an L8 mesh needs.
+func leeShadowIterationCount(cellSize float64) int {
+	const leeShadowAngularSpan = 0.05
+	if cellSize <= 0 {
+		return 40
+	}
+	iters := int(leeShadowAngularSpan/cellSize) + 1
+	if iters < 1 {
+		iters = 1
+	}
+	if iters > 40 {
+		iters = 40
+	}
+	return iters
+}
+
 func GenerateWindField(
 	vertices []Vector3D,
 	elevation []float64,
@@ -395,13 +414,7 @@ func GenerateWindField(
 		if settings.Verbose {
 			fmt.Println("  Propagating lee-side wind shadows...")
 		}
-		leeShadowIters := int(0.05/cellSize) + 1 // ~3 degrees of shadow propagation
-		if leeShadowIters < 3 {
-			leeShadowIters = 3
-		}
-		if leeShadowIters > 10 {
-			leeShadowIters = 10
-		}
+		leeShadowIters := leeShadowIterationCount(cellSize)
 		surfaceWind = PropagateLeeShadow(
 			surfaceWind, vertices, elevation, adj, leeShadowIters, 0.75,
 		)

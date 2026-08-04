@@ -16,12 +16,12 @@ import (
 
 // Slope effect constants
 const (
-	earthRadiusKm            = 6371.0
-	slopeDeadbandMPerKm      = 0.8
-	slopeUphillResponse      = 0.022
-	slopeDownhillResponse    = 0.015
-	slopeUphillMaxFactor     = 0.78
-	slopeDownhillMaxFactor   = 1.12
+	earthRadiusKm          = 6371.0
+	slopeDeadbandMPerKm    = 0.8
+	slopeUphillResponse    = 0.022
+	slopeDownhillResponse  = 0.015
+	slopeUphillMaxFactor   = 0.78
+	slopeDownhillMaxFactor = 1.12
 )
 
 // ApplyOrographicDeflection modifies wind field for mountain effects.
@@ -275,7 +275,11 @@ func PropagateLeeShadow(
 		}
 	}
 
-	// Iterate: propagate shadow downwind
+	// Iterate: propagate shadow downwind.
+	// Raise the per-hop decay to the physical hop length so the shadow's
+	// e-folding distance stays fixed across mesh resolutions (exact no-op at
+	// the L5 baseline where the scale is 1).
+	effectiveDecay := math.Pow(decayRate, meshPathCostResolutionScale(len(vertices)))
 	nextShadow := make([]float64, numVertices)
 	for iter := 0; iter < iterations; iter++ {
 		copy(nextShadow, shadow)
@@ -317,7 +321,7 @@ func PropagateLeeShadow(
 
 				if upwindness > 0.3 && shadow[k] > 0 {
 					// Upwind neighbor is in shadow - we inherit some of it
-					inheritedShadow := shadow[k] * upwindness * decayRate
+					inheritedShadow := shadow[k] * upwindness * effectiveDecay
 
 					// Shadow is weaker if we're lower than the upwind cell (descending air recovers)
 					elevDiff := elevation[i] - elevation[k]

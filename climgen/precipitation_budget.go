@@ -54,6 +54,9 @@ func computePrecipitationBudget(
 	avgCellSizeKm := estimateClimateCellSizeKm(n)
 	maxIterations := scaledPrecipIterations(avgCellSizeKm)
 	rainfallFractionPerCell := settings.RainfallFraction * avgCellSizeKm
+	transportSteps := resolutionAdjustedPrecipSteps(precipInlandTransportSteps, n)
+	fetchSteps := resolutionAdjustedPrecipSteps(precipFetchMaxSteps, n)
+	footprintSteps := resolutionAdjustedPrecipSteps(precipInlandTransportSteps+4, n)
 
 	isOcean := make([]bool, n)
 	for i := range elevation {
@@ -81,17 +84,17 @@ func computePrecipitationBudget(
 	coastalOnshore := make([]float64, n)
 	landTravel := make([]float64, n)
 	upwindParent, upwindStrength := computeStrongestUpwindGraph(vertices, adj, wind)
-	upwindLandSteps := computeUpwindLandStepCounts(upwindParent, upwindStrength, elevation, seaLevel, precipInlandTransportSteps)
+	upwindLandSteps := computeUpwindLandStepCounts(upwindParent, upwindStrength, elevation, seaLevel, transportSteps)
 	for i := range vertices {
 		if i < len(oceanAtmosphere) {
 			result.Debug.OceanAtmosphere[i] = oceanAtmosphere[i]
 		}
 		upliftDiag := computeOrographicLiftDiagnostic(i, vertices, elevation, adj, wind)
 		uplift[i] = upliftDiag.Lift
-		oceanFetch[i] = computeUpwindOceanFetch(i, vertices, elevation, seaLevel, adj, wind, precipFetchMaxSteps)
+		oceanFetch[i] = computeUpwindOceanFetch(i, vertices, elevation, seaLevel, adj, wind, fetchSteps)
 		coastalOnshore[i] = coastalOnshoreScore(i, vertices, elevation, seaLevel, adj, wind)
 		if upwindLandSteps[i] >= 0 {
-			landTravel[i] = Clamp(float64(upwindLandSteps[i])/float64(precipInlandTransportSteps), 0, 1)
+			landTravel[i] = Clamp(float64(upwindLandSteps[i])/float64(transportSteps), 0, 1)
 		}
 		parent := -1
 		if i < len(upwindParent) {
@@ -112,7 +115,7 @@ func computePrecipitationBudget(
 			seaLevel,
 			adj,
 			wind,
-			precipInlandTransportSteps+4,
+			footprintSteps,
 		)
 		result.Debug.NeighborOceanFraction[i] = computeNeighborOceanFraction(i, elevation, seaLevel, adj)
 		result.Debug.OceanDownwindLand[i] = computeDownwindLandExposure(i, vertices, elevation, seaLevel, adj, wind)
@@ -210,13 +213,13 @@ func computePrecipitationBudget(
 			frontalQ := incomingFrontal
 			if !isOcean[i] {
 				frontalSourceScale := localOptionalPrecipitationScale(settings.FrontalSourceLocalScale, i)
-				marineToFrontal := marineQ * computeFrontalMarineCaptureFraction(
+				marineToFrontal := marineQ * precipitationPerStepFraction(computeFrontalMarineCaptureFraction(
 					effectiveFetch[i],
 					effectiveOnshore[i],
 					landTravel[i],
 					landInterior[i],
 					frontalSourceScale,
-				)
+				), n)
 				marineQ -= marineToFrontal
 				frontalQ += marineToFrontal
 				frontalQ += computeFrontalStormSource(
@@ -233,7 +236,7 @@ func computePrecipitationBudget(
 					settings.FrontalSourceLocalScale,
 					settings.FrontalTransportLocalScale,
 				)
-				marineToLand := marineQ * marineToLandMixFraction(effectiveFetch[i], effectiveOnshore[i], landTravel[i], landInterior[i])
+				marineToLand := marineQ * precipitationPerStepFraction(marineToLandMixFraction(effectiveFetch[i], effectiveOnshore[i], landTravel[i], landInterior[i]), n)
 				marineQ -= marineToLand
 				landQ += marineToLand
 				landQ += computeTropicalMarineSource(
@@ -396,13 +399,13 @@ func computePrecipitationBudget(
 		result.Debug.TropicalSourceScale[i] = localOptionalPrecipitationScale(settings.TropicalSourceLocalScale, i)
 		result.Debug.CondensationScale[i] = localPrecipitationScale(settings.CondensationLocalScale, i)
 		result.Debug.LandRetentionScale[i] = localPrecipitationScale(settings.LandRetentionLocalScale, i)
-		marineToFrontal := incomingMarine * computeFrontalMarineCaptureFraction(
+		marineToFrontal := incomingMarine * precipitationPerStepFraction(computeFrontalMarineCaptureFraction(
 			effectiveFetch[i],
 			effectiveOnshore[i],
 			landTravel[i],
 			landInterior[i],
 			frontalSourceScale,
-		)
+		), n)
 		incomingMarine -= marineToFrontal
 		incomingFrontal += marineToFrontal
 		incomingFrontal += computeFrontalStormSource(
@@ -420,7 +423,7 @@ func computePrecipitationBudget(
 			settings.FrontalTransportLocalScale,
 		)
 		result.Debug.FrontalSource[i] = incomingFrontal
-		marineToLand := incomingMarine * marineToLandMixFraction(effectiveFetch[i], effectiveOnshore[i], landTravel[i], landInterior[i])
+		marineToLand := incomingMarine * precipitationPerStepFraction(marineToLandMixFraction(effectiveFetch[i], effectiveOnshore[i], landTravel[i], landInterior[i]), n)
 		incomingMarine -= marineToLand
 		incomingLand += marineToLand
 		tropicalSource := computeTropicalMarineSource(
@@ -543,7 +546,7 @@ func advectedSpecificHumidity(
 		vertices,
 		adj,
 		wind,
-		3,
+		resolutionAdjustedPrecipSteps(3, len(vertices)),
 		precipUpwindFootprintMinAlignment,
 		nil,
 	)

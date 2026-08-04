@@ -386,7 +386,7 @@ func frontalUpwindMean(
 		vertices,
 		adj,
 		wind,
-		2,
+		resolutionAdjustedPrecipSteps(2, len(vertices)),
 		0.02,
 		func(idx int) bool {
 			return idx >= 0 && idx < len(elevation) && elevation[idx] >= seaLevel
@@ -427,7 +427,7 @@ func frontalTwoHopUpwindMean(
 		vertices,
 		adj,
 		wind,
-		4,
+		resolutionAdjustedPrecipSteps(4, len(vertices)),
 		0.02,
 		func(idx int) bool {
 			return idx >= 0 && idx < len(elevation) && elevation[idx] >= seaLevel

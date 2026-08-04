@@ -3,41 +3,41 @@ package climgen
 import "math"
 
 type SeasonalWindDebug struct {
-	BaseThermalShiftDeg  float64
-	LocalShiftDeg        float64
-	PressureAnomaly      float64
-	PressureWindSpeed    float64
-	PressureWindEast     float64
-	PressureWindNorth    float64
-	SurfaceWeight        float64
-	MarineWeight         float64
-	BaseSurfaceSpeed     float64
-	FinalSurfaceSpeed    float64
-	BaseMarineSpeed      float64
-	FinalMarineSpeed     float64
-	BaseSurfaceEast      float64
-	BaseSurfaceNorth     float64
-	FinalSurfaceEast     float64
-	FinalSurfaceNorth    float64
-	BaseSurfaceConv      float64
-	FinalSurfaceConv     float64
-	BaseSurfaceRawDiv    float64
-	FinalSurfaceRawDiv   float64
-	CombinedConv         float64
-	FrictionConv         float64
-	SlopeConv            float64
-	OrographicConv       float64
-	SmoothedConv         float64
-	CombinedRawDiv       float64
-	FrictionRawDiv       float64
-	SlopeRawDiv          float64
-	OrographicRawDiv     float64
-	SmoothedRawDiv       float64
-	CombinedSpeed        float64
-	FrictionSpeed        float64
-	SlopeSpeed           float64
-	OrographicSpeed      float64
-	SmoothedSpeed        float64
+	BaseThermalShiftDeg float64
+	LocalShiftDeg       float64
+	PressureAnomaly     float64
+	PressureWindSpeed   float64
+	PressureWindEast    float64
+	PressureWindNorth   float64
+	SurfaceWeight       float64
+	MarineWeight        float64
+	BaseSurfaceSpeed    float64
+	FinalSurfaceSpeed   float64
+	BaseMarineSpeed     float64
+	FinalMarineSpeed    float64
+	BaseSurfaceEast     float64
+	BaseSurfaceNorth    float64
+	FinalSurfaceEast    float64
+	FinalSurfaceNorth   float64
+	BaseSurfaceConv     float64
+	FinalSurfaceConv    float64
+	BaseSurfaceRawDiv   float64
+	FinalSurfaceRawDiv  float64
+	CombinedConv        float64
+	FrictionConv        float64
+	SlopeConv           float64
+	OrographicConv      float64
+	SmoothedConv        float64
+	CombinedRawDiv      float64
+	FrictionRawDiv      float64
+	SlopeRawDiv         float64
+	OrographicRawDiv    float64
+	SmoothedRawDiv      float64
+	CombinedSpeed       float64
+	FrictionSpeed       float64
+	SlopeSpeed          float64
+	OrographicSpeed     float64
+	SmoothedSpeed       float64
 }
 
 func ComputeSeasonalWindDebug(
@@ -233,14 +233,7 @@ func computeWindPipelineDebug(
 	orographic := append([]Vector3D(nil), slope...)
 	if settings.Orographic.DeflectionStrength > 0 {
 		orographic = ApplyOrographicDeflection(orographic, vertices, elevation, adj, settings.Orographic)
-		leeShadowIters := int(0.05/cellSize) + 1
-		if leeShadowIters < 3 {
-			leeShadowIters = 3
-		}
-		if leeShadowIters > 10 {
-			leeShadowIters = 10
-		}
-		orographic = PropagateLeeShadow(orographic, vertices, elevation, adj, leeShadowIters, 0.75)
+		orographic = PropagateLeeShadow(orographic, vertices, elevation, adj, leeShadowIterationCount(cellSize), 0.75)
 	}
 
 	const windSmoothAngular = 0.025

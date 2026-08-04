@@ -136,6 +136,41 @@ func TestMarineToLandMixingGrowsInland(t *testing.T) {
 	}
 }
 
+func TestPrecipitationPerStepFractionScalesWithMeshResolution(t *testing.T) {
+	base := precipitationPerStepFraction(0.20, 10242)
+	fine := precipitationPerStepFraction(0.20, 163842)
+	combinedFine := 1.0
+	for i := 0; i < 4; i++ {
+		combinedFine *= 1.0 - fine
+	}
+	combinedFine = 1.0 - combinedFine
+
+	if fine >= base {
+		t.Fatalf("expected finer mesh per-step fraction to be smaller: base=%.3f fine=%.3f", base, fine)
+	}
+	if combinedFine < base*0.98 || combinedFine > base*1.02 {
+		t.Fatalf("expected four fine steps to approximate one base step: base=%.3f combinedFine=%.3f", base, combinedFine)
+	}
+}
+
+func TestNeighborOceanFractionUsesPhysicalCoastalBand(t *testing.T) {
+	elevation := []float64{100, 100, 100, -100, 100}
+	adj := &FlatAdjacency{
+		Neighbors: []int{1, 0, 2, 1, 3, 2, 4, 3},
+		Offsets:   []int{0, 1, 3, 5, 7, 8},
+	}
+
+	nearCoast := computeNeighborOceanFraction(2, elevation, 0, adj)
+	inland := computeNeighborOceanFraction(0, elevation, 0, adj)
+
+	if nearCoast <= 0 {
+		t.Fatalf("expected land cell within physical coastal band to see ocean support")
+	}
+	if inland >= nearCoast {
+		t.Fatalf("expected coastal support to decay inland: inland=%.3f nearCoast=%.3f", inland, nearCoast)
+	}
+}
+
 func TestMarineCorridorBlendWeightFavorsInlandStormPath(t *testing.T) {
 	coast := marineCorridorBlendWeight(0.05)
 	corridor := marineCorridorBlendWeight(0.45)
