@@ -210,6 +210,12 @@ func loadTradeGoodsSettings(path string) climgen.TradeGoodsSettings {
 		settings = loaded
 		fmt.Printf("Loaded trade goods settings from %s\n", path)
 	}
+	// Cross-good rules (unknown inputs, cycles, inputs-before-consumers) only hold
+	// on the assembled catalog, so they are checked here rather than per document.
+	if err := climgen.ValidateTradeGoodsCatalog(settings); err != nil {
+		fmt.Printf("Trade goods catalog is invalid, falling back to built-in catalog: %v\n", err)
+		settings = climgen.DefaultTradeGoodsSettings()
+	}
 	return settings
 }
 

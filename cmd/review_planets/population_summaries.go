@@ -45,6 +45,10 @@ func printPopulationSummary(result *climgen.PopulationResult) {
 		totalCarry/float64(landCells),
 		100*float64(urbanHotspots)/float64(landCells),
 	)
+	printPopulationFieldDistribution("carry", result.Classes, result.Diagnostics.CarryingCapacity)
+	printPopulationFieldDistribution("urban", result.Classes, result.Diagnostics.UrbanPotential)
+	printPopulationFieldDistribution("trade", result.Classes, result.Diagnostics.TradeSupport)
+	printPopulationFieldDistribution("food", result.Classes, result.Diagnostics.FoodSupport)
 
 	type populationCount struct {
 		class climgen.PopulationClass
@@ -68,4 +72,15 @@ func printPopulationSummary(result *climgen.PopulationResult) {
 			100*float64(entry.count)/float64(landCells),
 		)
 	}
+}
+
+func printPopulationFieldDistribution(label string, classes []climgen.PopulationClass, values []float64) {
+	fieldValues := make([]float64, 0, len(values))
+	for i, class := range classes {
+		if class == climgen.PopulationOcean || i >= len(values) {
+			continue
+		}
+		fieldValues = append(fieldValues, values[i])
+	}
+	printFieldDistribution("population"+label, fieldValues)
 }

@@ -17,30 +17,57 @@ func printPolitySphereSummary(result *climgen.PolitySphereResult, network *climg
 	}
 	meanTerritory := 0.0
 	meanCore := 0.0
+	primary := 0
+	secondary := 0
+	cellCount := 0
+	if result.Diagnostics != nil {
+		cellCount = len(result.Diagnostics.PolityByCell)
+	}
+	areaScale := reviewAreaEquivalentScale(cellCount)
 	for _, sphere := range result.Spheres {
 		meanTerritory += float64(sphere.TerritoryCells)
 		meanCore += float64(sphere.CoreCells)
+		if sphere.Secondary {
+			secondary++
+		} else {
+			primary++
+		}
 	}
 	meanTerritory /= float64(len(result.Spheres))
 	meanCore /= float64(len(result.Spheres))
 	fmt.Printf(
-		"    politySpheres: spheres=%d relations=%d mergedMinor=%d meanTerritory=%.1f meanCore=%.1f\n",
+		"    politySpheres: spheres=%d primary=%d secondary=%d relations=%d mergedMinor=%d meanTerritory=%.1f meanTerritoryEq=%.1f meanCore=%.1f meanCoreEq=%.1f\n",
 		len(result.Spheres),
+		primary,
+		secondary,
 		len(result.Relations),
 		result.MergedMinor,
 		meanTerritory,
+		meanTerritory*areaScale,
 		meanCore,
+		meanCore*areaScale,
 	)
-	for _, sphere := range topPolitySpheres(result, 5) {
+	for _, sphere := range topPolitySpheres(result, 12) {
 		capital := network.Nodes[sphere.CapitalNode]
+		regionID := -1
+		if network.Diagnostics != nil && sphere.CapitalNode >= 0 && sphere.CapitalNode < len(network.Diagnostics.RegionByNode) {
+			regionID = network.Diagnostics.RegionByNode[sphere.CapitalNode]
+		}
 		fmt.Printf(
-			"      polity[%d]: capital=%s secondary=%v style=%s territory=%d core=%d meanSupport=%.2f influence=%.2f coastal=%v river=%v\n",
+			"      polity[%d]: proto=%d capitalNode=%d region=%d capitalCell=%d capitalSupport=%.2f capital=%s secondary=%v style=%s territory=%d territoryEq=%.1f core=%d coreEq=%.1f meanSupport=%.2f influence=%.2f coastal=%v river=%v\n",
 			sphere.ID,
+			sphere.ProtoCivilizationID,
+			sphere.CapitalNode,
+			regionID,
+			capital.CellIndex,
+			capital.PhysicalSupportArea,
 			climgen.SettlementNodeKindName(capital.Kind),
 			sphere.Secondary,
 			climgen.ProtoCivilizationStyleName(sphere.Style),
 			sphere.TerritoryCells,
+			float64(sphere.TerritoryCells)*areaScale,
 			sphere.CoreCells,
+			float64(sphere.CoreCells)*areaScale,
 			sphere.MeanSupport,
 			sphere.MeanInfluence,
 			sphere.Coastal,

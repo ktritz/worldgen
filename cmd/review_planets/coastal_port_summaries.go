@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 
 	"worldgen/climgen"
 )
@@ -42,6 +43,8 @@ func printCoastalPortSummary(result *climgen.CoastalPortResult, network *climgen
 		sumSuitability/n,
 		sumDeepwater/n,
 	)
+	printCoastalPortNodeDiagnostics(result)
+	printCoastalPortRegionDiagnostics(result, network)
 	for _, kind := range []climgen.CoastalPortType{
 		climgen.CoastalPortHarbor,
 		climgen.CoastalPortEstuary,
@@ -95,4 +98,146 @@ func printCoastalPortSummary(result *climgen.CoastalPortResult, network *climgen
 			score,
 		)
 	}
+}
+
+func printCoastalPortRegionDiagnostics(result *climgen.CoastalPortResult, network *climgen.SettlementNetworkResult) {
+	if result == nil || result.Diagnostics == nil || network == nil || network.Diagnostics == nil || len(network.Diagnostics.RegionByNode) == 0 {
+		return
+	}
+	type regionPortDiag struct {
+		regionID     int
+		nodes        int
+		terminals    int
+		bestScore    float64
+		bestNode     int
+		bestTerminal int
+	}
+	byRegion := map[int]*regionPortDiag{}
+	for nodeIdx := range network.Nodes {
+		if nodeIdx >= len(network.Diagnostics.RegionByNode) {
+			continue
+		}
+		regionID := network.Diagnostics.RegionByNode[nodeIdx]
+		if regionID < 0 {
+			continue
+		}
+		entry := byRegion[regionID]
+		if entry == nil {
+			entry = &regionPortDiag{regionID: regionID, bestNode: -1, bestTerminal: -1}
+			byRegion[regionID] = entry
+		}
+		entry.nodes++
+		terminal := -1
+		if nodeIdx < len(result.Diagnostics.NodeTerminalCell) {
+			terminal = result.Diagnostics.NodeTerminalCell[nodeIdx]
+		}
+		if terminal >= 0 {
+			entry.terminals++
+		}
+		score := 0.0
+		if nodeIdx < len(result.Diagnostics.NodePortScore) {
+			score = result.Diagnostics.NodePortScore[nodeIdx]
+		}
+		if score > entry.bestScore || entry.bestNode < 0 {
+			entry.bestScore = score
+			entry.bestNode = nodeIdx
+			entry.bestTerminal = terminal
+		}
+	}
+	regions := make([]int, 0, len(byRegion))
+	for regionID := range byRegion {
+		regions = append(regions, regionID)
+	}
+	sort.Ints(regions)
+	for _, regionID := range regions {
+		entry := byRegion[regionID]
+		fmt.Printf(
+			"      portRegion[%d]: nodes=%d terminals=%d bestNode=%d bestScore=%.2f bestTerminal=%d\n",
+			entry.regionID,
+			entry.nodes,
+			entry.terminals,
+			entry.bestNode,
+			entry.bestScore,
+			entry.bestTerminal,
+		)
+	}
+}
+
+func printCoastalPortNodeDiagnostics(result *climgen.CoastalPortResult) {
+	if result == nil || result.Diagnostics == nil {
+		return
+	}
+	deepScores := make([]float64, 0, len(result.Diagnostics.NodeDeepwaterScore))
+	baseDeepScores := make([]float64, 0, len(result.Diagnostics.NodeDeepwaterScore))
+	portScores := make([]float64, 0, len(result.Diagnostics.NodePortScore))
+	deepTerminals := 0
+	portTerminals := 0
+	deepScore048 := 0
+	deepScore056 := 0
+	baseDeepScore024 := 0
+	baseDeepScore030 := 0
+	baseDeepScore036 := 0
+	baseDeepScore048 := 0
+	baseDeepScore056 := 0
+	portScore030 := 0
+	for i, score := range result.Diagnostics.NodeDeepwaterScore {
+		if i < len(result.Diagnostics.NodeDeepwaterTermCell) && result.Diagnostics.NodeDeepwaterTermCell[i] >= 0 {
+			deepTerminals++
+			deepScores = append(deepScores, score)
+			if score >= 0.48 {
+				deepScore048++
+			}
+			if score >= 0.56 {
+				deepScore056++
+			}
+			baseScore := score
+			if i < len(result.Diagnostics.NodeBaseDeepwaterScore) && result.Diagnostics.NodeBaseDeepwaterScore[i] > 0 {
+				baseScore = result.Diagnostics.NodeBaseDeepwaterScore[i]
+			}
+			baseDeepScores = append(baseDeepScores, baseScore)
+			if baseScore >= 0.24 {
+				baseDeepScore024++
+			}
+			if baseScore >= 0.30 {
+				baseDeepScore030++
+			}
+			if baseScore >= 0.36 {
+				baseDeepScore036++
+			}
+			if baseScore >= 0.48 {
+				baseDeepScore048++
+			}
+			if baseScore >= 0.56 {
+				baseDeepScore056++
+			}
+		}
+	}
+	for i, score := range result.Diagnostics.NodePortScore {
+		if i < len(result.Diagnostics.NodeTerminalCell) && result.Diagnostics.NodeTerminalCell[i] >= 0 {
+			portTerminals++
+			portScores = append(portScores, score)
+			if score >= 0.30 {
+				portScore030++
+			}
+		}
+	}
+	fmt.Printf(
+		"      portNodeDiag: terminals=%d deepTerminals=%d portScore>=0.30=%d deepScore>=0.48=%d deepScore>=0.56=%d baseDeep>=0.24=%d baseDeep>=0.30=%d baseDeep>=0.36=%d baseDeep>=0.48=%d baseDeep>=0.56=%d portScoreP50=%.2f portScoreP90=%.2f deepScoreP50=%.2f deepScoreP90=%.2f baseDeepP50=%.2f baseDeepP90=%.2f\n",
+		portTerminals,
+		deepTerminals,
+		portScore030,
+		deepScore048,
+		deepScore056,
+		baseDeepScore024,
+		baseDeepScore030,
+		baseDeepScore036,
+		baseDeepScore048,
+		baseDeepScore056,
+		percentileFloat64(portScores, 0.50),
+		percentileFloat64(portScores, 0.90),
+		percentileFloat64(deepScores, 0.50),
+		percentileFloat64(deepScores, 0.90),
+		percentileFloat64(baseDeepScores, 0.50),
+		percentileFloat64(baseDeepScores, 0.90),
+	)
 }

@@ -4,6 +4,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -15,6 +16,7 @@ func TestReviewCacheStoreRoundTrip(t *testing.T) {
 	terrainKey := terrainCacheKey(5, 12, 0.29, 55)
 	climateKey := climateCacheKey(terrainKey, 55)
 	derivedKey := derivedCacheKey(terrainKey, climateKey, true, cacheSettingsDigest("settings-v1"))
+	tradeGoodsKey := tradeGoodsCacheKey(derivedKey, cacheSettingsDigest(climgen.DefaultTradeGoodsSettings()))
 	civilizationKey := civilizationCacheKey(derivedKey, cacheSettingsDigest("civilization-v1"))
 	maritimeKey := maritimeCacheKey(civilizationKey, "coastal-sloop", cacheSettingsDigest("maritime-v1"))
 	economyKey := economyCacheKey(civilizationKey, maritimeKey, cacheSettingsDigest(climgen.DefaultTradeGoodsSettings()))
@@ -55,15 +57,15 @@ func TestReviewCacheStoreRoundTrip(t *testing.T) {
 	if filepath.Ext(store.derivedPath(derivedKey)) != ".json" {
 		t.Fatalf("expected derived cache path")
 	}
+	if filepath.Ext(store.tradeGoodsPath(tradeGoodsKey)) != ".json" {
+		t.Fatalf("expected trade goods cache path")
+	}
 	if filepath.Ext(store.civilizationPath(civilizationKey)) != ".json" || filepath.Ext(store.maritimePath(maritimeKey)) != ".json" || filepath.Ext(store.economyPath(economyKey)) != ".json" {
 		t.Fatalf("expected downstream cache paths")
 	}
 
 	derivedValue := &cachedDerivedReview{
-		Biome: &climgen.BiomeResult{Biomes: []climgen.Biome{climgen.BiomeSavanna, climgen.BiomeTemperateForest}},
-		TradeGoods: &climgen.TradeGoodResult{
-			Goods: []climgen.TradeGoodEndowment{{Good: "grain", Category: "raw", Potential: []float64{0.3, 0.5}}},
-		},
+		Biome:      &climgen.BiomeResult{Biomes: []climgen.Biome{climgen.BiomeSavanna, climgen.BiomeTemperateForest}},
 		Population: &climgen.PopulationResult{Classes: []climgen.PopulationClass{climgen.PopulationRural, climgen.PopulationUrban}},
 	}
 	if err := store.SaveDerived(derivedKey, derivedValue); err != nil {
@@ -73,13 +75,26 @@ func TestReviewCacheStoreRoundTrip(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("load derived ok=%v err=%v", ok, err)
 	}
-	if len(loadedDerived.Biome.Biomes) != 2 || loadedDerived.TradeGoods.Goods[0].Good != "grain" || loadedDerived.Population.Classes[1] != climgen.PopulationUrban {
+	if len(loadedDerived.Biome.Biomes) != 2 || loadedDerived.Population.Classes[1] != climgen.PopulationUrban {
 		t.Fatalf("unexpected derived payload: %+v", loadedDerived)
 	}
 
+	tradeGoodsValue := &climgen.TradeGoodResult{
+		Goods: []climgen.TradeGoodEndowment{{Good: "grain", Category: "raw", Potential: []float64{0.3, 0.5}}},
+	}
+	if err := store.SaveTradeGoods(tradeGoodsKey, tradeGoodsValue); err != nil {
+		t.Fatalf("save trade goods: %v", err)
+	}
+	loadedTradeGoods, ok, err := store.LoadTradeGoods(tradeGoodsKey)
+	if err != nil || !ok {
+		t.Fatalf("load trade goods ok=%v err=%v", ok, err)
+	}
+	if loadedTradeGoods.Goods[0].Good != "grain" || loadedTradeGoods.Goods[0].Potential[1] != 0.5 {
+		t.Fatalf("unexpected trade goods payload: %+v", loadedTradeGoods)
+	}
+
 	civilizationValue := &cachedCivilizationReview{
-		Network:   &climgen.SettlementNetworkResult{Regions: []climgen.SettlementRegion{{ID: 1, CenterNode: 3}}},
-		NodeGoods: &climgen.NodeGoodsResult{Balances: []climgen.NodeGoodBalance{{NodeID: 2}}},
+		Network: &climgen.SettlementNetworkResult{Regions: []climgen.SettlementRegion{{ID: 1, CenterNode: 3}}},
 	}
 	if err := store.SaveCivilization(civilizationKey, civilizationValue); err != nil {
 		t.Fatalf("save civilization: %v", err)
@@ -88,7 +103,7 @@ func TestReviewCacheStoreRoundTrip(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("load civilization ok=%v err=%v", ok, err)
 	}
-	if len(loadedCivilization.Network.Regions) != 1 || loadedCivilization.Network.Regions[0].CenterNode != 3 || loadedCivilization.NodeGoods.Balances[0].NodeID != 2 {
+	if len(loadedCivilization.Network.Regions) != 1 || loadedCivilization.Network.Regions[0].CenterNode != 3 {
 		t.Fatalf("unexpected civilization payload: %+v", loadedCivilization)
 	}
 
@@ -107,7 +122,9 @@ func TestReviewCacheStoreRoundTrip(t *testing.T) {
 	}
 
 	economyValue := &cachedEconomyReview{
-		Multimodal: &climgen.MultimodalTradeResult{Diagnostics: climgen.MultimodalTradeDiagnostics{TotalScore: 4.2}},
+		NodeGoods:   &climgen.NodeGoodsResult{Balances: []climgen.NodeGoodBalance{{NodeID: 2}}},
+		PolityGoods: &climgen.PolityGoodsResult{Balances: []climgen.PolityGoodBalance{{PolityID: 7}}},
+		Multimodal:  &climgen.MultimodalTradeResult{Diagnostics: climgen.MultimodalTradeDiagnostics{TotalScore: 4.2}},
 	}
 	if err := store.SaveEconomy(economyKey, economyValue); err != nil {
 		t.Fatalf("save economy: %v", err)
@@ -116,7 +133,7 @@ func TestReviewCacheStoreRoundTrip(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("load economy ok=%v err=%v", ok, err)
 	}
-	if loadedEconomy.Multimodal.Diagnostics.TotalScore != 4.2 {
+	if loadedEconomy.NodeGoods.Balances[0].NodeID != 2 || loadedEconomy.PolityGoods.Balances[0].PolityID != 7 || loadedEconomy.Multimodal.Diagnostics.TotalScore != 4.2 {
 		t.Fatalf("unexpected economy payload: %+v", loadedEconomy)
 	}
 }
@@ -155,6 +172,42 @@ func TestEconomyCacheKeyIncludesSettingsDigest(t *testing.T) {
 	altKey := economyCacheKey(civilizationKey, maritimeKey, cacheSettingsDigest(alt))
 	if baseKey == altKey {
 		t.Fatalf("expected economy cache key to change when trade settings change")
+	}
+}
+
+func TestTradeSettingsOnlyAffectEconomyCacheKey(t *testing.T) {
+	if _, ok := reflect.TypeOf(derivedReviewSettings{}).FieldByName("TradeGoods"); ok {
+		t.Fatalf("derived cache settings must not include trade goods settings")
+	}
+	if _, ok := reflect.TypeOf(civilizationReviewSettings{}).FieldByName("TradeGoods"); ok {
+		t.Fatalf("civilization cache settings must not include trade goods settings")
+	}
+
+	terrainKey := terrainCacheKey(6, 12, 0.29, 84)
+	climateKey := climateCacheKey(terrainKey, 84)
+	derivedKey := derivedCacheKey(terrainKey, climateKey, true, cacheSettingsDigest(derivedReviewSettings{}))
+	civilizationKey := civilizationCacheKey(derivedKey, cacheSettingsDigest(civilizationReviewSettings{}))
+	maritimeKey := maritimeCacheKey(civilizationKey, "caravel", cacheSettingsDigest(maritimeReviewSettings{VesselName: "caravel"}))
+	baseTrade := climgen.DefaultTradeGoodsSettings()
+	altTrade := climgen.DefaultTradeGoodsSettings()
+	altTrade.Multimodal.EndpointNeedShareByCategory["processed"] = 0.99
+	baseTradeGoodsKey := tradeGoodsCacheKey(derivedKey, cacheSettingsDigest(baseTrade))
+	altTradeGoodsKey := tradeGoodsCacheKey(derivedKey, cacheSettingsDigest(altTrade))
+
+	if derivedKey != derivedCacheKey(terrainKey, climateKey, true, cacheSettingsDigest(derivedReviewSettings{})) {
+		t.Fatalf("expected derived key to stay stable across trade settings")
+	}
+	if civilizationKey != civilizationCacheKey(derivedKey, cacheSettingsDigest(civilizationReviewSettings{})) {
+		t.Fatalf("expected civilization key to stay stable across trade settings")
+	}
+	if maritimeKey != maritimeCacheKey(civilizationKey, "caravel", cacheSettingsDigest(maritimeReviewSettings{VesselName: "caravel"})) {
+		t.Fatalf("expected maritime key to stay stable across trade settings")
+	}
+	if baseTradeGoodsKey == altTradeGoodsKey {
+		t.Fatalf("expected trade goods key to change across trade settings")
+	}
+	if economyCacheKey(civilizationKey, maritimeKey, cacheSettingsDigest(baseTrade)) == economyCacheKey(civilizationKey, maritimeKey, cacheSettingsDigest(altTrade)) {
+		t.Fatalf("expected economy key to change across trade settings")
 	}
 }
 

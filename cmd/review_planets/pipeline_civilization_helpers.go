@@ -2,7 +2,6 @@ package main
 
 import (
 	"worldgen/climgen"
-	"worldgen/landgen/terrain"
 )
 
 func computeSettlement(
@@ -14,14 +13,14 @@ func computeSettlement(
 	waterResources *climgen.WaterResourceResult,
 	resources *climgen.ResourceResult,
 	elevation []float64,
-	scaffold *terrain.HydrologyScaffold,
+	hydro *climgen.HydrologyBiomeInputs,
+	coastalExposure []float64,
 ) *climgen.SettlementResult {
-	hydro := hydrologyBiomeInputsFromScaffold(scaffold)
-	coastalExposure := climgen.ComputeCoastalExposure(cells, elevation, 0.0)
 	return climgen.ClassifySettlementSuitability(climate, biomes, soils, vegetation, waterResources, resources, elevation, 0.0, hydro, coastalExposure)
 }
 
 func computePopulation(
+	cells []climgen.VoronoiCell,
 	settlements *climgen.SettlementResult,
 	agriculture *climgen.AgricultureResult,
 	wildlife *climgen.WildlifeResult,
@@ -38,6 +37,7 @@ func computePopulation(
 		waterResources,
 		coastalResources,
 		resources,
+		cells,
 		elevation,
 		0.0,
 		settings,
@@ -53,6 +53,7 @@ func computeSettlementNetwork(
 	soils *climgen.SoilResult,
 	resources *climgen.ResourceResult,
 	elevation []float64,
+	settings climgen.SettlementNetworkSettings,
 ) *climgen.SettlementNetworkResult {
 	return climgen.BuildSettlementNetwork(
 		sites,
@@ -64,7 +65,7 @@ func computeSettlementNetwork(
 		resources,
 		elevation,
 		0.0,
-		climgen.DefaultSettlementNetworkSettings(),
+		settings,
 	)
 }
 
@@ -76,6 +77,7 @@ func computeProtoCivilizations(
 	biomes *climgen.BiomeResult,
 	soils *climgen.SoilResult,
 	elevation []float64,
+	settings climgen.ProtoCivilizationSettings,
 ) *climgen.ProtoCivilizationResult {
 	return climgen.BuildProtoCivilizations(
 		cells,
@@ -86,7 +88,7 @@ func computeProtoCivilizations(
 		soils,
 		elevation,
 		0.0,
-		climgen.DefaultProtoCivilizationSettings(),
+		settings,
 	)
 }
 
@@ -95,8 +97,9 @@ func computeTradeNetwork(
 	network *climgen.SettlementNetworkResult,
 	proto *climgen.ProtoCivilizationResult,
 	landRoutes *climgen.LandRouteResult,
+	settings climgen.TradeNetworkSettings,
 ) *climgen.TradeNetworkResult {
-	return climgen.BuildTradeNetwork(cells, network, proto, landRoutes, climgen.DefaultTradeNetworkSettings())
+	return climgen.BuildTradeNetwork(cells, network, proto, landRoutes, settings)
 }
 
 func computeRiverRoutes(
@@ -126,8 +129,9 @@ func computeRiverTrade(
 	proto *climgen.ProtoCivilizationResult,
 	riverRoutes *climgen.RiverRouteResult,
 	elevation []float64,
+	settings climgen.RiverTradeSettings,
 ) *climgen.RiverTradeResult {
-	return climgen.BuildRiverTradeNetwork(cells, network, proto, riverRoutes, elevation, climgen.DefaultRiverTradeSettings())
+	return climgen.BuildRiverTradeNetwork(cells, network, proto, riverRoutes, elevation, settings)
 }
 
 func computeCoastalPorts(
@@ -140,11 +144,10 @@ func computeCoastalPorts(
 	riverRoutes *climgen.RiverRouteResult,
 	soils *climgen.SoilResult,
 	elevation []float64,
-	scaffold *terrain.HydrologyScaffold,
+	hydro *climgen.HydrologyBiomeInputs,
 	maritimeRoutes climgen.MaritimeRouteSettings,
 	settings climgen.MaritimePortSettings,
 ) *climgen.CoastalPortResult {
-	hydro := hydrologyBiomeInputsFromScaffold(scaffold)
 	return climgen.BuildCoastalPorts(
 		cells,
 		climate,
@@ -223,6 +226,7 @@ func computePolitySpheres(
 	population *climgen.PopulationResult,
 	settlements *climgen.SettlementResult,
 	elevation []float64,
+	settings climgen.PolitySphereSettings,
 ) *climgen.PolitySphereResult {
 	return climgen.BuildPolitySpheres(
 		cells,
@@ -233,7 +237,7 @@ func computePolitySpheres(
 		settlements,
 		elevation,
 		0.0,
-		climgen.DefaultPolitySphereSettings(),
+		settings,
 	)
 }
 
@@ -245,10 +249,9 @@ func computePolityProfiles(
 	biomes *climgen.BiomeResult,
 	vegetation *climgen.VegetationResult,
 	soils *climgen.SoilResult,
-	scaffold *terrain.HydrologyScaffold,
+	hydro *climgen.HydrologyBiomeInputs,
 	catalog *climgen.ProfileCatalog,
 ) *climgen.PolityProfileResult {
-	hydro := hydrologyBiomeInputsFromScaffold(scaffold)
 	return climgen.BuildPolityProfiles(cells, polities, network, trade, biomes, vegetation, soils, hydro, catalog)
 }
 

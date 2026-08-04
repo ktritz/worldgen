@@ -9,7 +9,6 @@ import (
 
 type derivedReviewSettings struct {
 	Resource    climgen.ResourceAbundanceSettings
-	TradeGoods  climgen.TradeGoodsSettings
 	Agriculture climgen.AgricultureProductivitySettings
 	Wildlife    climgen.WildlifeProductivitySettings
 	Coastal     climgen.CoastalResourceSettings
@@ -43,33 +42,18 @@ func loadOrGenerateDerivedReview(
 		}
 	}
 
-	hydro := hydrologyBiomeInputsFromScaffold(diagnostics.Hydrology.Scaffold)
-	biome := computeHydrologyAwareBiomes(climate, elevation, diagnostics.Hydrology.Scaffold)
-	soils := computeSoils(cells, climate, biome, elevation, diagnostics.Hydrology.Scaffold)
-	vegetation := computeVegetation(cells, climate, biome, elevation, diagnostics.Hydrology.Scaffold, soils)
-	agriculture := computeAgriculture(biome, soils, elevation, diagnostics.Hydrology.Scaffold, settings.Agriculture)
-	wildlife := computeWildlife(biome, vegetation, soils, elevation, diagnostics.Hydrology.Scaffold, settings.Wildlife)
-	waterResources := computeWaterResources(biome, soils, elevation, diagnostics.Hydrology.Scaffold, settings.Water)
-	coastalResources := computeCoastalResources(sites, cells, climate, biome, soils, vegetation, elevation, diagnostics.Hydrology.Scaffold, settings.Coastal)
-	resources := computeResources(climate, biome, soils, elevation, diagnostics.Hydrology.Scaffold, diagnostics.HotspotChains, settings.Resource)
-	tradeGoods := climgen.ComputeTradeGoodEndowments(
-		climgen.TradeGoodInputs{
-			Biome:       biome,
-			Vegetation:  vegetation,
-			Soils:       soils,
-			Agriculture: agriculture,
-			Wildlife:    wildlife,
-			Water:       waterResources,
-			Coastal:     coastalResources,
-			Resources:   resources,
-			Elevation:   elevation,
-			SeaLevel:    0,
-			Hydro:       hydro,
-		},
-		settings.TradeGoods,
-	)
-	settlement := computeSettlement(cells, climate, biome, soils, vegetation, waterResources, resources, elevation, diagnostics.Hydrology.Scaffold)
-	population := computePopulation(settlement, agriculture, wildlife, waterResources, coastalResources, resources, elevation, settings.Population)
+	hydro := resolutionAdjustedHydrologyBiomeInputsFromScaffold(cells, elevation, diagnostics.Hydrology.Scaffold)
+	coastalExposure := climgen.ComputeCoastalExposure(cells, elevation, 0.0)
+	biome := computeHydrologyAwareBiomes(climate, elevation, hydro)
+	soils := computeSoils(cells, climate, biome, elevation, hydro, coastalExposure)
+	vegetation := computeVegetation(cells, climate, biome, elevation, hydro, coastalExposure, soils)
+	agriculture := computeAgriculture(biome, soils, elevation, hydro, settings.Agriculture)
+	wildlife := computeWildlife(biome, vegetation, soils, elevation, hydro, settings.Wildlife)
+	waterResources := computeWaterResources(biome, soils, elevation, hydro, settings.Water)
+	coastalResources := computeCoastalResources(sites, cells, climate, biome, soils, vegetation, elevation, hydro, coastalExposure, settings.Coastal)
+	resources := computeResources(climate, biome, soils, elevation, hydro, diagnostics.HotspotChains, settings.Resource)
+	settlement := computeSettlement(cells, climate, biome, soils, vegetation, waterResources, resources, elevation, hydro, coastalExposure)
+	population := computePopulation(cells, settlement, agriculture, wildlife, waterResources, coastalResources, resources, elevation, settings.Population)
 
 	derived := &cachedDerivedReview{
 		Biome:            biome,
@@ -80,7 +64,6 @@ func loadOrGenerateDerivedReview(
 		WaterResources:   waterResources,
 		CoastalResources: coastalResources,
 		Resources:        resources,
-		TradeGoods:       tradeGoods,
 		Settlement:       settlement,
 		Population:       population,
 	}
@@ -91,4 +74,63 @@ func loadOrGenerateDerivedReview(
 	}
 	reviewPhaseDone("derived", cacheStatus, phaseStart, fmt.Sprintf("key=%s", derivedKey))
 	return derived
+}
+
+func computeTradeGoodsForReview(
+	derived *cachedDerivedReview,
+	cells []climgen.VoronoiCell,
+	elevation []float64,
+	diagnostics terrain.PlanetGenerationDiagnostics,
+	settings climgen.TradeGoodsSettings,
+) *climgen.TradeGoodResult {
+	if derived == nil || derived.Biome == nil || derived.Vegetation == nil || derived.Soils == nil || derived.Agriculture == nil || derived.Wildlife == nil || derived.WaterResources == nil || derived.CoastalResources == nil || derived.Resources == nil {
+		return nil
+	}
+	return climgen.ComputeTradeGoodEndowments(
+		climgen.TradeGoodInputs{
+			Biome:       derived.Biome,
+			Vegetation:  derived.Vegetation,
+			Soils:       derived.Soils,
+			Agriculture: derived.Agriculture,
+			Wildlife:    derived.Wildlife,
+			Water:       derived.WaterResources,
+			Coastal:     derived.CoastalResources,
+			Resources:   derived.Resources,
+			Elevation:   elevation,
+			SeaLevel:    0,
+			Hydro:       resolutionAdjustedHydrologyBiomeInputsFromScaffold(cells, elevation, diagnostics.Hydrology.Scaffold),
+		},
+		settings,
+	)
+}
+
+func loadOrGenerateTradeGoodsReview(
+	cacheStore *reviewCacheStore,
+	derivedKey string,
+	derived *cachedDerivedReview,
+	cells []climgen.VoronoiCell,
+	elevation []float64,
+	diagnostics terrain.PlanetGenerationDiagnostics,
+	settings climgen.TradeGoodsSettings,
+) (*climgen.TradeGoodResult, string) {
+	cacheKey := tradeGoodsCacheKey(derivedKey, cacheSettingsDigest(settings))
+	phaseStart := reviewPhaseStart("trade_goods")
+	cacheStatus := "miss"
+	if cacheStore != nil {
+		if cached, ok, err := cacheStore.LoadTradeGoods(cacheKey); err != nil {
+			fmt.Printf("  trade goods cache load failed, recomputing: %v\n", err)
+		} else if ok {
+			fmt.Printf("  trade goods cache hit: %s\n", cacheKey)
+			reviewPhaseDone("trade_goods", "hit", phaseStart, fmt.Sprintf("key=%s", cacheKey))
+			return cached, cacheKey
+		}
+	}
+	out := computeTradeGoodsForReview(derived, cells, elevation, diagnostics, settings)
+	if cacheStore != nil {
+		if err := cacheStore.SaveTradeGoods(cacheKey, out); err != nil {
+			fmt.Printf("  trade goods cache save failed: %v\n", err)
+		}
+	}
+	reviewPhaseDone("trade_goods", cacheStatus, phaseStart, fmt.Sprintf("key=%s", cacheKey))
+	return out, cacheKey
 }

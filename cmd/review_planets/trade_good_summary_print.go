@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 
 	"worldgen/climgen"
 )
@@ -144,54 +145,40 @@ func printTradeNodeMarketSummary(result *climgen.TradeNodeMarketResult, network 
 }
 
 func printMultimodalTradeSummary(result *climgen.MultimodalTradeResult, settings climgen.TradeGoodsSettings) {
-	if result == nil || len(result.Exchanges) == 0 {
+	if result == nil {
 		fmt.Println("    multimodalTrade: exchanges=0 pairs=0")
+		return
+	}
+	if len(result.Exchanges) == 0 {
+		fmt.Println("    multimodalTrade: exchanges=0 pairs=0")
+		printMultimodalTradeDiagnostics(result, settings)
 		return
 	}
 	modeTotals := map[string]float64{}
 	modeVolumes := map[string]float64{}
-	totalScore := 0.0
-	totalVolume := 0.0
 	for _, exchange := range result.Exchanges {
+		if exchange.Internal {
+			continue
+		}
 		modeTotals[exchange.Mode] += exchange.Value
 		modeVolumes[exchange.Mode] += exchange.Volume
-		totalScore += exchange.Value
-		totalVolume += exchange.Volume
 	}
 	fmt.Printf(
-		"    multimodalTrade: exchanges=%d pairs=%d score=%.2f volume=%.2f matched=%.2f modes=%s modeVolume=%s\n",
-		len(result.Exchanges),
+		"    multimodalTrade: exchanges=%d pairs=%d score=%.2f volume=%.2f matched=%.2f internalExchanges=%d internalScore=%.2f internalVolume=%.2f modes=%s modeVolume=%s\n",
+		result.Diagnostics.ExternalExchanges,
 		len(result.Pairs),
-		totalScore,
-		totalVolume,
+		result.Diagnostics.TotalScore,
+		result.Diagnostics.TotalVolume,
 		result.Diagnostics.TotalMatched,
+		result.Diagnostics.InternalExchanges,
+		result.Diagnostics.InternalScore,
+		result.Diagnostics.InternalVolume,
 		formatModeValues(topSummaryModeValues(modeTotals, 4), 4),
 		formatModeValues(topSummaryModeValues(modeVolumes, 4), 4),
 	)
-	fmt.Printf(
-		"      tradeDiag: routes=%d/%d avgCapacity=%.2f avgVolumeCap=%.2f avgMarketFit=%.2f goods=%d/%d noSurplus=%d noNeed=%d noEndpoint=%d srcCap=%d needCap=%d lowCap=%d lowFit=%d lowScore=%d\n",
-		result.Diagnostics.RouteActive,
-		result.Diagnostics.RouteCandidates,
-		result.Diagnostics.AvgCapacity,
-		result.Diagnostics.AvgVolumeCapacity,
-		result.Diagnostics.AvgMarketFit,
-		result.Diagnostics.AcceptedGoods,
-		result.Diagnostics.CandidateGoods,
-		result.Diagnostics.NoSourceSurplus,
-		result.Diagnostics.NoSinkNeed,
-		result.Diagnostics.NoEndpointSupply,
-		result.Diagnostics.SourceConstrained,
-		result.Diagnostics.NeedConstrained,
-		result.Diagnostics.LowCapacity,
-		result.Diagnostics.LowMarketFit,
-		result.Diagnostics.LowScoreFiltered,
-	)
-	printTradeFlowCategoryDiagnostics(result)
-	printTradeFlowCategoryMix(result, settings)
-	for _, category := range []string{"processed", "finished", "luxury", "strategic"} {
-		printTradeFlowCategorySummary(result, settings, category)
-		printTradeFlowCategoryModeSummary(result, settings, category)
-	}
+	printMultimodalTradeDiagnostics(result, settings)
+	printRouteExchangeDiagnostics(result, "coastal", 5)
+	printRouteExchangeDiagnostics(result, "ocean", 3)
 	limit := 5
 	if len(result.Pairs) < limit {
 		limit = len(result.Pairs)
@@ -214,4 +201,181 @@ func printMultimodalTradeSummary(result *climgen.MultimodalTradeResult, settings
 			formatTradeFlowGoods(pair.Goods, 3),
 		)
 	}
+}
+
+func printRouteExchangeDiagnostics(result *climgen.MultimodalTradeResult, mode string, limit int) {
+	if result == nil || len(result.Exchanges) == 0 || limit <= 0 {
+		return
+	}
+	exchanges := make([]climgen.TradeGoodExchange, 0)
+	for _, exchange := range result.Exchanges {
+		if exchange.Mode == mode {
+			exchanges = append(exchanges, exchange)
+		}
+	}
+	if len(exchanges) == 0 {
+		return
+	}
+	sort.Slice(exchanges, func(i, j int) bool {
+		if exchanges[i].Value != exchanges[j].Value {
+			return exchanges[i].Value > exchanges[j].Value
+		}
+		return exchanges[i].VolumeCapacity > exchanges[j].VolumeCapacity
+	})
+	if len(exchanges) < limit {
+		limit = len(exchanges)
+	}
+	for i := 0; i < limit; i++ {
+		exchange := exchanges[i]
+		fmt.Printf(
+			"      routeExchange[%s:%d]: polity=%d->%d civ=%d->%d internal=%v score=%.2f volume=%.2f matched=%.2f flow=%.2f cost=%.2f cap=%.3f volCap=%.2f fit=%.2f goods=%s\n",
+			mode,
+			exchange.RouteID,
+			exchange.FromPolity,
+			exchange.ToPolity,
+			exchange.FromCivilization,
+			exchange.ToCivilization,
+			exchange.Internal,
+			exchange.Value,
+			exchange.Volume,
+			exchange.Matched,
+			exchange.RouteFlow,
+			exchange.TravelCost,
+			exchange.Capacity,
+			exchange.VolumeCapacity,
+			exchange.AvgMarketFit,
+			formatTradeFlowGoods(exchange.Goods, 3),
+		)
+	}
+}
+
+func printMultimodalTradeDiagnostics(result *climgen.MultimodalTradeResult, settings climgen.TradeGoodsSettings) {
+	fmt.Printf(
+		"      tradeDiag: routes=%d/%d avgCapacity=%.2f avgVolumeCap=%.2f avgMarketFit=%.2f goods=%d/%d noSurplus=%d noNeed=%d noEndpoint=%d srcCap=%d needCap=%d lowCap=%d lowFit=%d lowScore=%d\n",
+		result.Diagnostics.RouteActive,
+		result.Diagnostics.RouteCandidates,
+		result.Diagnostics.AvgCapacity,
+		result.Diagnostics.AvgVolumeCapacity,
+		result.Diagnostics.AvgMarketFit,
+		result.Diagnostics.AcceptedGoods,
+		result.Diagnostics.CandidateGoods,
+		result.Diagnostics.NoSourceSurplus,
+		result.Diagnostics.NoSinkNeed,
+		result.Diagnostics.NoEndpointSupply,
+		result.Diagnostics.SourceConstrained,
+		result.Diagnostics.NeedConstrained,
+		result.Diagnostics.LowCapacity,
+		result.Diagnostics.LowMarketFit,
+		result.Diagnostics.LowScoreFiltered,
+	)
+	fmt.Printf(
+		"      tradeCapDiag: srcMatched=%.2f srcCap=%.2f srcScaledKeys=%d sinkMatched=%.2f sinkPolityCap=%.2f sinkEndpointCap=%.2f sinkEffectiveCap=%.2f sinkScaledKeys=%d sinkEndpointDominatedKeys=%d\n",
+		result.Diagnostics.SourcePreCapMatched,
+		result.Diagnostics.SourceCapacity,
+		result.Diagnostics.SourceScaledKeys,
+		result.Diagnostics.SinkPreCapMatched,
+		result.Diagnostics.SinkPolityDeficitCapacity,
+		result.Diagnostics.SinkEndpointCapacity,
+		result.Diagnostics.SinkEffectiveCapacity,
+		result.Diagnostics.SinkScaledKeys,
+		result.Diagnostics.SinkEndpointDominatedKeys,
+	)
+	printRouteCivilizationDiagnostics(result)
+	printTradeFlowModeDiagnostics(result)
+	printTradeFlowCategoryDiagnostics(result)
+	printTradeFlowCategoryMix(result, settings)
+	for _, category := range []string{"processed", "finished", "luxury", "strategic"} {
+		printTradeFlowCategorySummary(result, settings, category)
+		printTradeFlowCategoryModeSummary(result, settings, category)
+	}
+}
+
+func printTradeFlowModeDiagnostics(result *climgen.MultimodalTradeResult) {
+	if result == nil || len(result.Diagnostics.ByMode) == 0 {
+		return
+	}
+	modes := make([]climgen.MultimodalTradeModeDiagnostics, 0, len(result.Diagnostics.ByMode))
+	for _, entry := range result.Diagnostics.ByMode {
+		modes = append(modes, entry)
+	}
+	sort.Slice(modes, func(i, j int) bool {
+		if modes[i].TotalScore != modes[j].TotalScore {
+			return modes[i].TotalScore > modes[j].TotalScore
+		}
+		return modes[i].Mode < modes[j].Mode
+	})
+	for _, entry := range modes {
+		exchanges := entry.ExternalExchanges + entry.InternalExchanges
+		avgCap := meanFromTotal(entry.Capacity, exchanges)
+		avgVolCap := meanFromTotal(entry.VolumeCapacity, exchanges)
+		avgFit := meanFromTotal(entry.MarketFit, exchanges)
+		fmt.Printf(
+			"      tradeModeDiag[%s]: routes=%d/%d corridors=%d skipUnknown=%d skipSamePolity=%d external=%d internal=%d score=%.2f volume=%.2f matched=%.2f internalScore=%.2f avgCap=%.3f avgVolCap=%.2f avgFit=%.2f\n",
+			entry.Mode,
+			entry.RouteActive,
+			entry.RouteCandidates,
+			entry.RouteCorridors,
+			entry.SkippedUnknown,
+			entry.SkippedSamePolity,
+			entry.ExternalExchanges,
+			entry.InternalExchanges,
+			entry.TotalScore,
+			entry.TotalVolume,
+			entry.TotalMatched,
+			entry.InternalScore,
+			avgCap,
+			avgVolCap,
+			avgFit,
+		)
+	}
+}
+
+func meanFromTotal(total float64, count int) float64 {
+	if count <= 0 {
+		return 0
+	}
+	return total / float64(count)
+}
+
+func printRouteCivilizationDiagnostics(result *climgen.MultimodalTradeResult) {
+	if result == nil || len(result.Exchanges) == 0 {
+		return
+	}
+	sameScore := 0.0
+	sameVolume := 0.0
+	sameCount := 0
+	interScore := 0.0
+	interVolume := 0.0
+	interCount := 0
+	unknownScore := 0.0
+	unknownVolume := 0.0
+	unknownCount := 0
+	for _, exchange := range result.Exchanges {
+		switch {
+		case exchange.FromCivilization < 0 || exchange.ToCivilization < 0:
+			unknownScore += exchange.Value
+			unknownVolume += exchange.Volume
+			unknownCount++
+		case exchange.FromCivilization == exchange.ToCivilization:
+			sameScore += exchange.Value
+			sameVolume += exchange.Volume
+			sameCount++
+		default:
+			interScore += exchange.Value
+			interVolume += exchange.Volume
+			interCount++
+		}
+	}
+	fmt.Printf(
+		"      routeCivDiag: same=%d/s%.2f/v%.2f inter=%d/s%.2f/v%.2f unknown=%d/s%.2f/v%.2f\n",
+		sameCount,
+		sameScore,
+		sameVolume,
+		interCount,
+		interScore,
+		interVolume,
+		unknownCount,
+		unknownScore,
+		unknownVolume,
+	)
 }
