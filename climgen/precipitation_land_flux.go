@@ -75,23 +75,14 @@ func computeTropicalMarineSource(
 		0.02,
 		nil,
 	)
-	footprintMean, _ := upwindFootprintMean(
+	// Mean and max share the same footprint, so a single traversal serves both.
+	footprintMean, _, footprintMax, _ := upwindFootprintMeanMax(
 		i,
 		marineField,
 		vertices,
 		adj,
 		wind,
-		4,
-		0.02,
-		nil,
-	)
-	footprintMax, _ := upwindFootprintMax(
-		i,
-		marineField,
-		vertices,
-		adj,
-		wind,
-		4,
+		resolutionAdjustedPrecipSteps(4, len(vertices)),
 		0.02,
 		nil,
 	)

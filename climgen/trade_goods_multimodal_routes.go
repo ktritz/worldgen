@@ -13,6 +13,7 @@ func appendRouteGoodExchanges(
 	marketsByNode map[int]TradeNodeMarket,
 	fromNode, toNode int,
 	fromPolity, toPolity int,
+	fromCivilization, toCivilization int,
 	mode string,
 	routeID int,
 	flow, cost, quality float64,
@@ -22,8 +23,8 @@ func appendRouteGoodExchanges(
 	if fromPolity < 0 || toPolity < 0 || fromPolity == toPolity {
 		return
 	}
-	appendOneWayRouteGoodExchange(out, balances, specs, globalScarcity, marketsByNode, fromNode, toNode, fromPolity, toPolity, mode, routeID, flow, cost, quality, tuning, multimodal)
-	appendOneWayRouteGoodExchange(out, balances, specs, globalScarcity, marketsByNode, toNode, fromNode, toPolity, fromPolity, mode, routeID, flow, cost, quality, tuning, multimodal)
+	appendOneWayRouteGoodExchange(out, balances, specs, globalScarcity, marketsByNode, fromNode, toNode, fromPolity, toPolity, fromCivilization, toCivilization, mode, routeID, flow, cost, quality, tuning, multimodal)
+	appendOneWayRouteGoodExchange(out, balances, specs, globalScarcity, marketsByNode, toNode, fromNode, toPolity, fromPolity, toCivilization, fromCivilization, mode, routeID, flow, cost, quality, tuning, multimodal)
 }
 
 func appendOneWayRouteGoodExchange(
@@ -34,6 +35,7 @@ func appendOneWayRouteGoodExchange(
 	marketsByNode map[int]TradeNodeMarket,
 	fromNode, toNode int,
 	fromPolity, toPolity int,
+	fromCivilization, toCivilization int,
 	mode string,
 	routeID int,
 	flow, cost, quality float64,
@@ -41,6 +43,9 @@ func appendOneWayRouteGoodExchange(
 	multimodal TradeGoodsMultimodalSettings,
 ) {
 	out.Diagnostics.RouteCandidates++
+	recordModeTradeDiagnostic(&out.Diagnostics, mode, func(entry *MultimodalTradeModeDiagnostics) {
+		entry.RouteCandidates++
+	})
 	from, ok := balances[fromPolity]
 	if !ok {
 		return
@@ -70,9 +75,15 @@ func appendOneWayRouteGoodExchange(
 	out.Diagnostics.RouteActive++
 	volume := sumTradeGoodFlowVolumes(goods)
 	matched := sumTradeGoodFlowMatched(goods)
+	recordModeTradeDiagnostic(&out.Diagnostics, mode, func(entry *MultimodalTradeModeDiagnostics) {
+		entry.RouteActive++
+	})
 	out.Exchanges = append(out.Exchanges, TradeGoodExchange{
 		FromPolity:         fromPolity,
 		ToPolity:           toPolity,
+		FromCivilization:   fromCivilization,
+		ToCivilization:     toCivilization,
+		Internal:           sameKnownCivilization(fromCivilization, toCivilization),
 		Mode:               mode,
 		RouteID:            routeID,
 		RouteFlow:          flow,
@@ -88,6 +99,26 @@ func appendOneWayRouteGoodExchange(
 		AvgMarketFit:       averageTradeGoodFlowFactor(goods, tradeGoodFlowMarketFit),
 		Goods:              goods,
 	})
+}
+
+func recordModeTradeDiagnostic(diagnostics *MultimodalTradeDiagnostics, mode string, update func(*MultimodalTradeModeDiagnostics)) {
+	if diagnostics == nil || update == nil {
+		return
+	}
+	if mode == "" {
+		mode = "unknown"
+	}
+	if diagnostics.ByMode == nil {
+		diagnostics.ByMode = map[string]MultimodalTradeModeDiagnostics{}
+	}
+	entry := diagnostics.ByMode[mode]
+	entry.Mode = mode
+	update(&entry)
+	diagnostics.ByMode[mode] = entry
+}
+
+func sameKnownCivilization(fromCivilization, toCivilization int) bool {
+	return fromCivilization >= 0 && toCivilization >= 0 && fromCivilization == toCivilization
 }
 
 func matchedRouteGoods(
@@ -121,10 +152,7 @@ func matchedRouteGoods(
 		}
 		need := -to.Surplus[good]
 		if toMarket != nil {
-			endpointNeedShare := tradeGoodsCategorySetting(multimodal.EndpointNeedShareByCategory, spec.Category, 0)
-			if endpointNeedShare > 0 {
-				need = math.Max(need, endpointNeedShare*marketSinkCapacity(good, *toMarket))
-			}
+			need = math.Max(need, endpointMarketSinkCapacity(good, spec, to, *toMarket, multimodal))
 		}
 		if need <= 0 {
 			if diagnostics != nil {
@@ -296,6 +324,205 @@ func tradeGoodsModeSetting(values map[string]float64, mode string) float64 {
 		return value
 	}
 	return 1
+}
+
+func capDuplicatePairGoodFlows(result *MultimodalTradeResult, balances map[int]PolityGoodBalance, endpointSinkCapacity map[polityGoodFlowKey]float64) {
+	if result == nil || len(result.Exchanges) == 0 {
+		return
+	}
+	type pairGoodKey struct {
+		from int
+		to   int
+		good string
+	}
+	matchedByKey := map[pairGoodKey]float64{}
+	for _, exchange := range result.Exchanges {
+		for _, good := range exchange.Goods {
+			if good.Matched <= 0 {
+				continue
+			}
+			key := pairGoodKey{from: exchange.FromPolity, to: exchange.ToPolity, good: good.Good}
+			matchedByKey[key] += good.Matched
+		}
+	}
+	scaleByKey := map[pairGoodKey]float64{}
+	for key, matched := range matchedByKey {
+		if matched <= 0 {
+			continue
+		}
+		from := balances[key.from]
+		to := balances[key.to]
+		sourceCapacity := math.Max(from.Surplus[key.good], 0)
+		sinkCapacity := math.Max(-to.Surplus[key.good], endpointSinkCapacity[polityGoodFlowKey{polity: key.to, good: key.good}])
+		capacity := math.Min(sourceCapacity, sinkCapacity)
+		if matched <= capacity {
+			continue
+		}
+		scaleByKey[key] = capacity / matched
+	}
+	if len(scaleByKey) == 0 {
+		return
+	}
+	out := result.Exchanges[:0]
+	for _, exchange := range result.Exchanges {
+		goods := exchange.Goods[:0]
+		exchange.Value = 0
+		exchange.Volume = 0
+		exchange.Matched = 0
+		for _, good := range exchange.Goods {
+			key := pairGoodKey{from: exchange.FromPolity, to: exchange.ToPolity, good: good.Good}
+			if scale, ok := scaleByKey[key]; ok {
+				good.Score *= scale
+				good.Volume *= scale
+				good.Matched *= scale
+			}
+			if good.Score <= 0 || good.Volume <= 0 || good.Matched <= 0 {
+				continue
+			}
+			exchange.Value += good.Score
+			exchange.Volume += good.Volume
+			exchange.Matched += good.Matched
+			goods = append(goods, good)
+		}
+		if exchange.Value < 0.005 || len(goods) == 0 {
+			continue
+		}
+		exchange.Goods = goods
+		out = append(out, exchange)
+	}
+	result.Exchanges = out
+}
+
+func capPolityGoodFlows(result *MultimodalTradeResult, balances map[int]PolityGoodBalance, endpointSinkCapacity map[polityGoodFlowKey]float64) {
+	if result == nil || len(result.Exchanges) == 0 {
+		return
+	}
+	sourceMatched := map[polityGoodFlowKey]float64{}
+	sinkMatched := map[polityGoodFlowKey]float64{}
+	for _, exchange := range result.Exchanges {
+		for _, good := range exchange.Goods {
+			if good.Matched <= 0 {
+				continue
+			}
+			sourceMatched[polityGoodFlowKey{polity: exchange.FromPolity, good: good.Good}] += good.Matched
+			sinkMatched[polityGoodFlowKey{polity: exchange.ToPolity, good: good.Good}] += good.Matched
+		}
+	}
+	sourceScale := map[polityGoodFlowKey]float64{}
+	for key, matched := range sourceMatched {
+		if matched <= 0 {
+			continue
+		}
+		result.Diagnostics.SourcePreCapMatched += matched
+		capacity := math.Max(balances[key.polity].Surplus[key.good], 0)
+		result.Diagnostics.SourceCapacity += capacity
+		if capacity <= 0 || matched <= capacity {
+			continue
+		}
+		sourceScale[key] = capacity / matched
+	}
+	sinkScale := map[polityGoodFlowKey]float64{}
+	for key, matched := range sinkMatched {
+		if matched <= 0 {
+			continue
+		}
+		result.Diagnostics.SinkPreCapMatched += matched
+		polityCapacity := math.Max(-balances[key.polity].Surplus[key.good], 0)
+		endpointCapacity := endpointSinkCapacity[key]
+		capacity := math.Max(polityCapacity, endpointCapacity)
+		result.Diagnostics.SinkPolityDeficitCapacity += polityCapacity
+		result.Diagnostics.SinkEndpointCapacity += endpointCapacity
+		result.Diagnostics.SinkEffectiveCapacity += capacity
+		if endpointCapacity > polityCapacity {
+			result.Diagnostics.SinkEndpointDominatedKeys++
+		}
+		if capacity <= 0 || matched <= capacity {
+			continue
+		}
+		sinkScale[key] = capacity / matched
+	}
+	result.Diagnostics.SourceScaledKeys = len(sourceScale)
+	result.Diagnostics.SinkScaledKeys = len(sinkScale)
+	if len(sourceScale) == 0 && len(sinkScale) == 0 {
+		return
+	}
+	out := result.Exchanges[:0]
+	for _, exchange := range result.Exchanges {
+		goods := exchange.Goods[:0]
+		exchange.Value = 0
+		exchange.Volume = 0
+		exchange.Matched = 0
+		for _, good := range exchange.Goods {
+			scale := 1.0
+			if source, ok := sourceScale[polityGoodFlowKey{polity: exchange.FromPolity, good: good.Good}]; ok {
+				scale = math.Min(scale, source)
+			}
+			if sink, ok := sinkScale[polityGoodFlowKey{polity: exchange.ToPolity, good: good.Good}]; ok {
+				scale = math.Min(scale, sink)
+			}
+			if scale < 1.0 {
+				good.Score *= scale
+				good.Volume *= scale
+				good.Matched *= scale
+			}
+			if good.Score <= 0 || good.Volume <= 0 || good.Matched <= 0 {
+				continue
+			}
+			exchange.Value += good.Score
+			exchange.Volume += good.Volume
+			exchange.Matched += good.Matched
+			goods = append(goods, good)
+		}
+		if exchange.Value < 0.005 || len(goods) == 0 {
+			continue
+		}
+		exchange.Goods = goods
+		out = append(out, exchange)
+	}
+	result.Exchanges = out
+}
+
+type polityGoodFlowKey struct {
+	polity int
+	good   string
+}
+
+func endpointSinkCapacityByPolityGood(nodeMarkets *TradeNodeMarketResult, specs map[string]TradeGoodSpec, balances map[int]PolityGoodBalance, settings TradeGoodsMultimodalSettings) map[polityGoodFlowKey]float64 {
+	out := map[polityGoodFlowKey]float64{}
+	if nodeMarkets == nil {
+		return out
+	}
+	for _, market := range nodeMarkets.Markets {
+		if market.PolityID < 0 {
+			continue
+		}
+		balance := balances[market.PolityID]
+		for good, spec := range specs {
+			capacity := endpointMarketSinkCapacity(good, spec, balance, market, settings)
+			if capacity <= 0 {
+				continue
+			}
+			out[polityGoodFlowKey{polity: market.PolityID, good: good}] += capacity
+		}
+	}
+	return out
+}
+
+func endpointMarketSinkCapacity(good string, spec TradeGoodSpec, balance PolityGoodBalance, market TradeNodeMarket, settings TradeGoodsMultimodalSettings) float64 {
+	share := tradeGoodsCategorySetting(settings.EndpointNeedShareByCategory, spec.Category, 0)
+	if share <= 0 {
+		return 0
+	}
+	capacity := share * marketSinkCapacity(good, market)
+	if capacity <= 0 {
+		return 0
+	}
+	aggregateSurplus := math.Max(balance.Surplus[good], 0)
+	relief := tradeGoodsCategorySetting(settings.EndpointSurplusReliefByCategory, spec.Category, 0)
+	if aggregateSurplus <= 0 || relief <= 0 {
+		return capacity
+	}
+	return capacity * capacity / (capacity + relief*aggregateSurplus)
 }
 
 func tradeGoodTransportValue(spec TradeGoodSpec, mode string) float64 {

@@ -59,7 +59,7 @@ func BuildLocalTradeGraph(
 		if anchor.Kind < SettlementNodeVillage || anchor.CellIndex < 0 || anchor.CellIndex >= len(cells) {
 			continue
 		}
-		hopRadius := localFeederHopRadius(anchor.Kind, landRoutes.Mode)
+		hopRadius := meshResolutionAdjustedSteps(localFeederHopRadius(anchor.Kind, landRoutes.Mode), len(cells))
 		limit := localFeederNodeLimit(anchor.Kind, landRoutes.Mode)
 		if limit <= 0 {
 			continue
@@ -110,10 +110,8 @@ func BuildLocalTradeGraph(
 			}
 			return scored[i].CellIndex < scored[j].CellIndex
 		})
-		if len(scored) > limit {
-			scored = scored[:limit]
-		}
-		for _, node := range scored {
+		selected := selectPhysicallySpacedLocalTradeNodes(cells, scored, limit)
+		for _, node := range selected {
 			current, exists := byCell[node.CellIndex]
 			if !exists || node.Score > current.node.Score ||
 				(node.Score == current.node.Score && network.Nodes[node.HandoffNode].Kind > network.Nodes[current.node.HandoffNode].Kind) {
@@ -122,20 +120,92 @@ func BuildLocalTradeGraph(
 		}
 	}
 
-	out.Nodes = make([]LocalTradeNode, 0, len(byCell))
+	spaced := make([]LocalTradeNode, 0, len(byCell))
 	for _, entry := range byCell {
-		out.Nodes = append(out.Nodes, entry.node)
+		spaced = append(spaced, entry.node)
 	}
-	sort.Slice(out.Nodes, func(i, j int) bool {
-		if out.Nodes[i].Score != out.Nodes[j].Score {
-			return out.Nodes[i].Score > out.Nodes[j].Score
+	sort.Slice(spaced, func(i, j int) bool {
+		if spaced[i].Score != spaced[j].Score {
+			return spaced[i].Score > spaced[j].Score
 		}
-		return out.Nodes[i].CellIndex < out.Nodes[j].CellIndex
+		return spaced[i].CellIndex < spaced[j].CellIndex
 	})
+	out.Nodes = selectPhysicallySpacedLocalTradeNodes(cells, spaced, len(spaced))
 	for i := range out.Nodes {
 		out.Nodes[i].ID = i
 	}
 	return out
+}
+
+func selectPhysicallySpacedLocalTradeNodes(cells []VoronoiCell, scored []LocalTradeNode, limit int) []LocalTradeNode {
+	if limit <= 0 || len(scored) == 0 {
+		return nil
+	}
+	minHops := meshResolutionAdjustedSteps(1, len(cells))
+	capacity := limit
+	if capacity > len(scored) {
+		capacity = len(scored)
+	}
+	selected := make([]LocalTradeNode, 0, capacity)
+	for _, node := range scored {
+		if len(selected) >= limit {
+			break
+		}
+		if !localTradeNodeSpacingOK(cells, node.CellIndex, selected, minHops) {
+			continue
+		}
+		selected = append(selected, node)
+	}
+	return selected
+}
+
+func localTradeNodeSpacingOK(cells []VoronoiCell, cellIdx int, selected []LocalTradeNode, minHops int) bool {
+	if minHops <= 1 || len(selected) == 0 {
+		return true
+	}
+	for _, node := range selected {
+		if node.CellIndex == cellIdx || graphDistanceWithinHops(cells, cellIdx, node.CellIndex, minHops-1) {
+			return false
+		}
+	}
+	return true
+}
+
+func graphDistanceWithinHops(cells []VoronoiCell, start, goal, maxHops int) bool {
+	if start < 0 || goal < 0 || start >= len(cells) || goal >= len(cells) || maxHops < 0 {
+		return false
+	}
+	if start == goal {
+		return true
+	}
+	type state struct {
+		cell int
+		hops int
+	}
+	seen := map[int]struct{}{start: {}}
+	queue := []state{{cell: start}}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		if cur.hops >= maxHops {
+			continue
+		}
+		for _, rawNeighbor := range cells[cur.cell].NeighborSiteIndices {
+			neighbor := int(rawNeighbor)
+			if neighbor < 0 || neighbor >= len(cells) {
+				continue
+			}
+			if neighbor == goal {
+				return true
+			}
+			if _, ok := seen[neighbor]; ok {
+				continue
+			}
+			seen[neighbor] = struct{}{}
+			queue = append(queue, state{cell: neighbor, hops: cur.hops + 1})
+		}
+	}
+	return false
 }
 
 func collectLocalFeederCorridors(

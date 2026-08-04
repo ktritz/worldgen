@@ -1,5 +1,7 @@
 package climgen
 
+import "math"
+
 type WaterResourceType int
 
 const (
@@ -71,6 +73,7 @@ func ClassifyWaterResources(
 		runoff := hydrologyValue(hydro, i, func(h *HydrologyBiomeInputs) []float64 { return h.Runoff })
 		channel := hydrologyValue(hydro, i, func(h *HydrologyBiomeInputs) []float64 { return h.ChannelStrength })
 		classWet := hydrologyClassFactor(hydro, i)
+		riparianChannel := hydrologyRiparianChannelSupport(hydro, i)
 
 		soilDrainage := 0.5
 		soilAlluvial := 0.0
@@ -99,7 +102,8 @@ func ClassifyWaterResources(
 		)
 		surfaceReliable := clamp01(
 			(0.38*smoothstep01(8, 110, runoff) +
-				0.28*smoothstep01(0.6, 2.2, channel) +
+				0.18*smoothstep01(0.6, 2.2, channel) +
+				0.10*riparianChannel +
 				0.14*classWet +
 				0.10*peak01(diag.AnnualPrecipCm[i], 30, 100, 220) +
 				0.10*droughtResilience) *
@@ -174,21 +178,15 @@ func determineWaterResourceType(
 }
 
 func lakeClassFactor(hydro *HydrologyBiomeInputs, idx int) float64 {
-	if hydro == nil || idx < 0 || idx >= len(hydro.CellClass) {
+	if hydro == nil || idx < 0 {
 		return 0
 	}
-	switch hydro.CellClass[idx] {
-	case "lake":
-		return 1.0
-	case "lake_complex":
-		return 0.90
-	case "lake_reach":
-		return 0.35
-	case "endorheic_basin":
-		return 0.30
-	case "delta":
-		return 0.18
-	default:
-		return 0
+	support := 0.0
+	if idx < len(hydro.LakeClassSupport) {
+		support = hydro.LakeClassSupport[idx]
 	}
+	if idx < len(hydro.CellClass) {
+		support = math.Max(support, directLakeClassFactor(hydro.CellClass[idx]))
+	}
+	return support
 }

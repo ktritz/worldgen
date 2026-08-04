@@ -7,7 +7,7 @@ func marketManufacturingEligible(spec TradeGoodSpec, node SettlementNode) bool {
 	if !ok {
 		return true
 	}
-	return node.Kind >= minKind
+	return settlementNodeEffectiveRank(node) >= float64(minKind)
 }
 
 func marketManufacturingEligibleForMarket(spec TradeGoodSpec, node SettlementNode, market *TradeNodeMarket) bool {

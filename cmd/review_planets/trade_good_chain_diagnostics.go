@@ -28,6 +28,8 @@ func printTradeGoodPathSummary(good string, nodeGoods *climgen.NodeGoodsResult, 
 	marketSupply := 0.0
 	marketDemand := 0.0
 	marketSurplus := 0.0
+	marketDeficit := 0.0
+	marketDeficitCount := 0
 	marketMade := 0.0
 	politySupply := 0.0
 	polityDemand := 0.0
@@ -46,6 +48,11 @@ func printTradeGoodPathSummary(good string, nodeGoods *climgen.NodeGoodsResult, 
 		marketSupply += market.Supply[good]
 		marketDemand += market.Demand[good]
 		marketSurplus += reviewMaxFloat(market.Surplus[good], 0)
+		deficit := reviewMaxFloat(-market.Surplus[good], 0)
+		marketDeficit += deficit
+		if deficit > 0 {
+			marketDeficitCount++
+		}
 		marketMade += market.Manufactured[good]
 	}
 	for _, balance := range polityGoods.Balances {
@@ -74,13 +81,15 @@ func printTradeGoodPathSummary(good string, nodeGoods *climgen.NodeGoodsResult, 
 	}
 
 	fmt.Printf(
-		"      tradeGoodPath[%s]: nodeSupply=%.2f nodeSurplus=%.2f marketSupply=%.2f marketDemand=%.2f marketSurplus=%.2f made=%.2f politySupply=%.2f polityDemand=%.2f politySurplus=%.2f exporters=%d importers=%d tradeScore=%.2f tradeVolume=%.2f tradePairs=%d\n",
+		"      tradeGoodPath[%s]: nodeSupply=%.2f nodeSurplus=%.2f marketSupply=%.2f marketDemand=%.2f marketSurplus=%.2f marketDeficit=%.2f marketDeficitNodes=%d made=%.2f politySupply=%.2f polityDemand=%.2f politySurplus=%.2f exporters=%d importers=%d tradeScore=%.2f tradeVolume=%.2f tradePairs=%d\n",
 		good,
 		nodeSupply,
 		nodeSurplus,
 		marketSupply,
 		marketDemand,
 		marketSurplus,
+		marketDeficit,
+		marketDeficitCount,
 		marketMade,
 		politySupply,
 		polityDemand,

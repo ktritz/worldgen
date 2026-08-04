@@ -82,7 +82,10 @@ func BuildBasinsFromComponents(
 
 // FilterComponentsBySize keeps only components large enough to treat as
 // basin-level features in diagnostics and visualization, and remaps
-// assignments accordingly.
+// assignments accordingly. minSize is measured in baseline-equivalent (L5)
+// cells: raw component counts are converted via the mesh area scale (using
+// len(componentAssignments) as the total cell count) so the same physical sea
+// passes or fails identically at every resolution.
 func FilterComponentsBySize(
 	componentAssignments []int,
 	components []OceanComponent,
@@ -92,10 +95,12 @@ func FilterComponentsBySize(
 		minSize = 1
 	}
 
+	totalCells := len(componentAssignments)
 	oldToNew := make(map[int]int, len(components))
 	filtered := make([]OceanComponent, 0, len(components))
 	for _, component := range components {
-		if len(component.Vertices) < minSize {
+		if len(component.Vertices) == 0 ||
+			meshScaledTerritoryAreaCells(len(component.Vertices), totalCells) < float64(minSize) {
 			continue
 		}
 		oldToNew[component.ID] = len(filtered)
@@ -127,6 +132,7 @@ func BuildComponentScaleField(
 		return nil
 	}
 
+	totalCells := len(vertices)
 	scales := make([]float64, len(components))
 	for _, component := range components {
 		if len(component.Vertices) == 0 {
@@ -136,11 +142,16 @@ func BuildComponentScaleField(
 		centroid := calculateCentroid(component.Vertices, vertices)
 		radius := calculateMaxRadius(component.Vertices, vertices, centroid)
 
+		// Cell-count gates are calibrated in baseline (L5) cells; convert the raw
+		// count to baseline-equivalent area so the same physical sea gets the same
+		// scale at every resolution. The angular radius gates are already physical.
+		equivalentCells := meshScaledTerritoryAreaCells(len(component.Vertices), totalCells)
+
 		switch {
-		case len(component.Vertices) < 8 || radius < 0.03:
+		case equivalentCells < 8 || radius < 0.03:
 			scales[component.ID] = 0
 		default:
-			countScale := Clamp((float64(len(component.Vertices))-24.0)/232.0, 0, 1)
+			countScale := Clamp((equivalentCells-24.0)/232.0, 0, 1)
 			radiusScale := Clamp((radius-0.05)/0.17, 0, 1)
 			scale := math.Sqrt(countScale * radiusScale)
 			scales[component.ID] = 0.15 + 0.85*scale
@@ -252,7 +263,7 @@ func isEasternBoundaryVertex(
 			continue
 		}
 		toNeighbor := Sub(vertices[k], vertices[idx])
-		if Dot(toNeighbor, east) > 0.001 {
+		if tangentDirectionCosine(toNeighbor, east) > coastDirectionCosineThreshold {
 			return true
 		}
 	}

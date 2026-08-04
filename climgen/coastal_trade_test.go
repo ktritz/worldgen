@@ -110,6 +110,188 @@ func TestCandidateCoastalPortsIncludesStrongRiverEstuaryTerminal(t *testing.T) {
 	}
 }
 
+func TestCandidateCoastalPortsDedupesSharedTerminal(t *testing.T) {
+	network := &SettlementNetworkResult{
+		Nodes: []SettlementNode{
+			{ID: 0, CellIndex: 0, Kind: SettlementNodeTown, Score: 0.72, Coastal: true},
+			{ID: 1, CellIndex: 1, Kind: SettlementNodeTown, Score: 0.68, Coastal: true},
+			{ID: 2, CellIndex: 2, Kind: SettlementNodeTown, Score: 0.70, Coastal: true},
+		},
+	}
+	ports := &CoastalPortResult{
+		Diagnostics: &CoastalPortDiagnostics{
+			NodePortScore:    []float64{0.82, 0.70, 0.76},
+			NodeTerminalCell: []int{4, 4, 5},
+			PortSuitability:  []float64{0.35, 0.35, 0.35, 0, 0.55, 0.52},
+		},
+	}
+
+	candidates := candidateCoastalPorts(network, ports, DefaultCoastalTradeSettings())
+	if len(candidates) != 2 || candidates[0] != 0 || candidates[1] != 2 {
+		t.Fatalf("expected highest scoring node per terminal, got %v", candidates)
+	}
+}
+
+func TestCoastalTradeFlowUsesTerminalQualityNotCompositeNodeScore(t *testing.T) {
+	network := &SettlementNetworkResult{
+		Nodes: []SettlementNode{
+			{ID: 0, CellIndex: 0, Kind: SettlementNodeTown, Score: 0.70, Coastal: true},
+			{ID: 1, CellIndex: 1, Kind: SettlementNodeTown, Score: 0.70, Coastal: true},
+		},
+	}
+	proto := &ProtoCivilizationResult{Civilizations: []ProtoCivilization{{ID: 0}, {ID: 1}}}
+	mode := MaritimeVesselSettings{PayloadCapacity: 0.6, CoastalCapability: 0.8}
+	civByNode := []int{0, 1}
+	basePorts := &CoastalPortResult{
+		Diagnostics: &CoastalPortDiagnostics{
+			NodePortScore:    []float64{0.50, 0.50},
+			NodeTerminalCell: []int{0, 1},
+			PortSuitability:  []float64{0.42, 0.42},
+		},
+	}
+	inflatedPorts := &CoastalPortResult{
+		Diagnostics: &CoastalPortDiagnostics{
+			NodePortScore:    []float64{1.40, 1.35},
+			NodeTerminalCell: []int{0, 1},
+			PortSuitability:  []float64{0.42, 0.42},
+		},
+	}
+
+	base := coastalTradeFlow(network, proto, basePorts, civByNode, 0, 1, 6, mode)
+	inflated := coastalTradeFlow(network, proto, inflatedPorts, civByNode, 0, 1, 6, mode)
+	if base != inflated {
+		t.Fatalf("expected composite node score not to change terminal-quality flow: base=%.6f inflated=%.6f", base, inflated)
+	}
+}
+
+func TestCivilizedMaritimeCandidatePortsDropsOutpostEndpoints(t *testing.T) {
+	candidates := civilizedMaritimeCandidatePorts([]int{0, 1, 2}, []int{0, -1, 1})
+	if len(candidates) != 2 || candidates[0] != 0 || candidates[1] != 2 {
+		t.Fatalf("expected only civilized candidate ports, got %v", candidates)
+	}
+}
+
+func TestBuildCoastalTradeNetworkCapsInternalCivilizationRoutes(t *testing.T) {
+	sites := []Vector3D{
+		{X: 1, Y: 0, Z: 0},
+		{X: 0.99, Y: 0.05, Z: 0},
+		{X: 0.98, Y: 0.10, Z: 0},
+		{X: 0.97, Y: 0.15, Z: 0},
+		{X: 0.96, Y: 0.20, Z: 0},
+	}
+	cells := []VoronoiCell{
+		{SiteIndex: 0, NeighborSiteIndices: []int32{1}},
+		{SiteIndex: 1, NeighborSiteIndices: []int32{0, 2}},
+		{SiteIndex: 2, NeighborSiteIndices: []int32{1, 3}},
+		{SiteIndex: 3, NeighborSiteIndices: []int32{2, 4}},
+		{SiteIndex: 4, NeighborSiteIndices: []int32{3}},
+	}
+	elevation := []float64{10, -10, 10, -10, 10}
+	network := &SettlementNetworkResult{
+		Nodes: []SettlementNode{
+			{ID: 0, CellIndex: 0, Kind: SettlementNodeTown, Score: 0.8, Coastal: true},
+			{ID: 1, CellIndex: 2, Kind: SettlementNodeTown, Score: 0.8, Coastal: true},
+			{ID: 2, CellIndex: 4, Kind: SettlementNodeTown, Score: 0.8, Coastal: true},
+		},
+		Regions: []SettlementRegion{{ID: 0, NodeIndices: []int{0, 1, 2}, CenterNode: 0}},
+	}
+	proto := &ProtoCivilizationResult{Civilizations: []ProtoCivilization{{ID: 0, RegionID: 0, CenterNode: 0}}}
+	ports := &CoastalPortResult{
+		Mode: MaritimeVesselSettings{
+			Name:              "coastal-test",
+			PayloadCapacity:   0.8,
+			CoastalCapability: 0.9,
+			MaxCoastalLeg:     1.0,
+		},
+		Diagnostics: &CoastalPortDiagnostics{
+			NodePortScore:    []float64{0.9, 0.9, 0.9},
+			NodeTerminalCell: []int{0, 2, 4},
+			PortSuitability:  []float64{0.9, 0, 0.9, 0, 0.9},
+		},
+	}
+	settings := DefaultCoastalTradeSettings()
+	settings.MaxPartnersPerPort = 3
+	settings.MaxPartnersPerCivilization = 1
+	settings.MinFlow = 0.001
+	settings.MaxRouteCost = 200
+
+	result := BuildCoastalTradeNetwork(sites, cells, nil, network, proto, ports, elevation, 0, settings)
+	internal := 0
+	for _, corridor := range result.Corridors {
+		if corridor.FromCivilization == 0 && corridor.ToCivilization == 0 {
+			internal++
+		}
+	}
+	if internal != 1 {
+		t.Fatalf("expected one internal coastal route after civilization cap, got %d corridors=%d diag=%+v", internal, len(result.Corridors), result.PairDiagnostics)
+	}
+}
+
+func TestBuildCoastalTradeNetworkSeparatesInternalAndExternalPortCaps(t *testing.T) {
+	sites := []Vector3D{
+		{X: 1, Y: 0, Z: 0},
+		{X: 0.99, Y: 0.05, Z: 0},
+		{X: 0.98, Y: 0.10, Z: 0},
+		{X: 0.97, Y: 0.15, Z: 0},
+		{X: 0.96, Y: 0.20, Z: 0},
+	}
+	cells := []VoronoiCell{
+		{SiteIndex: 0, NeighborSiteIndices: []int32{1}},
+		{SiteIndex: 1, NeighborSiteIndices: []int32{0, 2}},
+		{SiteIndex: 2, NeighborSiteIndices: []int32{1, 3}},
+		{SiteIndex: 3, NeighborSiteIndices: []int32{2, 4}},
+		{SiteIndex: 4, NeighborSiteIndices: []int32{3}},
+	}
+	elevation := []float64{10, -10, 10, -10, 10}
+	network := &SettlementNetworkResult{
+		Nodes: []SettlementNode{
+			{ID: 0, CellIndex: 0, Kind: SettlementNodeTown, Score: 0.9, Coastal: true},
+			{ID: 1, CellIndex: 2, Kind: SettlementNodeTown, Score: 0.9, Coastal: true},
+			{ID: 2, CellIndex: 4, Kind: SettlementNodeTown, Score: 0.9, Coastal: true},
+		},
+		Regions: []SettlementRegion{
+			{ID: 0, NodeIndices: []int{0, 1}, CenterNode: 0},
+			{ID: 1, NodeIndices: []int{2}, CenterNode: 2},
+		},
+	}
+	proto := &ProtoCivilizationResult{Civilizations: []ProtoCivilization{
+		{ID: 0, RegionID: 0, CenterNode: 0},
+		{ID: 1, RegionID: 1, CenterNode: 2},
+	}}
+	ports := &CoastalPortResult{
+		Mode: MaritimeVesselSettings{
+			Name:              "coastal-test",
+			PayloadCapacity:   0.8,
+			CoastalCapability: 0.9,
+			MaxCoastalLeg:     1.0,
+		},
+		Diagnostics: &CoastalPortDiagnostics{
+			NodePortScore:    []float64{0.9, 0.9, 0.9},
+			NodeTerminalCell: []int{0, 2, 4},
+			PortSuitability:  []float64{0.9, 0, 0.9, 0, 0.9},
+		},
+	}
+	settings := DefaultCoastalTradeSettings()
+	settings.MaxPartnersPerPort = 1
+	settings.MaxPartnersPerCivilization = 3
+	settings.MinFlow = 0.001
+	settings.MaxRouteCost = 200
+
+	result := BuildCoastalTradeNetwork(sites, cells, nil, network, proto, ports, elevation, 0, settings)
+	internal := 0
+	external := 0
+	for _, corridor := range result.Corridors {
+		if corridor.FromCivilization == corridor.ToCivilization {
+			internal++
+		} else {
+			external++
+		}
+	}
+	if internal == 0 || external == 0 {
+		t.Fatalf("expected separate internal and external coastal routes, got internal=%d external=%d corridors=%+v diag=%+v", internal, external, result.Corridors, result.PairDiagnostics)
+	}
+}
+
 func TestBuildCoastalTradeNetworkCanUseShortOpenWaterHop(t *testing.T) {
 	sites := []Vector3D{
 		{X: 1, Y: 0, Z: 0},

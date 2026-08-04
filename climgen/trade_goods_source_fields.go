@@ -225,28 +225,18 @@ func preciousPlacerClassFactor(hydro *HydrologyBiomeInputs, idx int) float64 {
 	}
 }
 
-func tradeGoodResourceFieldValue(inputs TradeGoodInputs, idx int, affinity []float64, target ResourceType, boost float64) float64 {
-	value := safeSliceValue(affinity, idx)
-	if inputs.Resources != nil && idx >= 0 && idx < len(inputs.Resources.Types) && inputs.Resources.Types[idx] == target {
-		value = maxFloat(value, boost)
-	}
-	return clamp01(value)
+func tradeGoodResourceFieldValue(idx int, affinity []float64) float64 {
+	return clamp01(safeSliceValue(affinity, idx))
 }
 
-func tradeGoodPreciousOreComponent(inputs TradeGoodInputs, idx int, affinity []float64, placerAffinity []float64, primary ResourceType, placerBoost float64) float64 {
-	value := tradeGoodResourceFieldValue(inputs, idx, affinity, primary, 0.80)
+func tradeGoodPreciousOreComponent(inputs TradeGoodInputs, idx int, affinity []float64, placerAffinity []float64, placerBoost float64) float64 {
+	value := tradeGoodResourceFieldValue(idx, affinity)
 	effectivePlacerBoost := maxFloat(placerBoost, safeSliceValue(placerAffinity, idx))
-	if inputs.Resources != nil && idx >= 0 && idx < len(inputs.Resources.Types) && inputs.Resources.Types[idx] == ResourcePlacerAlluvial {
-		value = maxFloat(value, effectivePlacerBoost)
-	}
 	return tradeGoodPreciousOrePotential(inputs, idx, clamp01(value), clamp01(effectivePlacerBoost))
 }
 
 func tradeGoodCopperOreComponent(inputs TradeGoodInputs, idx int, affinity []float64, placerAffinity []float64) float64 {
-	base := tradeGoodResourceFieldValue(inputs, idx, affinity, ResourceCopperOre, 0.80)
+	base := tradeGoodResourceFieldValue(idx, affinity)
 	placerBoost := safeSliceValue(placerAffinity, idx)
-	if inputs.Resources != nil && idx >= 0 && idx < len(inputs.Resources.Types) && inputs.Resources.Types[idx] == ResourcePlacerAlluvial {
-		placerBoost = maxFloat(placerBoost, 0.52)
-	}
 	return tradeGoodCopperOrePotential(inputs, idx, clamp01(base), clamp01(placerBoost))
 }

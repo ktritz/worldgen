@@ -22,8 +22,13 @@ func tradeGoodCategoryDemand(category string) float64 {
 	}
 }
 
-func tradeGoodsDemandRelief(category string, localSupply float64, settings TradeGoodsDemandSettings) float64 {
-	relief := tradeGoodsCategorySetting(settings.LocalSupplyReliefByCategory, category, 0)
+func tradeGoodsDemandRelief(spec TradeGoodSpec, localSupply float64, settings TradeGoodsDemandSettings) float64 {
+	relief := tradeGoodsCategorySetting(settings.LocalSupplyReliefByCategory, spec.Category, 0)
+	if settings.LocalSupplyReliefByGood != nil {
+		if goodRelief, ok := settings.LocalSupplyReliefByGood[spec.Name]; ok {
+			relief = goodRelief
+		}
+	}
 	return math.Max(0.10, 1-relief*clamp01(localSupply))
 }
 

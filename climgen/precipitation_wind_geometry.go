@@ -15,12 +15,12 @@ type windConvergenceDiagnostic struct {
 }
 
 type orographicLiftDiagnostic struct {
-	LiftMeters        float64
-	Lift              float64
-	LocalRiseMeters   float64
+	LiftMeters          float64
+	Lift                float64
+	LocalRiseMeters     float64
 	FootprintRiseMeters float64
-	BarrierPersistence float64
-	WindFactor         float64
+	BarrierPersistence  float64
+	WindFactor          float64
 }
 
 const (
@@ -61,6 +61,7 @@ func computeOrographicLiftDiagnostic(
 	localWeightSum := 0.0
 	localBarrierWeight := 0.0
 	localPositiveWeight := 0.0
+	localRiseScale := math.Sqrt(precipitationPhysicalStepScale(len(vertices)))
 	for _, k := range adj.GetNeighbors(i) {
 		if k < 0 || k >= len(vertices) {
 			continue
@@ -75,6 +76,7 @@ func computeOrographicLiftDiagnostic(
 		if rise <= 0 {
 			continue
 		}
+		rise /= localRiseScale
 		localRiseSum += upwind * rise
 		localWeightSum += upwind
 		localPositiveWeight += upwind
@@ -88,19 +90,25 @@ func computeOrographicLiftDiagnostic(
 		localBarrierFrac = Clamp(localPositiveWeight/localBarrierWeight, 0, 1)
 	}
 
-	footprint := computeUpwindFootprintWeights(
+	ws := acquireUpwindWorkspace(len(vertices))
+	defer releaseUpwindWorkspace(ws)
+	footprintCells, footprintWeights := computeUpwindFootprintWeightsInto(
+		ws,
 		i,
 		vertices,
 		adj,
 		wind,
-		precipUpliftTraceSteps,
+		resolutionAdjustedPrecipSteps(precipUpliftTraceSteps, len(vertices)),
 		precipUpwindFootprintMinAlignment,
 	)
 	footprintRise := 0.0
 	footprintWeight := 0.0
 	footprintBarrierWeight := 0.0
 	footprintPositiveWeight := 0.0
-	for donor, weight := range footprint {
+	riseScale := math.Sqrt(precipitationPhysicalStepScale(len(vertices)))
+	for fidx, donor32 := range footprintCells {
+		donor := int(donor32)
+		weight := footprintWeights[fidx]
 		if donor < 0 || donor >= len(elevation) {
 			continue
 		}
@@ -109,6 +117,7 @@ func computeOrographicLiftDiagnostic(
 		if rise <= 0 {
 			continue
 		}
+		rise /= riseScale
 		footprintRise += weight * rise
 		footprintWeight += weight
 		footprintPositiveWeight += weight
@@ -302,22 +311,26 @@ func computeUpwindOceanFetch(
 	}
 	current := i
 	pathFetch := 0.0
+	stepScale := precipitationPhysicalStepScale(len(vertices))
 	for step := 0; step < maxSteps; step++ {
 		next, upwindness := strongestUpwindNeighbor(current, vertices, adj, wind)
 		if next < 0 || upwindness <= 0.05 {
 			break
 		}
 		if elevation[next] < seaLevel {
-			pathFetch += 1.0
+			pathFetch += stepScale
 		} else {
 			pathFetch *= 0.6
 			break
 		}
 		current = next
 	}
-	pathFetch = Clamp(pathFetch/float64(maxSteps), 0, 1)
+	pathFetch = Clamp(pathFetch/(float64(maxSteps)*stepScale), 0, 1)
 
-	footprint := computeUpwindFootprintWeights(
+	ws := acquireUpwindWorkspace(len(vertices))
+	defer releaseUpwindWorkspace(ws)
+	footprintCells, footprintWeights := computeUpwindFootprintWeightsInto(
+		ws,
 		i,
 		vertices,
 		adj,
@@ -325,19 +338,20 @@ func computeUpwindOceanFetch(
 		maxSteps,
 		precipUpwindFootprintMinAlignment,
 	)
-	if len(footprint) == 0 {
+	if len(footprintCells) == 0 {
 		return pathFetch
 	}
 	fetch := 0.0
 	landPenalty := 0.0
-	for donor, weight := range footprint {
+	for fidx, donor32 := range footprintCells {
+		donor := int(donor32)
 		if donor < 0 || donor >= len(elevation) {
 			continue
 		}
 		if elevation[donor] < seaLevel {
-			fetch += weight
+			fetch += footprintWeights[fidx]
 		} else {
-			landPenalty += weight
+			landPenalty += footprintWeights[fidx]
 		}
 	}
 	footprintFetch := Clamp(fetch-0.35*landPenalty, 0, 1)

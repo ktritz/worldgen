@@ -65,3 +65,20 @@ func TestComputeCoastalExposure(t *testing.T) {
 		t.Fatalf("expected inland-support cell exposure %.2f to stay below direct coast %.2f", exposure[2], exposure[0])
 	}
 }
+
+func TestComputeCoastalExposureUsesPhysicalRadius(t *testing.T) {
+	cells := makeLineCells(40962, 4)
+	elevation := make([]float64, len(cells))
+	for i := range elevation {
+		elevation[i] = 100
+	}
+	elevation[0] = -10
+
+	exposure := ComputeCoastalExposure(cells, elevation, 0)
+	if exposure[2] <= 0 {
+		t.Fatalf("expected refined two-step land cell to retain coastal exposure")
+	}
+	if exposure[3] >= exposure[2] {
+		t.Fatalf("expected coastal exposure to decay inland, got cell2=%.3f cell3=%.3f", exposure[2], exposure[3])
+	}
+}

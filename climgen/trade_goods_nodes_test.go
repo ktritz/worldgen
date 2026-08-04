@@ -2,6 +2,17 @@ package climgen
 
 import "testing"
 
+func TestNodeKindScaleUsesPhysicalSupportForRegionalAnchors(t *testing.T) {
+	full := SettlementNode{Kind: SettlementNodeTown, PhysicalSupportArea: 1.0}
+	weak := SettlementNode{Kind: SettlementNodeTown, PhysicalSupportArea: 0.25}
+	if nodeKindScale(weak) >= nodeKindScale(full) {
+		t.Fatalf("expected weak physical support to reduce kind scale, got weak=%.3f full=%.3f", nodeKindScale(weak), nodeKindScale(full))
+	}
+	if nodeKindScale(weak) <= nodeKindScale(SettlementNode{Kind: SettlementNodeHamlet}) {
+		t.Fatalf("expected weak regional anchor to remain above local anchor, got weak=%.3f", nodeKindScale(weak))
+	}
+}
+
 func TestComputeNodeGoodsFavorsUrbanNodesForProcessedGoods(t *testing.T) {
 	settings := TradeGoodsSettings{
 		SchemaVersion: TradeGoodsSchemaVersion,

@@ -31,23 +31,26 @@ func CoastalPortTypeName(kind CoastalPortType) string {
 }
 
 type CoastalPortDiagnostics struct {
-	CoastalAccess         []float64
-	DeepwaterAccess       []float64
-	HarborShelter         []float64
-	EstuaryAccess         []float64
-	RiverTransfer         []float64
-	StopoverValue         []float64
-	StormExposure         []float64
-	PortSuitability       []float64
-	DeepwaterSuitability  []float64
-	NodePortScore         []float64
-	NodeDeepwaterScore    []float64
-	NodeTerminalCell      []int
-	NodeDeepwaterTermCell []int
+	CoastalAccess          []float64
+	DeepwaterAccess        []float64
+	HarborShelter          []float64
+	EstuaryAccess          []float64
+	RiverTransfer          []float64
+	StopoverValue          []float64
+	StormExposure          []float64
+	PortSuitability        []float64
+	DeepwaterSuitability   []float64
+	NodeBasePortScore      []float64
+	NodeBaseDeepwaterScore []float64
+	NodePortScore          []float64
+	NodeDeepwaterScore     []float64
+	NodeTerminalCell       []int
+	NodeDeepwaterTermCell  []int
 }
 
 type CoastalPortResult struct {
 	Mode                MaritimeVesselSettings
+	StopoverSelection   MaritimeStopoverSelectionSettings
 	Types               []CoastalPortType
 	MajorPorts          []int
 	MajorDeepwaterPorts []int
@@ -71,7 +74,8 @@ func BuildCoastalPorts(
 ) *CoastalPortResult {
 	n := len(elevation)
 	result := &CoastalPortResult{
-		Types: make([]CoastalPortType, n),
+		StopoverSelection: settings.StopoverSelection,
+		Types:             make([]CoastalPortType, n),
 		Diagnostics: &CoastalPortDiagnostics{
 			CoastalAccess:        make([]float64, n),
 			DeepwaterAccess:      make([]float64, n),
@@ -87,6 +91,8 @@ func BuildCoastalPorts(
 	if network != nil {
 		result.Diagnostics.NodePortScore = make([]float64, len(network.Nodes))
 		result.Diagnostics.NodeDeepwaterScore = make([]float64, len(network.Nodes))
+		result.Diagnostics.NodeBasePortScore = make([]float64, len(network.Nodes))
+		result.Diagnostics.NodeBaseDeepwaterScore = make([]float64, len(network.Nodes))
 		result.Diagnostics.NodeTerminalCell = make([]int, len(network.Nodes))
 		result.Diagnostics.NodeDeepwaterTermCell = make([]int, len(network.Nodes))
 		for i := range result.Diagnostics.NodeTerminalCell {
@@ -246,7 +252,7 @@ func deriveCoastalStormExposure(i int, adj *FlatAdjacency, elevation []float64, 
 }
 
 func coastalNeighborStats(i int, adj *FlatAdjacency, elevation []float64, seaLevel float64, windSpeed, currentSpeed []float64) (oceanFrac, meanWind, meanCurrent, landFrac float64) {
-	neighbors := adj.GetNeighbors(i)
+	neighbors := flatCellsWithinHops(adj, i, meshResolutionAdjustedSteps(1, flatAdjacencyCellCount(adj)))
 	if len(neighbors) == 0 {
 		return 0, 0, 0, 0
 	}
@@ -279,6 +285,48 @@ func coastalNeighborStats(i int, adj *FlatAdjacency, elevation []float64, seaLev
 	return ocean / total, meanWind, meanCurrent, land / total
 }
 
+func flatAdjacencyCellCount(adj *FlatAdjacency) int {
+	if adj == nil || len(adj.Offsets) == 0 {
+		return 0
+	}
+	return len(adj.Offsets) - 1
+}
+
+func flatCellsWithinHops(adj *FlatAdjacency, start, maxHops int) []int {
+	n := flatAdjacencyCellCount(adj)
+	if start < 0 || start >= n || maxHops < 1 {
+		return nil
+	}
+	type state struct {
+		cell int
+		hops int
+	}
+	seen := map[int]struct{}{start: {}}
+	queue := []state{{cell: start, hops: 0}}
+	out := make([]int, 0)
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		if cur.hops > 0 {
+			out = append(out, cur.cell)
+		}
+		if cur.hops == maxHops {
+			continue
+		}
+		for _, neighbor := range adj.GetNeighbors(cur.cell) {
+			if neighbor < 0 || neighbor >= n {
+				continue
+			}
+			if _, ok := seen[neighbor]; ok {
+				continue
+			}
+			seen[neighbor] = struct{}{}
+			queue = append(queue, state{cell: neighbor, hops: cur.hops + 1})
+		}
+	}
+	return out
+}
+
 func derivePortSuitability(harbor, estuary, transfer, stopover, storm float64, vessel MaritimeVesselSettings, settings MaritimePortSettings) float64 {
 	deepDraft := 1 - vessel.ShallowDraft
 	beachable := math.Max(vessel.BeachingCapability, vessel.ShallowDraft)
@@ -302,7 +350,7 @@ func deriveDeepwaterAccess(i int, adj *FlatAdjacency, elevation []float64, seaLe
 	if coastal <= 0 {
 		return 0
 	}
-	neighbors := adj.GetNeighbors(i)
+	neighbors := flatCellsWithinHops(adj, i, meshResolutionAdjustedSteps(1, flatAdjacencyCellCount(adj)))
 	if len(neighbors) == 0 {
 		return 0
 	}

@@ -14,15 +14,16 @@ import (
 func PlaceHotspots(
 	sites []Vector3D,
 	cells []VoronoiCell,
-	rPlate []int,
+	layout plateLayout,
 	plateRot map[int]PlateRotation,
 	plateIsOcean map[int]bool,
-	rng *rand.Rand,
+	seed int64,
 ) []HotspotChain {
 	numRegions := len(sites)
 	chains := make([]HotspotChain, 0, HotspotsPerPlanet)
 
 	for i := 0; i < HotspotsPerPlanet; i++ {
+		rng := terrainFeatureRNG(seed, 20, int64(i))
 		// Pick a random location on the sphere
 		hotspotPos := randomPointOnSphere(rng)
 
@@ -32,7 +33,10 @@ func PlaceHotspots(
 			continue
 		}
 
-		plateID := rPlate[hotspotCell]
+		plateID := physicalPlateAtPosition(hotspotPos, layout)
+		if plateID < 0 {
+			plateID = layout.rPlate[hotspotCell]
+		}
 		isOceanic := plateIsOcean[plateID]
 
 		hotspot := Hotspot{
@@ -43,7 +47,8 @@ func PlaceHotspots(
 
 		// Trace the chain backward along plate rotation (curved path)
 		// Both oceanic and continental hotspots create chains
-		chain := traceHotspotChain(sites, cells, rPlate, plateRot, plateIsOcean, hotspot, rng)
+		chain := traceHotspotChain(sites, cells, layout, plateRot, plateIsOcean, hotspot, rng)
+		chain.ID = i
 		chain.IsOceanic = isOceanic
 		if len(chain.Islands) >= MinChainLength {
 			chains = append(chains, chain)
@@ -61,7 +66,7 @@ func PlaceHotspots(
 func traceHotspotChain(
 	sites []Vector3D,
 	cells []VoronoiCell,
-	rPlate []int,
+	layout plateLayout,
 	plateRot map[int]PlateRotation,
 	plateIsOcean map[int]bool,
 	hotspot Hotspot,
@@ -147,9 +152,6 @@ func traceHotspotChain(
 	// Start at the hotspot position
 	currentPos := hotspot.Position
 
-	// Track visited cells to avoid duplicates
-	visited := make(map[int]bool)
-
 	// Base spacing with variation range
 	baseSpacing := IslandSpacingRadians
 	minSpacing := baseSpacing * 0.45 // Clustered islands
@@ -190,9 +192,14 @@ func traceHotspotChain(
 			break
 		}
 
-		// Check if we've left the appropriate plate type
-		// Oceanic hotspots trace through oceanic plates, continental through continental
-		cellIsOceanic := plateIsOcean[rPlate[cellIdx]]
+		// Check if we've left the appropriate physical plate type. Using
+		// nearest cell ownership here makes the same hotspot terminate at
+		// different points on different mesh resolutions.
+		plateID := physicalPlateAtPosition(currentPos, layout)
+		if plateID < 0 {
+			break
+		}
+		cellIsOceanic := plateIsOcean[plateID]
 		if hotspot.IsOceanic && !cellIsOceanic {
 			break // Oceanic hotspot hit continental plate
 		}
@@ -237,15 +244,6 @@ func traceHotspotChain(
 		thisSpacing *= Clamp(1.25-0.40*activity, 0.55, 1.55)
 		thisSpacing = Clamp(thisSpacing, minSpacing, maxSpacing)
 
-		// Skip if already visited
-		if visited[cellIdx] {
-			currentPos = backwardRotation.RotatePoint(currentPos, thisSpacing)
-			chainLength += thisSpacing
-			stepsSinceLastIsland++
-			distanceSinceLastIsland += thisSpacing
-			continue
-		}
-
 		// Probability of forming an island at this position
 		// Higher probability if we haven't had an island in a while (ensures some continuity)
 		// Lower probability allows for occasional gaps
@@ -267,7 +265,6 @@ func traceHotspotChain(
 		}
 
 		if rng.Float64() < formationProb && (distanceSinceLastIsland >= 0.45*minIslandSpacing || stepsSinceLastIsland >= 2) {
-			visited[cellIdx] = true
 			stepsSinceLastIsland = 0
 
 			// Add island with age based on chain position
@@ -276,6 +273,7 @@ func traceHotspotChain(
 			strength = Clamp(strength, 0.35, 1.55)
 			chain.Islands = append(chain.Islands, HotspotIsland{
 				CellIndex: cellIdx,
+				Position:  currentPos,
 				Age:       age,
 				Strength:  strength,
 			})
@@ -330,7 +328,89 @@ func traceHotspotChain(
 		distanceSinceLastIsland += thisSpacing
 	}
 
+	chain.Islands = coalesceHotspotIslands(sites, chain.Islands)
 	return chain
+}
+
+func coalesceHotspotIslands(sites []Vector3D, islands []HotspotIsland) []HotspotIsland {
+	if len(islands) <= 1 {
+		return islands
+	}
+
+	const mergeDistance = IslandSpacingRadians * 0.75
+	out := make([]HotspotIsland, 0, len(islands))
+	cluster := []HotspotIsland{islands[0]}
+	for i := 1; i < len(islands); i++ {
+		prev := cluster[len(cluster)-1]
+		if angularDistance(prev.Position, islands[i].Position) <= mergeDistance {
+			cluster = append(cluster, islands[i])
+			continue
+		}
+		out = append(out, mergeHotspotIslandCluster(sites, cluster))
+		cluster = []HotspotIsland{islands[i]}
+	}
+	out = append(out, mergeHotspotIslandCluster(sites, cluster))
+	return out
+}
+
+func mergeHotspotIslandCluster(sites []Vector3D, cluster []HotspotIsland) HotspotIsland {
+	if len(cluster) == 1 {
+		return cluster[0]
+	}
+	pos := Vector3D{}
+	ageTotal := 0.0
+	weightTotal := 0.0
+	maxStrength := 0.0
+	for _, island := range cluster {
+		weight := island.Strength
+		if weight <= 0 {
+			weight = 1
+		}
+		p := island.Position.Normalize()
+		pos.X += p.X * weight
+		pos.Y += p.Y * weight
+		pos.Z += p.Z * weight
+		ageTotal += island.Age * weight
+		weightTotal += weight
+		if island.Strength > maxStrength {
+			maxStrength = island.Strength
+		}
+	}
+	if weightTotal <= 0 {
+		weightTotal = float64(len(cluster))
+	}
+	pos = pos.Normalize()
+	if pos.LengthSq() == 0 {
+		pos = cluster[0].Position.Normalize()
+	}
+	strength := maxStrength * (1.0 + 0.08*math.Log1p(float64(len(cluster)-1)))
+	return HotspotIsland{
+		CellIndex: nearestRegionToVector(sites, pos, nil),
+		Position:  pos,
+		Age:       ageTotal / weightTotal,
+		Strength:  Clamp(strength, 0.35, 1.55),
+	}
+}
+
+func physicalPlateAtPosition(pos Vector3D, layout plateLayout) int {
+	if len(layout.plateR) == 0 || len(layout.plateCenters) != len(layout.plateR) {
+		return -1
+	}
+	pos = pos.Normalize()
+	bestPlate := -1
+	bestScore := math.Inf(1)
+	for i, center := range layout.plateCenters {
+		weight := 1.0
+		if i < len(layout.plateWeights) && layout.plateWeights[i] > 0 {
+			weight = layout.plateWeights[i]
+		}
+		score := angularDistance(pos, center) / weight
+		if score < bestScore {
+			bestScore = score
+			bestPlate = layout.plateR[i]
+		}
+	}
+	return bestPlate
 }
 
 // randomPointOnSphere generates a uniformly random point on the unit sphere

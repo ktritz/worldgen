@@ -41,9 +41,13 @@ func selectPolityResolvedProfile(
 	soils *SoilResult,
 	hydro *HydrologyBiomeInputs,
 ) (ResolvedProfile, PolityProfileContext, PolityEnvironmentContext, float64) {
-	context := buildPolityProfileContext(sphere, network, trade)
+	meshCellCount := 0
+	if polities != nil && polities.Diagnostics != nil {
+		meshCellCount = len(polities.Diagnostics.PolityByCell)
+	}
+	context := buildPolityProfileContext(sphere, network, trade, meshCellCount)
 	metrics := computePolityEcologyMetrics(sphere.ID, polities, biomes, vegetation, soils, hydro)
-	env := buildPolityEnvironmentContext(sphere, network, trade, metrics)
+	env := buildPolityEnvironmentContext(sphere, network, trade, metrics, meshCellCount)
 	ancestry, ancestryScore := selectPolityAncestry(catalog.Ancestries, env, context)
 	if ancestry == nil {
 		return ResolvedProfile{}, context, env, -math.MaxFloat64
@@ -58,6 +62,7 @@ func buildPolityEnvironmentContext(
 	network *SettlementNetworkResult,
 	trade *TradeNetworkResult,
 	metrics PolityEcologyMetrics,
+	meshCellCount int,
 ) PolityEnvironmentContext {
 	tags := []string{"surface"}
 	traits := map[string]float64{}
@@ -131,7 +136,7 @@ func buildPolityEnvironmentContext(
 			tags = append(tags, "settled-core")
 		}
 	}
-	if sphere.TerritoryCells >= 140 {
+	if meshScaledTerritoryAreaCells(sphere.TerritoryCells, meshCellCount) >= 140 {
 		tags = append(tags, "large-polity")
 	}
 	if trade != nil && trade.Diagnostics != nil && sphere.CapitalNode >= 0 && sphere.CapitalNode < len(trade.Diagnostics.NodeCentrality) {

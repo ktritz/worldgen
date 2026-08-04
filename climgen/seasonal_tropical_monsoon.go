@@ -87,7 +87,10 @@ func computeSeasonalTropicalRegimeFields(
 		annualMeanTemperature,
 	)
 	parent, strength := computeStrongestUpwindGraph(vertices, adj, wind)
-	upwindLandSteps := computeUpwindLandStepCounts(parent, strength, elevation, seaLevelThreshold, precipInlandTransportSteps+2)
+	transportSteps := resolutionAdjustedPrecipSteps(precipInlandTransportSteps, len(vertices)) +
+		resolutionAdjustedPrecipSteps(2, len(vertices))
+	fetchSteps := resolutionAdjustedPrecipSteps(precipFetchMaxSteps, len(vertices))
+	upwindLandSteps := computeUpwindLandStepCounts(parent, strength, elevation, seaLevelThreshold, transportSteps)
 	rawCrossing := make([]float64, len(vertices))
 
 	for i, v := range vertices {
@@ -116,7 +119,7 @@ func computeSeasonalTropicalRegimeFields(
 			interior = Clamp(landInterior[i], 0, 1)
 		}
 		onshore := coastalOnshoreScore(i, vertices, elevation, seaLevelThreshold, adj, wind)
-		oceanFetch := computeUpwindOceanFetch(i, vertices, elevation, seaLevelThreshold, adj, wind, precipFetchMaxSteps)
+		oceanFetch := computeUpwindOceanFetch(i, vertices, elevation, seaLevelThreshold, adj, wind, fetchSteps)
 		footprintSupport := computeUpwindOceanFootprintSupport(
 			i,
 			vertices,
@@ -124,12 +127,12 @@ func computeSeasonalTropicalRegimeFields(
 			seaLevelThreshold,
 			adj,
 			wind,
-			precipInlandTransportSteps+4,
+			resolutionAdjustedPrecipSteps(precipInlandTransportSteps+4, len(vertices)),
 		)
 		neighborOcean := computeNeighborOceanFraction(i, elevation, seaLevelThreshold, adj)
 		travel := 0.0
 		if i < len(upwindLandSteps) && upwindLandSteps[i] >= 0 {
-			travel = Clamp(float64(upwindLandSteps[i])/float64(precipInlandTransportSteps+2), 0, 1)
+			travel = Clamp(float64(upwindLandSteps[i])/float64(transportSteps), 0, 1)
 		}
 		corridor := transportCorridorWeight(travel)
 		coastalImmediate := Clamp(onshore*(1.0-travel), 0, 1)

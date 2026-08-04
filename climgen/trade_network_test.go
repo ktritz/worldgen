@@ -214,3 +214,175 @@ func TestBuildTradeNetworkCreatesLocalGraphFeederCorridor(t *testing.T) {
 		t.Fatalf("expected at least one local-graph feeder corridor")
 	}
 }
+
+func TestBuildLocalTradeGraphScalesFeederReachByMeshResolution(t *testing.T) {
+	cellCount := 40962
+	cells := make([]VoronoiCell, cellCount)
+	for i := range cells {
+		cells[i].SiteIndex = int32(i)
+	}
+	cells[0].NeighborSiteIndices = []int32{1}
+	cells[1].NeighborSiteIndices = []int32{0, 2}
+	cells[2].NeighborSiteIndices = []int32{1, 3}
+	cells[3].NeighborSiteIndices = []int32{2, 4}
+	cells[4].NeighborSiteIndices = []int32{3}
+
+	network := &SettlementNetworkResult{
+		Nodes: []SettlementNode{{ID: 0, CellIndex: 0, Kind: SettlementNodeTown, Score: 0.68}},
+	}
+	landRoutes := &LandRouteResult{
+		Mode: LandRouteModeSettings{
+			Name:        "porter",
+			FeederFlow:  0.90,
+			FeederReach: 0.10,
+		},
+		Diagnostics: &LandRouteDiagnostics{
+			ModeCost:              make([]float64, cellCount),
+			RouteRisk:             make([]float64, cellCount),
+			WaterSupport:          make([]float64, cellCount),
+			ForageSupport:         make([]float64, cellCount),
+			WaystationSuitability: make([]float64, cellCount),
+			RoadQuality:           make([]float64, cellCount),
+			CrossingPressure:      make([]float64, cellCount),
+			BridgeProxy:           make([]float64, cellCount),
+			FordProxy:             make([]float64, cellCount),
+		},
+	}
+	landRoutes.Diagnostics.WaterSupport[4] = 0.70
+	landRoutes.Diagnostics.ForageSupport[4] = 0.70
+	landRoutes.Diagnostics.WaystationSuitability[4] = 0.58
+
+	result := BuildLocalTradeGraph(cells, network, landRoutes)
+	if len(result.Nodes) != 1 || result.Nodes[0].CellIndex != 4 {
+		t.Fatalf("expected scaled feeder reach to discover cell 4, got %+v", result.Nodes)
+	}
+}
+
+func TestBuildLocalTradeGraphDeduplicatesFineResolutionFeederNodes(t *testing.T) {
+	makeCells := func(cellCount int) []VoronoiCell {
+		cells := make([]VoronoiCell, cellCount)
+		for i := range cells {
+			cells[i].SiteIndex = int32(i)
+		}
+		cells[0].NeighborSiteIndices = []int32{1}
+		cells[1].NeighborSiteIndices = []int32{0, 2}
+		cells[2].NeighborSiteIndices = []int32{1, 3}
+		cells[3].NeighborSiteIndices = []int32{2}
+		return cells
+	}
+	makeRoutes := func(cellCount int) *LandRouteResult {
+		diag := &LandRouteDiagnostics{
+			ModeCost:              make([]float64, cellCount),
+			RouteRisk:             make([]float64, cellCount),
+			WaterSupport:          make([]float64, cellCount),
+			ForageSupport:         make([]float64, cellCount),
+			WaystationSuitability: make([]float64, cellCount),
+			RoadQuality:           make([]float64, cellCount),
+			CrossingPressure:      make([]float64, cellCount),
+			BridgeProxy:           make([]float64, cellCount),
+			FordProxy:             make([]float64, cellCount),
+		}
+		diag.WaystationSuitability[1] = 0.62
+		diag.WaystationSuitability[2] = 0.60
+		diag.WaterSupport[1] = 0.64
+		diag.ForageSupport[1] = 0.64
+		diag.WaterSupport[2] = 0.62
+		diag.ForageSupport[2] = 0.62
+		return &LandRouteResult{
+			Mode: LandRouteModeSettings{
+				Name:        "pack-mule",
+				FeederFlow:  0.95,
+				FeederReach: 0.42,
+			},
+			Diagnostics: diag,
+		}
+	}
+	network := &SettlementNetworkResult{
+		Nodes: []SettlementNode{{ID: 0, CellIndex: 0, Kind: SettlementNodeTown, Score: 0.68}},
+	}
+
+	coarse := BuildLocalTradeGraph(makeCells(10242), network, makeRoutes(10242))
+	refined := BuildLocalTradeGraph(makeCells(40962), network, makeRoutes(40962))
+
+	if len(coarse.Nodes) < 2 {
+		t.Fatalf("expected coarse adjacent feeder candidates to remain distinct, got %+v", coarse.Nodes)
+	}
+	if len(refined.Nodes) != 1 || refined.Nodes[0].CellIndex != 1 {
+		t.Fatalf("expected fine adjacent feeder candidates to deduplicate physically, got %+v", refined.Nodes)
+	}
+}
+
+func TestTradeDiagnosticsSeparateFeederAndTrunkCentrality(t *testing.T) {
+	diagnostics := &TradeNetworkDiagnostics{
+		NodeCentrality:   make([]float64, 2),
+		TrunkCentrality:  make([]float64, 2),
+		FeederCentrality: make([]float64, 2),
+		RouteIntensity:   make([]float64, 2),
+	}
+	applyTradeDiagnostics([]TradeCorridor{
+		{Role: TradeCorridorRoleFeeder, HandoffNode: 0, Flow: 0.60, NodePath: []int{0}, CellPath: []int{0}},
+		{Role: TradeCorridorRoleInterPolityTrunk, FromNode: 0, ToNode: 1, Flow: 0.40, NodePath: []int{0, 1}, CellPath: []int{0, 1}},
+	}, diagnostics)
+
+	if diagnostics.NodeCentrality[0] != 1.0 {
+		t.Fatalf("expected combined centrality to include feeder and trunk flow, got %.2f", diagnostics.NodeCentrality[0])
+	}
+	if diagnostics.FeederCentrality[0] != 0.60 {
+		t.Fatalf("expected feeder centrality to include only feeder flow, got %.2f", diagnostics.FeederCentrality[0])
+	}
+	if diagnostics.TrunkCentrality[0] != 0.40 || diagnostics.TrunkCentrality[1] != 0.40 {
+		t.Fatalf("expected trunk centrality to include only trunk flow, got %v", diagnostics.TrunkCentrality)
+	}
+}
+
+func TestTradeFlowBetweenCivilizationsUsesPhysicalTerritoryScale(t *testing.T) {
+	a := ProtoCivilization{TerritoryCells: 40, MeanSupport: 0.40}
+	b := ProtoCivilization{TerritoryCells: 32, MeanSupport: 0.38}
+	refinedA := a
+	refinedB := b
+	refinedA.TerritoryCells = 160
+	refinedB.TerritoryCells = 128
+	centerA := SettlementNode{Score: 0.66}
+	centerB := SettlementNode{Score: 0.68}
+
+	base := tradeFlowBetweenCivilizations(a, b, centerA, centerB, 5.0, 10242)
+	refined := tradeFlowBetweenCivilizations(refinedA, refinedB, centerA, centerB, 5.0, 40962)
+	if diff := refined - base; diff < -0.01 || diff > 0.01 {
+		t.Fatalf("expected equivalent physical territories to keep land flow stable, got base=%.3f refined=%.3f", base, refined)
+	}
+}
+
+func TestTradeLinkTravelCostIsResolutionInvariant(t *testing.T) {
+	makeLandRoutes := func(pathCells int) *LandRouteResult {
+		diag := &LandRouteDiagnostics{
+			ModeCost:              make([]float64, pathCells),
+			RouteRisk:             make([]float64, pathCells),
+			WaystationSuitability: make([]float64, pathCells),
+		}
+		for i := 0; i < pathCells; i++ {
+			diag.ModeCost[i] = 1.2
+			diag.RouteRisk[i] = 0.3
+			diag.WaystationSuitability[i] = 0.5
+		}
+		return &LandRouteResult{Diagnostics: diag}
+	}
+	makePath := func(pathCells int) []int {
+		path := make([]int, pathCells)
+		for i := range path {
+			path[i] = i
+		}
+		return path
+	}
+
+	base := tradeLinkTravelCost(SettlementLink{From: 0, To: 1, Path: makePath(8)}, makeLandRoutes(8), 10242)
+	expected := 8 * 1.2 * (1 + 0.55*0.3 + 0.22*(1-0.5))
+	if diff := base - expected; diff < -1e-9 || diff > 1e-9 {
+		t.Fatalf("expected baseline mesh cost to be an exact no-op, got %.6f want %.6f", base, expected)
+	}
+
+	// The same physical route crosses ~2x the cells at level 6; edge cost must not grow.
+	refined := tradeLinkTravelCost(SettlementLink{From: 0, To: 1, Path: makePath(16)}, makeLandRoutes(16), 40962)
+	if rel := (refined - base) / base; rel < -1e-3 || rel > 1e-3 {
+		t.Fatalf("expected resolution-invariant trade link cost, got base=%.4f refined=%.4f", base, refined)
+	}
+}

@@ -1,6 +1,7 @@
 package terrain
 
 import (
+	"math"
 	"math/rand"
 	"testing"
 
@@ -123,6 +124,28 @@ func TestGeneratePlatesAvoidsSuperplates(t *testing.T) {
 	}
 }
 
+func TestGeneratePlatesUsesStablePhysicalCentersAcrossResolution(t *testing.T) {
+	coarseSites, coarseFaces := icosphere.CreateIcosphere(3)
+	_, coarseCells := icosphere.GenerateSphericalVoronoi(coarseSites, coarseFaces)
+	fineSites, fineFaces := icosphere.CreateIcosphere(4)
+	_, fineCells := icosphere.GenerateSphericalVoronoi(fineSites, fineFaces)
+
+	coarseRng := rand.New(rand.NewSource(42))
+	fineRng := rand.New(rand.NewSource(42))
+	coarsePlateR, _ := GeneratePlates(coarseSites, coarseCells, 12, coarseRng)
+	finePlateR, _ := GeneratePlates(fineSites, fineCells, 12, fineRng)
+
+	if len(coarsePlateR) != len(finePlateR) {
+		t.Fatalf("plate center counts differ: coarse=%d fine=%d", len(coarsePlateR), len(finePlateR))
+	}
+	for i := range coarsePlateR {
+		distance := angularDistance(coarseSites[coarsePlateR[i]], fineSites[finePlateR[i]])
+		if distance > 0.12 {
+			t.Fatalf("plate center %d moved %.3f radians across resolution", i, distance)
+		}
+	}
+}
+
 func TestGenerateOptimizedPlateLayoutImprovesInitialSeed6Layout(t *testing.T) {
 	sites, faces := icosphere.CreateIcosphere(3)
 	_, cells := icosphere.GenerateSphericalVoronoi(sites, faces)
@@ -161,6 +184,40 @@ func TestGenerateOptimizedPlateLayoutImprovesInitialSeed6Layout(t *testing.T) {
 	}
 }
 
+func TestOptimizedPlateBlueprintProjectsContinentsAcrossResolution(t *testing.T) {
+	refSites, refFaces := icosphere.CreateIcosphere(3)
+	_, refCells := icosphere.GenerateSphericalVoronoi(refSites, refFaces)
+	fineSites, fineFaces := icosphere.CreateIcosphere(4)
+	_, fineCells := icosphere.GenerateSphericalVoronoi(fineSites, fineFaces)
+
+	blueprint, ok := buildPlateBlueprintFromReference(refSites, refCells, 12, 314, 0.29)
+	if !ok {
+		t.Fatal("expected reference blueprint")
+	}
+
+	refLayout := buildPlateLayoutFromBlueprint(refSites, refCells, blueprint)
+	fineLayout := buildPlateLayoutFromBlueprint(fineSites, fineCells, blueprint)
+
+	if len(refLayout.plateR) != len(fineLayout.plateR) {
+		t.Fatalf("projected active plate counts differ: ref=%d fine=%d", len(refLayout.plateR), len(fineLayout.plateR))
+	}
+	for i := range refLayout.plateR {
+		distance := angularDistance(refLayout.plateCenters[i], fineLayout.plateCenters[i])
+		if distance > 1e-9 {
+			t.Fatalf("plate blueprint center %d changed by %.6f radians", i, distance)
+		}
+		if refLayout.plateIsOcean[refLayout.plateR[i]] != fineLayout.plateIsOcean[fineLayout.plateR[i]] {
+			t.Fatalf("plate %d changed ocean/continent assignment across resolution", i)
+		}
+	}
+
+	refMeanLat := meanContinentalLatitude(refSites, refLayout)
+	fineMeanLat := meanContinentalLatitude(fineSites, fineLayout)
+	if math.Abs(refMeanLat-fineMeanLat) > 0.08 {
+		t.Fatalf("continental mean latitude drifted %.3f radians across projection", math.Abs(refMeanLat-fineMeanLat))
+	}
+}
+
 func ringPlateNeighbors(numPlates int) map[int]map[int]bool {
 	neighbors := make(map[int]map[int]bool, numPlates)
 	for i := 0; i < numPlates; i++ {
@@ -180,4 +237,20 @@ func assignmentMask(sortedPlates []PlateSize, plateIsOcean map[int]bool) uint64 
 		}
 	}
 	return mask
+}
+
+func meanContinentalLatitude(sites []Vector3D, layout plateLayout) float64 {
+	total := 0.0
+	count := 0
+	for r, site := range sites {
+		if layout.plateIsOcean[layout.rPlate[r]] {
+			continue
+		}
+		total += math.Asin(site.Normalize().Z)
+		count++
+	}
+	if count == 0 {
+		return 0
+	}
+	return total / float64(count)
 }

@@ -1,6 +1,42 @@
 package climgen
 
+import "math"
+
 const precipInlandTransportSteps = 10
+
+func resolutionAdjustedPrecipSteps(baseSteps int, cellCount int) int {
+	return meshResolutionAdjustedSteps(baseSteps, cellCount)
+}
+
+func precipitationPhysicalStepScale(cellCount int) float64 {
+	return meshPathCostResolutionScale(cellCount)
+}
+
+func precipitationPerStepFactor(baseFactor float64, cellCount int) float64 {
+	if baseFactor <= 0 {
+		return 0
+	}
+	if baseFactor == 1 {
+		return 1
+	}
+	return math.Pow(baseFactor, precipitationPhysicalStepScale(cellCount))
+}
+
+func precipitationPerStepFraction(baseFraction float64, cellCount int) float64 {
+	frac := Clamp(baseFraction, 0, 1)
+	if frac <= 0 || frac >= 1 {
+		return frac
+	}
+	// math.Pow(x, 1) is exact but 1-(1-f) is not: 0.20 round-trips to
+	// 0.19999999999999996. These fractions feed the iterative land budget,
+	// which early-exits on a convergence test, so a one-ulp drift can change
+	// the iteration count at the baseline. Short-circuit to keep L5 exact.
+	scale := precipitationPhysicalStepScale(cellCount)
+	if scale == 1 {
+		return frac
+	}
+	return 1.0 - math.Pow(1.0-frac, scale)
+}
 
 func computeUpwindLandTravel(
 	i int,
@@ -44,12 +80,14 @@ func computeUpwindCorridorHumidity(
 	current := i
 	sum := 0.0
 	weightSum := 0.0
+	stepScale := precipitationPhysicalStepScale(len(vertices))
 	for step := 0; step < maxSteps; step++ {
 		next, upwindness := strongestUpwindNeighbor(current, vertices, adj, wind)
 		if next < 0 || upwindness <= 0.05 || next >= len(specificHumidity) {
 			break
 		}
-		weight := upwindness / float64(step+1)
+		// Harmonic falloff per physical distance, not per hop (no-op at L5).
+		weight := upwindness / (1.0 + float64(step)*stepScale)
 		sum += specificHumidity[next] * weight
 		weightSum += weight
 		current = next

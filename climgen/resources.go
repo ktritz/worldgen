@@ -130,16 +130,16 @@ func classifyResources(
 		channel := hydrologyValue(hydro, i, func(h *HydrologyBiomeInputs) []float64 { return h.ChannelStrength })
 		className := hydrologyClassName(hydro, i)
 		classWet := hydrologyClassFactor(hydro, i)
+		classDepositional := hydrologyDepositionalClassFactor(hydro, i)
 		hotspot := geologyValue(geology, i, func(g *ResourceGeologyInputs) []float64 { return g.HotspotStrength })
 		continentalHotspot := geologyValue(geology, i, func(g *ResourceGeologyInputs) []float64 { return g.ContinentalHotspot })
 
 		lowRelief := 1 - smoothstep01(120, 700, sdiag.Relief[i])
 		lowRock := 1 - smoothstep01(0.25, 0.75, sdiag.Rockiness[i])
 		depositionalContext := clamp01(
-			0.45*bool01(className == "endorheic_basin" || className == "lake" || className == "lake_complex") +
-				0.30*bool01(className == "lake_reach" || className == "floodplain" || className == "delta") +
+			0.52*classDepositional +
 				0.15*sdiag.Alluvial[i] +
-				0.10*classWet,
+				0.18*classWet,
 		)
 		volcanicBase := clamp01(
 			(0.60*hotspot + 0.25*continentalHotspot + 0.15*smoothstep01(400, 2200, elevation[i])) *

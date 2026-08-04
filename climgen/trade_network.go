@@ -69,6 +69,8 @@ type TradeHandoff struct {
 type TradeNetworkDiagnostics struct {
 	CivilizationByNode []int
 	NodeCentrality     []float64
+	TrunkCentrality    []float64
+	FeederCentrality   []float64
 	HubScore           []float64
 	RouteIntensity     []float64
 	RouteRiskIntensity []float64
@@ -118,14 +120,16 @@ func BuildTradeNetwork(
 	out.Diagnostics = &TradeNetworkDiagnostics{
 		CivilizationByNode: civilizationByNode(network, proto),
 		NodeCentrality:     make([]float64, len(network.Nodes)),
+		TrunkCentrality:    make([]float64, len(network.Nodes)),
+		FeederCentrality:   make([]float64, len(network.Nodes)),
 		HubScore:           make([]float64, len(network.Nodes)),
 		RouteIntensity:     make([]float64, len(cells)),
 		RouteRiskIntensity: make([]float64, len(cells)),
 	}
 
-	adj := buildTradeAdjacency(network, landRoutes)
+	adj := buildTradeAdjacency(network, landRoutes, len(cells))
 	localGraph := BuildLocalTradeGraph(cells, network, landRoutes)
-	corridors := collectInterCivilizationCorridors(network, proto, adj, landRoutes, settings)
+	corridors := collectInterCivilizationCorridors(network, proto, adj, landRoutes, settings, len(cells))
 	corridors = append(corridors, collectInternalCivilizationCorridors(network, proto, out.Diagnostics.CivilizationByNode, adj, landRoutes, settings)...)
 	corridors = append(corridors, collectAnchorFeederCorridors(network, adj, landRoutes, settings)...)
 	corridors = append(corridors, collectLocalFeederCorridors(cells, network, localGraph, landRoutes, settings)...)
@@ -170,6 +174,7 @@ func collectInterCivilizationCorridors(
 	adj [][]tradeAdjEdge,
 	landRoutes *LandRouteResult,
 	settings TradeNetworkSettings,
+	meshCellCount int,
 ) []TradeCorridor {
 	type candidate struct {
 		from int
@@ -186,7 +191,7 @@ func collectInterCivilizationCorridors(
 			if !path.ok {
 				continue
 			}
-			flow := tradeFlowBetweenCivilizations(a, b, network.Nodes[a.CenterNode], network.Nodes[b.CenterNode], path.cost)
+			flow := tradeFlowBetweenCivilizations(a, b, network.Nodes[a.CenterNode], network.Nodes[b.CenterNode], path.cost, meshCellCount)
 			flow *= interCivilizationFlowMultiplier(landRoutes)
 			if flow < settings.MinFlow {
 				continue
@@ -315,8 +320,8 @@ func collectAnchorFeederCorridors(
 	return out
 }
 
-func tradeFlowBetweenCivilizations(a, b ProtoCivilization, centerA, centerB SettlementNode, cost float64) float64 {
-	base := math.Sqrt(float64(maxInt(a.TerritoryCells, 1))*float64(maxInt(b.TerritoryCells, 1))) / 32.0
+func tradeFlowBetweenCivilizations(a, b ProtoCivilization, centerA, centerB SettlementNode, cost float64, meshCellCount int) float64 {
+	base := math.Sqrt(meshScaledTerritoryAreaCells(a.TerritoryCells, meshCellCount)*meshScaledTerritoryAreaCells(b.TerritoryCells, meshCellCount)) / 32.0
 	support := 0.6 + 0.5*(a.MeanSupport+b.MeanSupport)
 	nodeScore := 0.4 + 0.45*(centerA.Score+centerB.Score)
 	bonus := 1.0

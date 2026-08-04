@@ -1,0 +1,154 @@
+{
+  "schemaVersion": "crops-fantasy/v0-draft",
+  "_comment": "DRAFT PROPOSAL — not wired into any loader. Fantasy crops per docs/FUTURE_WORK_SCOPING.md Theme G1: same schema as crops/v0-draft (see config/drafts/crops_earthlike.json for enum docs) but each entry is a deliberate envelope outlier. Additions over the earthlike schema: sphereTags (sphere-ontology hooks, free strings for now), affinities (multiplicative weights keyed by ancestry/culture names from config/profiles/fantasy/, mirroring profileProductionAffinity style in trade_goods_earthlike.json), and an optional sunlightFree boolean (crop ignores growing-season/sunlight gating entirely — underground viability; only present where true).",
+  "crops": [
+    {
+      "name": "frostwheat",
+      "packageTags": ["temperate", "highland"],
+      "sphereTags": ["frost"],
+      "warmthNeed": 0.05,
+      "coldTolerance": 0.98,
+      "heatTolerance": 0.10,
+      "waterNeed": 0.30,
+      "irrigationResponse": 0.15,
+      "floodplainAffinity": 0.15,
+      "soilPreference": "any",
+      "storability": 0.90,
+      "laborIntensity": 0.45,
+      "valueClass": "staple",
+      "tradeGood": "grain",
+      "affinities": {
+        "Dwarf": 1.10,
+        "Human": 1.05,
+        "Highland Hold": 1.18
+      }
+    },
+    {
+      "name": "cave-fungus",
+      "packageTags": ["highland"],
+      "sphereTags": ["deep-earth"],
+      "sunlightFree": true,
+      "warmthNeed": 0.20,
+      "coldTolerance": 0.60,
+      "heatTolerance": 0.40,
+      "waterNeed": 0.60,
+      "irrigationResponse": 0.10,
+      "floodplainAffinity": 0.00,
+      "soilPreference": "any",
+      "storability": 0.35,
+      "laborIntensity": 0.30,
+      "valueClass": "staple",
+      "tradeGood": "grain",
+      "affinities": {
+        "Dwarf": 1.30,
+        "Goblin": 1.25,
+        "Gnome": 1.10,
+        "Highland Hold": 1.15
+      }
+    },
+    {
+      "name": "duskvine",
+      "packageTags": ["temperate", "mediterranean"],
+      "sphereTags": ["shadow", "twilight"],
+      "warmthNeed": 0.40,
+      "coldTolerance": 0.50,
+      "heatTolerance": 0.40,
+      "waterNeed": 0.35,
+      "irrigationResponse": 0.25,
+      "floodplainAffinity": 0.10,
+      "soilPreference": "thin-rocky",
+      "storability": 0.50,
+      "laborIntensity": 0.85,
+      "valueClass": "luxury",
+      "tradeGood": null,
+      "affinities": {
+        "Elf": 1.20,
+        "Forest Enclave": 1.15,
+        "Merchant League": 1.10
+      }
+    },
+    {
+      "name": "ember-pepper",
+      "packageTags": ["arid", "highland"],
+      "sphereTags": ["fire"],
+      "warmthNeed": 0.85,
+      "coldTolerance": 0.10,
+      "heatTolerance": 0.98,
+      "waterNeed": 0.25,
+      "irrigationResponse": 0.50,
+      "floodplainAffinity": 0.00,
+      "soilPreference": "volcanic",
+      "storability": 0.90,
+      "laborIntensity": 0.60,
+      "valueClass": "luxury",
+      "tradeGood": "herbs",
+      "affinities": {
+        "Dragonborn": 1.25,
+        "Orc": 1.08,
+        "Desert Caravan": 1.12
+      }
+    },
+    {
+      "name": "mireroot",
+      "packageTags": ["monsoon"],
+      "sphereTags": ["mire"],
+      "warmthNeed": 0.55,
+      "coldTolerance": 0.30,
+      "heatTolerance": 0.70,
+      "waterNeed": 0.98,
+      "irrigationResponse": 0.30,
+      "floodplainAffinity": 0.95,
+      "soilPreference": "clay",
+      "storability": 0.60,
+      "laborIntensity": 0.55,
+      "valueClass": "staple",
+      "tradeGood": "grain",
+      "affinities": {
+        "Lizardfolk": 1.30,
+        "Goblin": 1.08,
+        "Marsh Clans": 1.22
+      }
+    },
+    {
+      "name": "silverleaf",
+      "packageTags": ["temperate", "highland"],
+      "sphereTags": ["moon", "life"],
+      "warmthNeed": 0.35,
+      "coldTolerance": 0.60,
+      "heatTolerance": 0.30,
+      "waterNeed": 0.55,
+      "irrigationResponse": 0.10,
+      "floodplainAffinity": 0.00,
+      "soilPreference": "loam",
+      "storability": 0.80,
+      "laborIntensity": 0.90,
+      "valueClass": "luxury",
+      "tradeGood": "herbs",
+      "affinities": {
+        "Elf": 1.35,
+        "Gnome": 1.10,
+        "Forest Enclave": 1.25
+      }
+    },
+    {
+      "name": "skywheat",
+      "packageTags": ["highland"],
+      "sphereTags": ["sky", "storm"],
+      "warmthNeed": 0.30,
+      "coldTolerance": 0.85,
+      "heatTolerance": 0.20,
+      "waterNeed": 0.45,
+      "irrigationResponse": 0.20,
+      "floodplainAffinity": 0.00,
+      "soilPreference": "thin-rocky",
+      "storability": 0.85,
+      "laborIntensity": 0.50,
+      "valueClass": "staple",
+      "tradeGood": "grain",
+      "affinities": {
+        "Aarakocra": 1.30,
+        "Sky Aerie": 1.25
+      }
+    }
+  ]
+}

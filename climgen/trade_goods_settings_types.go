@@ -46,19 +46,20 @@ type TradeGoodsResponseCurve struct {
 }
 
 type TradeGoodsMultimodalSettings struct {
-	CapacityScaleByMode         map[string]float64                 `json:"capacityScaleByMode,omitempty"`
-	CapacityFactorByMode        map[string]float64                 `json:"capacityFactorByMode,omitempty"`
-	VolumeBaseByMode            map[string]float64                 `json:"volumeBaseByMode,omitempty"`
-	EndpointNeedShareByCategory map[string]float64                 `json:"endpointNeedShareByCategory,omitempty"`
-	LocalNeedResponse           map[string]TradeGoodsResponseCurve `json:"localNeedResponse,omitempty"`
-	GlobalRarityResponse        map[string]TradeGoodsResponseCurve `json:"globalRarityResponse,omitempty"`
-	SingleMarketWealthBase      float64                            `json:"singleMarketWealthBase,omitempty"`
-	SingleMarketWealthScale     float64                            `json:"singleMarketWealthScale,omitempty"`
-	DualMarketWealthBase        float64                            `json:"dualMarketWealthBase,omitempty"`
-	DualMarketWealthScale       float64                            `json:"dualMarketWealthScale,omitempty"`
-	SingleMarketFeederScale     float64                            `json:"singleMarketFeederScale,omitempty"`
-	DualMarketFeederScale       float64                            `json:"dualMarketFeederScale,omitempty"`
-	LowCapacityVolumeThreshold  float64                            `json:"lowCapacityVolumeThreshold,omitempty"`
+	CapacityScaleByMode             map[string]float64                 `json:"capacityScaleByMode,omitempty"`
+	CapacityFactorByMode            map[string]float64                 `json:"capacityFactorByMode,omitempty"`
+	VolumeBaseByMode                map[string]float64                 `json:"volumeBaseByMode,omitempty"`
+	EndpointNeedShareByCategory     map[string]float64                 `json:"endpointNeedShareByCategory,omitempty"`
+	EndpointSurplusReliefByCategory map[string]float64                 `json:"endpointSurplusReliefByCategory,omitempty"`
+	LocalNeedResponse               map[string]TradeGoodsResponseCurve `json:"localNeedResponse,omitempty"`
+	GlobalRarityResponse            map[string]TradeGoodsResponseCurve `json:"globalRarityResponse,omitempty"`
+	SingleMarketWealthBase          float64                            `json:"singleMarketWealthBase,omitempty"`
+	SingleMarketWealthScale         float64                            `json:"singleMarketWealthScale,omitempty"`
+	DualMarketWealthBase            float64                            `json:"dualMarketWealthBase,omitempty"`
+	DualMarketWealthScale           float64                            `json:"dualMarketWealthScale,omitempty"`
+	SingleMarketFeederScale         float64                            `json:"singleMarketFeederScale,omitempty"`
+	DualMarketFeederScale           float64                            `json:"dualMarketFeederScale,omitempty"`
+	LowCapacityVolumeThreshold      float64                            `json:"lowCapacityVolumeThreshold,omitempty"`
 }
 
 type TradeGoodsProductionSettings struct {
@@ -83,9 +84,12 @@ type TradeGoodsProductionSettings struct {
 
 type TradeGoodsDemandSettings struct {
 	CategoryDemandScale         map[string]float64 `json:"categoryDemandScale,omitempty"`
+	GoodDemandScale             map[string]float64 `json:"goodDemandScale,omitempty"`
 	LocalSupplyReliefByCategory map[string]float64 `json:"localSupplyReliefByCategory,omitempty"`
+	LocalSupplyReliefByGood     map[string]float64 `json:"localSupplyReliefByGood,omitempty"`
 	DriverSpecializationScale   map[string]float64 `json:"driverSpecializationScale,omitempty"`
 	MarketCategoryDemandScale   map[string]float64 `json:"marketCategoryDemandScale,omitempty"`
+	MarketGoodDemandScale       map[string]float64 `json:"marketGoodDemandScale,omitempty"`
 	MarketWealthPullScale       map[string]float64 `json:"marketWealthPullScale,omitempty"`
 	MarketFeederPullScale       map[string]float64 `json:"marketFeederPullScale,omitempty"`
 	DriverSpecializationPivot   float64            `json:"driverSpecializationPivot,omitempty"`

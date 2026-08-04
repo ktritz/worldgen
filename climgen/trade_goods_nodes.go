@@ -88,7 +88,7 @@ func nodeGoodSupply(
 	production TradeGoodsProductionSettings,
 ) float64 {
 	endowment := endowmentByGood[spec.Name]
-	localPotential := nodeCatchmentPotential(cells, node.CellIndex, nodeCatchmentRadius(node), endowment.Potential)
+	localPotential := nodeCatchmentPotential(cells, node.CellIndex, resolutionAdjustedCatchmentRadius(nodeCatchmentRadius(node), len(cells)), endowment.Potential)
 	if spec.Category == "raw" {
 		if value, ok := rawPotentials[spec.Name]; ok {
 			localPotential = value
@@ -144,10 +144,11 @@ func nodeGoodDemand(
 	demandScale := nodeDemandScale(spec, node, wealth, trade)
 	profileAffinity := profileGoodAffinity(spec.ProfileDemandAffinity, assignment)
 	base := (0.26*popScale + 0.16*valueDemand + 0.12*categoryDemand + 0.14*driverDemand + 0.16*wealthDemand + 0.16*scarcityDemand)
-	localRelief := tradeGoodsDemandRelief(spec.Category, currentSupply[spec.Name], demandSettings)
+	localRelief := tradeGoodsDemandRelief(spec, currentSupply[spec.Name], demandSettings)
 	driverSpecialization := tradeGoodsDriverDemandMultiplier(spec.Category, driverDemand, demandSettings)
 	categoryScale := tradeGoodsCategorySetting(demandSettings.CategoryDemandScale, spec.Category, 1.0)
-	return clamp01(base * demandScale * categoryScale * driverSpecialization * localRelief * profileAffinity)
+	goodScale := tradeGoodsCategorySetting(demandSettings.GoodDemandScale, spec.Name, 1.0)
+	return clamp01(base * demandScale * categoryScale * goodScale * driverSpecialization * localRelief * profileAffinity)
 }
 
 func nodeDemandDrivers(drivers map[string]float64, node SettlementNode, assignment PolityProfileAssignment, trade *TradeNetworkResult) float64 {
@@ -219,6 +220,7 @@ func nodeCatchmentPotential(cells []VoronoiCell, startCell, radius int, potentia
 	if radius <= 0 || startCell >= len(cells) {
 		return safeSliceValue(potential, startCell)
 	}
+	stepScale := meshPathCostResolutionScale(len(cells))
 	type frontier struct {
 		cell int
 		dist int
@@ -230,8 +232,10 @@ func nodeCatchmentPotential(cells []VoronoiCell, startCell, radius int, potentia
 	for len(queue) > 0 {
 		cur := queue[0]
 		queue = queue[1:]
-		w := 1.0 / float64(1+cur.dist)
-		total += w * safeSliceValue(potential, cur.cell)
+		physicalDist := float64(cur.dist) * stepScale
+		w := 1.0 / (1.0 + physicalDist)
+		value := safeSliceValue(potential, cur.cell)
+		total += w * value
 		weight += w
 		if cur.dist >= radius || cur.cell < 0 || cur.cell >= len(cells) {
 			continue
@@ -265,6 +269,10 @@ func nodeCatchmentRadius(node SettlementNode) int {
 	}
 }
 
+func resolutionAdjustedCatchmentRadius(baseRadius int, cellCount int) int {
+	return meshResolutionAdjustedSteps(baseRadius, cellCount)
+}
+
 func nodeRawCatchmentPotentials(
 	settings TradeGoodsSettings,
 	endowmentByGood map[string]TradeGoodEndowment,
@@ -272,7 +280,7 @@ func nodeRawCatchmentPotentials(
 	cells []VoronoiCell,
 ) map[string]float64 {
 	out := map[string]float64{}
-	radius := nodeCatchmentRadius(node)
+	radius := resolutionAdjustedCatchmentRadius(nodeCatchmentRadius(node), len(cells))
 	for _, spec := range settings.Goods {
 		if spec.Category != "raw" {
 			continue
@@ -291,7 +299,7 @@ func nodeUrbanity(node SettlementNode) float64 {
 }
 
 func nodeKindScale(node SettlementNode) float64 {
-	return clamp01(float64(node.Kind+1) / 4.0)
+	return clamp01((settlementNodeEffectiveRank(node) + 1.0) / 4.0)
 }
 
 func nodeTradeAccess(node SettlementNode, trade *TradeNetworkResult) float64 {

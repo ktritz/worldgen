@@ -1,7 +1,5 @@
 package climgen
 
-import "math"
-
 type riverTradeTerminal struct {
 	node         int
 	cell         int
@@ -39,17 +37,7 @@ func riverTradeTerminalNodeSet(terminals map[int]riverTradeTerminal) map[int]str
 }
 
 func riverTradeTerminalCatchmentSteps(cellCount int) int {
-	if cellCount <= 0 {
-		return 1
-	}
-	steps := int(math.Ceil(math.Sqrt(float64(cellCount) / baselinePathCostCells)))
-	if steps < 1 {
-		return 1
-	}
-	if steps > 4 {
-		return 4
-	}
-	return steps
+	return meshResolutionAdjustedSteps(1, cellCount)
 }
 
 func bestRiverTerminalForNode(
@@ -62,8 +50,9 @@ func bestRiverTerminalForNode(
 		return riverTradeTerminal{}, false
 	}
 	best := riverTradeTerminal{node: node.ID, cell: -1, score: -1}
+	stepScale := meshPathCostResolutionScale(len(cells))
 	for _, candidate := range riverTerminalCatchmentCells(cells, node.CellIndex, maxSteps) {
-		score, ok := riverTerminalCellScore(candidate.cell, candidate.distance, node, riverRoutes)
+		score, ok := riverTerminalCellScore(candidate.cell, candidate.distance, stepScale, node, riverRoutes)
 		if !ok {
 			continue
 		}
@@ -119,6 +108,7 @@ func riverTerminalCatchmentCells(cells []VoronoiCell, start, maxSteps int) []riv
 func riverTerminalCellScore(
 	cellIdx int,
 	distance int,
+	stepScale float64,
 	node SettlementNode,
 	riverRoutes *RiverRouteResult,
 ) (float64, bool) {
@@ -140,7 +130,9 @@ func riverTerminalCellScore(
 		return 0, false
 	}
 	score := 0.62*nav + 0.16*mainChannel + 0.14*transfer + 0.08*portage
-	score -= 0.035 * float64(distance)
+	// Penalize per physical distance, not per hop: BFS hop counts grow with mesh
+	// resolution, so scale them back to baseline-mesh units.
+	score -= 0.035 * float64(distance) * stepScale
 	if node.River {
 		score += 0.06
 	}

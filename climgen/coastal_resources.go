@@ -82,6 +82,7 @@ func ClassifyCoastalResources(
 		runoff := hydrologyValue(hydro, i, func(h *HydrologyBiomeInputs) []float64 { return h.Runoff })
 		channel := hydrologyValue(hydro, i, func(h *HydrologyBiomeInputs) []float64 { return h.ChannelStrength })
 		classWet := hydrologyClassFactor(hydro, i)
+		riparianChannel := hydrologyRiparianChannelSupport(hydro, i)
 
 		alluvial := 0.0
 		salinity := 0.0
@@ -116,7 +117,8 @@ func ClassifyCoastalResources(
 		openFishery := clamp01(
 			coastal *
 				(0.30*smoothstep01(6, 105, runoff) +
-					0.22*smoothstep01(0.6, 2.1, channel) +
+					0.14*smoothstep01(0.6, 2.1, channel) +
+					0.08*riparianChannel +
 					0.18*peak01(diag.AnnualPrecipCm[i], 35, 105, 230) +
 					0.10*currentProductivity[i] +
 					0.10*upwellingSupport[i] +
@@ -130,7 +132,8 @@ func ClassifyCoastalResources(
 				(0.28*alluvial +
 					0.22*classWet +
 					0.18*smoothstep01(10, 105, runoff) +
-					0.16*smoothstep01(0.8, 2.4, channel) +
+					0.10*smoothstep01(0.8, 2.4, channel) +
+					0.06*riparianChannel +
 					0.08*currentProductivity[i] +
 					0.10*wetlandCover +
 					0.08*(1-coldPenalty)) *
@@ -259,24 +262,13 @@ func deriveCoastalCurrentSignals(
 		oceanUpwelling[i] = upwelling
 	}
 
-	for i := range elevation {
-		if !isCoastalLand(i, elevation, seaLevel, adj) {
-			continue
-		}
-		sumCurrent := 0.0
-		sumUpwelling := 0.0
-		count := 0.0
-		for _, k := range adj.GetNeighbors(i) {
-			if k < 0 || k >= n || elevation[k] >= seaLevel {
-				continue
-			}
-			sumCurrent += oceanCurrentProductivity[k]
-			sumUpwelling += oceanUpwelling[k]
-			count++
-		}
-		if count > 0 {
-			currentProductivity[i] = sumCurrent / count
-			upwellingSupport[i] = sumUpwelling / count
+	radius := meshResolutionAdjustedSteps(2, n)
+	currentProductivity = spreadPhysicalMaxSignal(cells, elevation, seaLevel, oceanCurrentProductivity, radius)
+	upwellingSupport = spreadPhysicalMaxSignal(cells, elevation, seaLevel, oceanUpwelling, radius)
+	for i, elev := range elevation {
+		if elev < seaLevel {
+			currentProductivity[i] = 0
+			upwellingSupport[i] = 0
 		}
 	}
 	return currentProductivity, upwellingSupport

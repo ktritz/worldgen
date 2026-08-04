@@ -9,14 +9,15 @@ import (
 	"worldgen/landgen/terrain"
 )
 
-func printSummary(result terrain.EvaluationResult, diagnostics terrain.PlanetGenerationDiagnostics) {
+func printSummary(result terrain.EvaluationResult, diagnostics terrain.PlanetGenerationDiagnostics, sites []climgen.Vector3D, cells []climgen.VoronoiCell) {
 	m := result.Metrics
-	fmt.Printf("  score=%.1f passed=%v landMean=%.0f oceanMean=%.0f deep=%.3f shelf=%.3f mountains=%.3f major=%d largest=%.3f gini=%.3f fractal=%.3f tort=%.3f drain=%.3f endo=%.3f lakes=%.4f basins=%d hotspotCV=%.3f burst=%.3f bend=%.3f failed=%v\n",
+	fmt.Printf("  score=%.1f passed=%v landMean=%.0f oceanMean=%.0f deep=%.3f shelf=%.3f mountains=%.3f major=%d largest=%.3f gini=%.3f fractal=%.3f tort=%.3f drain=%.3f endo=%.3f lakes=%.4f basins=%d hotspotChains=%d hotspotCV=%.3f burst=%.3f bend=%.3f failed=%v\n",
 		result.Score, result.Passed, m.MeanLandElevation, m.MeanOceanDepth, m.DeepOceanCoverage, m.ShelfCoverage,
 		m.MountainCoverage, m.NumMajorLandmasses, m.LargestContinentPct, m.ContinentGini,
 		m.FractalDimension, m.TortuosityRatio, m.FluvialChannelCoverage, m.EndorheicCatchmentPct,
-		m.InlandLakeCoverage, m.NumMajorEndorheicBasins, m.HotspotSpacingCV, m.HotspotBurstiness,
+		m.InlandLakeCoverage, m.NumMajorEndorheicBasins, m.HotspotChainCount, m.HotspotSpacingCV, m.HotspotBurstiness,
 		m.HotspotBendFraction, result.FailedMetrics)
+	printHotspotDiagnostics(diagnostics.HotspotChains, sites, cells)
 	for _, region := range diagnostics.Hydrology.Regions {
 		fmt.Printf("    hydro[%s]: cells=%d runoff=%.3f accum=%.2f channels=%.1f%% endo=%.1f%% lakes=%.1f%%\n",
 			region.Name, region.CellCount, region.MeanRunoff, region.MeanAccumulation,
@@ -25,6 +26,240 @@ func printSummary(result terrain.EvaluationResult, diagnostics terrain.PlanetGen
 	for _, class := range diagnostics.Hydrology.Classes {
 		fmt.Printf("    hydroClass[%s]=%d\n", class.Class, class.CellCount)
 	}
+}
+
+func printHotspotDiagnostics(chains []terrain.HotspotChain, sites []climgen.Vector3D, cells []climgen.VoronoiCell) {
+	if len(chains) == 0 {
+		return
+	}
+	oceanicChains, continentalChains := 0, 0
+	oceanicIslands, continentalIslands := 0, 0
+	oceanicSpacing := make([]float64, 0)
+	for _, chain := range chains {
+		if chain.IsOceanic {
+			oceanicChains++
+			oceanicIslands += len(chain.Islands)
+			oceanicSpacing = append(oceanicSpacing, hotspotIslandSpacingsDeg(chain, sites)...)
+		} else {
+			continentalChains++
+			continentalIslands += len(chain.Islands)
+		}
+	}
+	meanSpacing := meanFloat64(oceanicSpacing)
+	p10Spacing := percentileFloat64(oceanicSpacing, 0.10)
+	meanNeighborDeg := reviewMeanNeighborDegrees(sites, cells)
+	spacingToMesh := 0.0
+	if meanNeighborDeg > 0 {
+		spacingToMesh = meanSpacing / meanNeighborDeg
+	}
+	fmt.Printf(
+		"    hotspotDiag: chains=%d oceanicChains=%d continentalChains=%d islands=%d oceanicIslands=%d continentalIslands=%d meanOceanicSpacingDeg=%.3f p10OceanicSpacingDeg=%.3f meanNeighborDeg=%.3f spacingToMesh=%.2f\n",
+		len(chains),
+		oceanicChains,
+		continentalChains,
+		oceanicIslands+continentalIslands,
+		oceanicIslands,
+		continentalIslands,
+		meanSpacing,
+		p10Spacing,
+		meanNeighborDeg,
+		spacingToMesh,
+	)
+}
+
+func hotspotIslandSpacingsDeg(chain terrain.HotspotChain, sites []climgen.Vector3D) []float64 {
+	if len(chain.Islands) < 2 || len(sites) == 0 {
+		return nil
+	}
+	out := make([]float64, 0, len(chain.Islands)-1)
+	for i := 1; i < len(chain.Islands); i++ {
+		prev := chain.Islands[i-1].CellIndex
+		next := chain.Islands[i].CellIndex
+		if prev < 0 || next < 0 || prev >= len(sites) || next >= len(sites) {
+			continue
+		}
+		out = append(out, reviewGreatCircleDistanceDeg(sites[prev], sites[next]))
+	}
+	return out
+}
+
+func reviewMeanNeighborDegrees(sites []climgen.Vector3D, cells []climgen.VoronoiCell) float64 {
+	if len(sites) != len(cells) {
+		return 0
+	}
+	total := 0.0
+	count := 0
+	for i, cell := range cells {
+		for _, raw := range cell.NeighborSiteIndices {
+			j := int(raw)
+			if j <= i || j < 0 || j >= len(sites) {
+				continue
+			}
+			total += reviewGreatCircleDistanceDeg(sites[i], sites[j])
+			count++
+		}
+	}
+	if count == 0 {
+		return 0
+	}
+	return total / float64(count)
+}
+
+func reviewGreatCircleDistanceDeg(a, b climgen.Vector3D) float64 {
+	dot := a.X*b.X + a.Y*b.Y + a.Z*b.Z
+	if dot > 1 {
+		dot = 1
+	}
+	if dot < -1 {
+		dot = -1
+	}
+	return math.Acos(dot) * 180 / math.Pi
+}
+
+func meanFloat64(values []float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	total := 0.0
+	for _, v := range values {
+		total += v
+	}
+	return total / float64(len(values))
+}
+
+func percentileFloat64(values []float64, p float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	sorted := append([]float64(nil), values...)
+	sort.Float64s(sorted)
+	idx := int(math.Ceil(p*float64(len(sorted)))) - 1
+	if idx < 0 {
+		idx = 0
+	}
+	if idx >= len(sorted) {
+		idx = len(sorted) - 1
+	}
+	return sorted[idx]
+}
+
+func printLandComponentDiagnostics(cells []climgen.VoronoiCell, elevation []float64, seaLevel float64) {
+	if len(cells) == 0 || len(elevation) == 0 {
+		return
+	}
+	seen := make([]bool, len(cells))
+	componentSizes := make([]int, 0)
+	for i := range cells {
+		if i >= len(elevation) || elevation[i] < seaLevel || seen[i] {
+			continue
+		}
+		size := 0
+		queue := []int{i}
+		seen[i] = true
+		for len(queue) > 0 {
+			cur := queue[0]
+			queue = queue[1:]
+			size++
+			for _, raw := range cells[cur].NeighborSiteIndices {
+				neighbor := int(raw)
+				if neighbor < 0 || neighbor >= len(cells) || neighbor >= len(elevation) || seen[neighbor] || elevation[neighbor] < seaLevel {
+					continue
+				}
+				seen[neighbor] = true
+				queue = append(queue, neighbor)
+			}
+		}
+		componentSizes = append(componentSizes, size)
+	}
+	if len(componentSizes) == 0 {
+		return
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(componentSizes)))
+	totalLand := 0
+	for _, size := range componentSizes {
+		totalLand += size
+	}
+	areaScale := climgen.MeshAreaResolutionScale(len(cells))
+	tiny, small, medium, large := 0, 0, 0, 0
+	islandAreaEq := 0.0
+	for i, size := range componentSizes {
+		if i > 0 {
+			islandAreaEq += float64(size) * areaScale
+		}
+		areaEq := float64(size) * areaScale
+		switch {
+		case areaEq < 1:
+			tiny++
+		case areaEq < 4:
+			small++
+		case areaEq < 16:
+			medium++
+		default:
+			large++
+		}
+	}
+	meanIslandAreaEq := 0.0
+	if len(componentSizes) > 1 {
+		meanIslandAreaEq = islandAreaEq / float64(len(componentSizes)-1)
+	}
+	fmt.Printf(
+		"    landComponentDiag: components=%d largestCells=%d largestPct=%.3f islands=%d tinyEq=%d smallEq=%d mediumEq=%d largeEq=%d meanIslandAreaEq=%.2f\n",
+		len(componentSizes),
+		componentSizes[0],
+		float64(componentSizes[0])/float64(totalLand),
+		len(componentSizes)-1,
+		tiny,
+		small,
+		medium,
+		large,
+		meanIslandAreaEq,
+	)
+}
+
+func printLandLatitudeDiagnostics(sites []climgen.Vector3D, elevation []float64, seaLevel float64) {
+	if len(sites) == 0 || len(elevation) == 0 {
+		return
+	}
+	count := 0
+	meanLatitude := 0.0
+	meanAbsLatitude := 0.0
+	tropical, subtropical, temperate, subpolar, polar := 0, 0, 0, 0, 0
+	for i, site := range sites {
+		if i >= len(elevation) || elevation[i] < seaLevel {
+			continue
+		}
+		lat := math.Asin(site.Normalize().Z) * 180 / math.Pi
+		absLat := math.Abs(lat)
+		count++
+		meanLatitude += lat
+		meanAbsLatitude += absLat
+		switch {
+		case absLat < 23.5:
+			tropical++
+		case absLat < 35:
+			subtropical++
+		case absLat < 50:
+			temperate++
+		case absLat < 66.5:
+			subpolar++
+		default:
+			polar++
+		}
+	}
+	if count == 0 {
+		return
+	}
+	denom := float64(count)
+	fmt.Printf(
+		"    landLatitudeDiag: mean=%.2f meanAbs=%.2f tropical=%.1f%% subtropical=%.1f%% temperate=%.1f%% subpolar=%.1f%% polar=%.1f%%\n",
+		meanLatitude/denom,
+		meanAbsLatitude/denom,
+		100*float64(tropical)/denom,
+		100*float64(subtropical)/denom,
+		100*float64(temperate)/denom,
+		100*float64(subpolar)/denom,
+		100*float64(polar)/denom,
+	)
 }
 
 func printBiomeSummary(result *climgen.BiomeResult) {
@@ -426,6 +661,11 @@ func printSettlementSummary(result *climgen.SettlementResult) {
 		100*float64(favorable)/float64(landCells),
 		100*float64(counts[climgen.SettlementPrime])/float64(landCells),
 	)
+	if result.Diagnostics != nil {
+		printFieldDistribution("settlementSuitability", landFieldValues(result.Classes, result.Diagnostics.Suitability))
+		printFieldDistribution("settlementAccess", landFieldValues(result.Classes, result.Diagnostics.AccessScore))
+		printFieldDistribution("settlementWater", landFieldValues(result.Classes, result.Diagnostics.WaterScore))
+	}
 	type settlementCount struct {
 		class climgen.SettlementClass
 		count int
@@ -443,6 +683,52 @@ func printSettlementSummary(result *climgen.SettlementResult) {
 			100*float64(entry.count)/float64(landCells),
 		)
 	}
+}
+
+func landFieldValues(classes []climgen.SettlementClass, values []float64) []float64 {
+	out := make([]float64, 0, len(values))
+	for i, class := range classes {
+		if class == climgen.SettlementOcean || i >= len(values) {
+			continue
+		}
+		out = append(out, values[i])
+	}
+	return out
+}
+
+func printFieldDistribution(label string, values []float64) {
+	if len(values) == 0 {
+		return
+	}
+	fmt.Printf(
+		"      %sDist: mean=%.3f p90=%.3f p95=%.3f p99=%.3f max=%.3f ge42=%.1f%% ge52=%.1f%% ge55=%.1f%% ge56=%.1f%% ge58=%.1f%% ge64=%.1f%% ge66=%.1f%%\n",
+		label,
+		meanFloat64(values),
+		percentileFloat64(values, 0.90),
+		percentileFloat64(values, 0.95),
+		percentileFloat64(values, 0.99),
+		percentileFloat64(values, 1.00),
+		100*fieldShareAtLeast(values, 0.42),
+		100*fieldShareAtLeast(values, 0.52),
+		100*fieldShareAtLeast(values, 0.55),
+		100*fieldShareAtLeast(values, 0.56),
+		100*fieldShareAtLeast(values, 0.58),
+		100*fieldShareAtLeast(values, 0.64),
+		100*fieldShareAtLeast(values, 0.66),
+	)
+}
+
+func fieldShareAtLeast(values []float64, threshold float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	count := 0
+	for _, value := range values {
+		if value >= threshold {
+			count++
+		}
+	}
+	return float64(count) / float64(len(values))
 }
 
 func printSettlementPreferenceSummary(results []*climgen.SettlementPreferenceResult) {

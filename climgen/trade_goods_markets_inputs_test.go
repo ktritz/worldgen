@@ -2,6 +2,15 @@ package climgen
 
 import "testing"
 
+func TestPolityCapitalTierUsesPhysicalCapitalSupport(t *testing.T) {
+	full := &SettlementNetworkResult{Nodes: []SettlementNode{{ID: 0, Kind: SettlementNodeTown, PhysicalSupportArea: 1.0}}}
+	weak := &SettlementNetworkResult{Nodes: []SettlementNode{{ID: 0, Kind: SettlementNodeTown, PhysicalSupportArea: 0.25}}}
+	sphere := PolitySphere{CapitalNode: 0}
+	if polityCapitalTier(sphere, weak) >= polityCapitalTier(sphere, full) {
+		t.Fatalf("expected weak physical support to reduce capital tier, got weak=%.3f full=%.3f", polityCapitalTier(sphere, weak), polityCapitalTier(sphere, full))
+	}
+}
+
 func TestComputeTradeNodeMarketsSaltReservationFavorsPreservedFoodAtFishRichMarkets(t *testing.T) {
 	baseSettings := TradeGoodsSettings{
 		SchemaVersion: TradeGoodsSchemaVersion,

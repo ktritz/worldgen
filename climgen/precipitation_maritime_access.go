@@ -18,19 +18,37 @@ func computeNeighborOceanFraction(
 	if i < 0 || i >= len(elevation) || elevation[i] < seaLevel {
 		return 0
 	}
-	neighbors := adj.GetNeighbors(i)
-	if len(neighbors) == 0 {
-		return 0
+	radius := resolutionAdjustedPrecipSteps(1, len(elevation))
+	stepScale := precipitationPhysicalStepScale(len(elevation))
+	type queueItem struct {
+		idx   int
+		depth int
 	}
+	queue := []queueItem{{idx: i, depth: 0}}
+	visited := map[int]bool{i: true}
 	ocean := 0.0
 	total := 0.0
-	for _, k := range neighbors {
-		if k < 0 || k >= len(elevation) {
+	for len(queue) > 0 {
+		item := queue[0]
+		queue = queue[1:]
+		if item.depth >= radius {
 			continue
 		}
-		total++
-		if elevation[k] < seaLevel {
-			ocean++
+		for _, k := range adj.GetNeighbors(item.idx) {
+			if k < 0 || k >= len(elevation) || visited[k] {
+				continue
+			}
+			visited[k] = true
+			depth := item.depth + 1
+			distance := float64(depth) * stepScale
+			weight := math.Exp(-1.15 * distance)
+			total += weight
+			if elevation[k] < seaLevel {
+				ocean += weight
+			}
+			if depth < radius {
+				queue = append(queue, queueItem{idx: k, depth: depth})
+			}
 		}
 	}
 	if total <= 0 {
@@ -48,7 +66,10 @@ func computeUpwindOceanFootprintSupport(
 	wind []Vector3D,
 	maxDepth int,
 ) float64 {
-	weights := computeUpwindFootprintWeights(
+	ws := acquireUpwindWorkspace(len(vertices))
+	defer releaseUpwindWorkspace(ws)
+	cells, weights := computeUpwindFootprintWeightsInto(
+		ws,
 		i,
 		vertices,
 		adj,
@@ -56,16 +77,17 @@ func computeUpwindOceanFootprintSupport(
 		maxDepth,
 		precipUpwindFootprintMinAlignment,
 	)
-	if len(weights) == 0 {
+	if len(cells) == 0 {
 		return 0
 	}
 	support := 0.0
-	for donor, weight := range weights {
+	for idx, donor32 := range cells {
+		donor := int(donor32)
 		if donor < 0 || donor >= len(elevation) {
 			continue
 		}
 		if elevation[donor] < seaLevel {
-			support += weight
+			support += weights[idx]
 		}
 	}
 	return Clamp(support, 0, 1)
@@ -154,6 +176,7 @@ func computeEffectiveMaritimeAccess(
 ) ([]float64, []float64) {
 	effectiveFetch := append([]float64(nil), rawFetch...)
 	effectiveOnshore := append([]float64(nil), rawOnshore...)
+	footprintSteps := resolutionAdjustedPrecipSteps(precipInlandTransportSteps+4, len(vertices))
 	for i := range effectiveFetch {
 		if i >= len(elevation) || elevation[i] < seaLevel {
 			continue
@@ -166,7 +189,7 @@ func computeEffectiveMaritimeAccess(
 			seaLevel,
 			adj,
 			wind,
-			precipInlandTransportSteps+4,
+			footprintSteps,
 		)
 		marine := 0.0
 		if i < len(marineIncoming) {

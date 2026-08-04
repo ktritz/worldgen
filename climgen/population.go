@@ -47,6 +47,7 @@ func ClassifyPopulationSupport(
 	waterResources *WaterResourceResult,
 	coastalResources *CoastalResourceResult,
 	resources *ResourceResult,
+	cells []VoronoiCell,
 	elevation []float64,
 	seaLevel float64,
 	settings PopulationSupportSettings,
@@ -67,13 +68,18 @@ func ClassifyPopulationSupport(
 		return out
 	}
 
+	rawFood := make([]float64, n)
+	rawWater := make([]float64, n)
+	rawTrade := make([]float64, n)
+	rawResource := make([]float64, n)
+
 	for i := 0; i < n; i++ {
 		if elevation[i] < seaLevel {
 			out.Classes[i] = PopulationOcean
 			continue
 		}
 
-		food := clamp01(
+		rawFood[i] = clamp01(
 			(0.40*agricultureCropSupport(agriculture, i) +
 				0.18*agriculturePastureSupport(agriculture, i) +
 				0.10*agricultureFloodplainSupport(agriculture, i) +
@@ -82,42 +88,63 @@ func ClassifyPopulationSupport(
 				0.10*coastalFisherySupport(coastalResources, i)) *
 				settings.FoodMultiplier,
 		)
-		water := clamp01(
+		rawWater[i] = clamp01(
 			(0.48*settlements.Diagnostics.WaterScore[i] +
 				0.38*waterResourceSupport(waterResources, i) +
 				0.14*settlements.Diagnostics.RiverBonus[i]) *
 				settings.WaterMultiplier,
 		)
-		trade := clamp01(
+		rawTrade[i] = clamp01(
 			(0.44*settlements.Diagnostics.AccessScore[i] +
 				0.24*settlements.Diagnostics.CoastalBonus[i] +
 				0.22*settlements.Diagnostics.RiverBonus[i] +
 				0.10*coastalFisherySupport(coastalResources, i)) *
 				settings.TradeMultiplier,
 		)
-		resource := clamp01(
+		rawResource[i] = clamp01(
 			(0.62*settlements.Diagnostics.ResourceScore[i] +
 				0.18*wildlifeTimberSupport(wildlife, i) +
 				0.12*resourceFuelSupport(resources, i) +
 				0.08*resourceLuxurySupport(resources, i)) *
 				settings.ResourceMultiplier,
 		)
+	}
+
+	for i := 0; i < n; i++ {
+		if elevation[i] < seaLevel {
+			out.Classes[i] = PopulationOcean
+			continue
+		}
+
+		food, water, trade, resource, suitability, hazard := populationCatchmentSupports(
+			i,
+			cells,
+			elevation,
+			seaLevel,
+			rawFood,
+			rawWater,
+			rawTrade,
+			rawResource,
+			settlements.Diagnostics.Suitability,
+			settlements.Diagnostics.HazardPenalty,
+			settings,
+		)
 
 		carrying := clamp01(
-			0.34*settlements.Diagnostics.Suitability[i] +
+			0.34*suitability +
 				0.34*food +
 				0.20*water +
 				0.07*resource +
 				0.05*trade,
 		)
 		urban := clamp01(
-			(0.26*settlements.Diagnostics.Suitability[i]+
+			(0.26*suitability+
 				0.18*food+
 				0.19*water+
 				0.22*trade+
 				0.15*resource)*
 				settings.UrbanMultiplier -
-				0.18*settlements.Diagnostics.HazardPenalty[i],
+				0.18*hazard,
 		)
 
 		out.Diagnostics.FoodSupport[i] = food
@@ -130,6 +157,68 @@ func ClassifyPopulationSupport(
 	}
 
 	return out
+}
+
+func populationCatchmentSupports(
+	idx int,
+	cells []VoronoiCell,
+	elevation []float64,
+	seaLevel float64,
+	food []float64,
+	water []float64,
+	trade []float64,
+	resource []float64,
+	suitability []float64,
+	hazard []float64,
+	settings PopulationSupportSettings,
+) (float64, float64, float64, float64, float64, float64) {
+	rawFood := valueAt(food, idx)
+	rawWater := valueAt(water, idx)
+	rawTrade := valueAt(trade, idx)
+	rawResource := valueAt(resource, idx)
+	rawSuitability := valueAt(suitability, idx)
+	rawHazard := valueAt(hazard, idx)
+	if settings.CatchmentBlend <= 0 || settings.CatchmentHops <= 0 || len(cells) == 0 {
+		return rawFood, rawWater, rawTrade, rawResource, rawSuitability, rawHazard
+	}
+	radius := meshResolutionAdjustedSteps(settings.CatchmentHops, len(cells))
+	sumFood := rawFood
+	sumWater := rawWater
+	sumTrade := rawTrade
+	sumResource := rawResource
+	sumSuitability := rawSuitability
+	sumHazard := rawHazard
+	count := 1.0
+	for _, cellIdx := range cellsWithinHops(cells, idx, radius) {
+		if cellIdx < 0 || cellIdx >= len(elevation) || elevation[cellIdx] < seaLevel {
+			continue
+		}
+		sumFood += valueAt(food, cellIdx)
+		sumWater += valueAt(water, cellIdx)
+		sumTrade += valueAt(trade, cellIdx)
+		sumResource += valueAt(resource, cellIdx)
+		sumSuitability += valueAt(suitability, cellIdx)
+		sumHazard += valueAt(hazard, cellIdx)
+		count++
+	}
+	blend := settings.CatchmentBlend
+	return blendValue(rawFood, sumFood/count, blend),
+		blendValue(rawWater, sumWater/count, blend),
+		blendValue(rawTrade, sumTrade/count, blend),
+		blendValue(rawResource, sumResource/count, blend),
+		blendValue(rawSuitability, sumSuitability/count, blend),
+		blendValue(rawHazard, sumHazard/count, blend)
+}
+
+func valueAt(values []float64, idx int) float64 {
+	if idx < 0 || idx >= len(values) {
+		return 0
+	}
+	return values[idx]
+}
+
+func blendValue(raw, catchment, blend float64) float64 {
+	return clamp01((1-blend)*raw + blend*catchment)
 }
 
 func determinePopulationClass(carrying, urban float64, settings PopulationSupportSettings) PopulationClass {

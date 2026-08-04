@@ -105,6 +105,27 @@ func TestApplySeasonalPrecipitationPatternFlipsSubtropicalOnshoreWetSeason(t *te
 	}
 }
 
+func TestCoastalOnshoreScoreUsesPhysicalCoastalBand(t *testing.T) {
+	vertices := []Vector3D{
+		seasonalLatLonVertex(20, 0),
+		seasonalLatLonVertex(20, -4),
+	}
+	elevation := []float64{100, -100}
+	adj := &FlatAdjacency{
+		Neighbors: []int{1, 0},
+		Offsets:   []int{0, 1, 2},
+	}
+	wind := []Vector3D{
+		Normalize(Sub(vertices[0], vertices[1])),
+		Vector3D{},
+	}
+
+	coastalBand := coastalOnshoreScore(0, vertices, elevation, 0, adj, wind)
+	if coastalBand <= 0 {
+		t.Fatalf("expected inland cell within physical coastal band to receive onshore support")
+	}
+}
+
 func TestApplySeasonalPrecipitationPatternDriesWinterPolarLand(t *testing.T) {
 	vertices := []Vector3D{
 		seasonalLatLonVertex(70, 0),

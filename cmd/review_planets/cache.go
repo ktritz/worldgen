@@ -15,12 +15,13 @@ import (
 )
 
 const (
-	reviewTerrainCacheVersion      = "terrain-v1"
-	reviewClimateCacheVersion      = "climate-v3"
-	reviewDerivedCacheVersion      = "derived-v1"
-	reviewCivilizationCacheVersion = "civilization-v1"
-	reviewMaritimeCacheVersion     = "maritime-v1"
-	reviewEconomyCacheVersion      = "economy-v4"
+	reviewTerrainCacheVersion      = "terrain-v10"
+	reviewClimateCacheVersion      = "climate-v9"
+	reviewDerivedCacheVersion      = "derived-v11"
+	reviewTradeGoodsCacheVersion   = "tradegoods-v2"
+	reviewCivilizationCacheVersion = "civilization-v71"
+	reviewMaritimeCacheVersion     = "maritime-v45"
+	reviewEconomyCacheVersion      = "economy-v48"
 )
 
 type reviewCacheStore struct {
@@ -42,7 +43,6 @@ type cachedDerivedReview struct {
 	WaterResources   *climgen.WaterResourceResult   `json:"waterResources,omitempty"`
 	CoastalResources *climgen.CoastalResourceResult `json:"coastalResources,omitempty"`
 	Resources        *climgen.ResourceResult        `json:"resources,omitempty"`
-	TradeGoods       *climgen.TradeGoodResult       `json:"tradeGoods,omitempty"`
 	Settlement       *climgen.SettlementResult      `json:"settlement,omitempty"`
 	Population       *climgen.PopulationResult      `json:"population,omitempty"`
 }
@@ -56,8 +56,6 @@ type cachedCivilizationReview struct {
 	RiverTrade  *climgen.RiverTradeResult        `json:"riverTrade,omitempty"`
 	Polities    *climgen.PolitySphereResult      `json:"polities,omitempty"`
 	Profiles    *climgen.PolityProfileResult     `json:"profiles,omitempty"`
-	NodeGoods   *climgen.NodeGoodsResult         `json:"nodeGoods,omitempty"`
-	PolityGoods *climgen.PolityGoodsResult       `json:"polityGoods,omitempty"`
 }
 
 type cachedMaritimeReview struct {
@@ -67,6 +65,8 @@ type cachedMaritimeReview struct {
 }
 
 type cachedEconomyReview struct {
+	NodeGoods   *climgen.NodeGoodsResult       `json:"nodeGoods,omitempty"`
+	PolityGoods *climgen.PolityGoodsResult     `json:"polityGoods,omitempty"`
 	NodeMarkets *climgen.TradeNodeMarketResult `json:"nodeMarkets,omitempty"`
 	Multimodal  *climgen.MultimodalTradeResult `json:"multimodal,omitempty"`
 }
@@ -85,6 +85,10 @@ func (s *reviewCacheStore) climatePath(key string) string {
 
 func (s *reviewCacheStore) derivedPath(key string) string {
 	return filepath.Join(s.rootDir, "derived", key+".json")
+}
+
+func (s *reviewCacheStore) tradeGoodsPath(key string) string {
+	return filepath.Join(s.rootDir, "trade_goods", key+".json")
 }
 
 func (s *reviewCacheStore) civilizationPath(key string) string {
@@ -118,6 +122,11 @@ func derivedCacheKey(terrainKey, climateKey string, climateHydrology bool, setti
 		climateHydrology,
 		settingsDigest,
 	)
+	return stableCacheKey(raw)
+}
+
+func tradeGoodsCacheKey(derivedKey, settingsDigest string) string {
+	raw := fmt.Sprintf("%s|derived=%s|settings=%s", reviewTradeGoodsCacheVersion, derivedKey, settingsDigest)
 	return stableCacheKey(raw)
 }
 
@@ -198,6 +207,22 @@ func (s *reviewCacheStore) SaveDerived(key string, cached *cachedDerivedReview) 
 		return nil
 	}
 	return s.writeJSON(s.derivedPath(key), cached)
+}
+
+func (s *reviewCacheStore) LoadTradeGoods(key string) (*climgen.TradeGoodResult, bool, error) {
+	var cached climgen.TradeGoodResult
+	ok, err := s.readJSON(s.tradeGoodsPath(key), &cached)
+	if err != nil || !ok {
+		return nil, ok, err
+	}
+	return &cached, true, nil
+}
+
+func (s *reviewCacheStore) SaveTradeGoods(key string, cached *climgen.TradeGoodResult) error {
+	if cached == nil {
+		return nil
+	}
+	return s.writeJSON(s.tradeGoodsPath(key), cached)
 }
 
 func (s *reviewCacheStore) LoadCivilization(key string) (*cachedCivilizationReview, bool, error) {

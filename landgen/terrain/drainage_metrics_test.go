@@ -183,3 +183,30 @@ func TestHydrologyChannelCoverageIsStableAcrossRunoffUnits(t *testing.T) {
 			unitDiag.FluvialChannelCoverage, cmDiag.FluvialChannelCoverage)
 	}
 }
+
+func TestHydrologyChannelThresholdFollowsAccumulationHierarchy(t *testing.T) {
+	coarseElevation := make([]float64, 10000)
+	coarseRunoff := make([]float64, len(coarseElevation))
+	coarseAccumulation := make([]float64, len(coarseElevation))
+	for i := range coarseElevation {
+		coarseElevation[i] = 100
+		coarseRunoff[i] = 1
+		coarseAccumulation[i] = 1 + 99*float64(i)/float64(len(coarseElevation)-1)
+	}
+
+	fineElevation := make([]float64, 40000)
+	fineRunoff := make([]float64, len(fineElevation))
+	fineAccumulation := make([]float64, len(fineElevation))
+	for i := range fineElevation {
+		fineElevation[i] = 100
+		fineRunoff[i] = 1
+		fineAccumulation[i] = 2 * (1 + 99*float64(i)/float64(len(fineElevation)-1))
+	}
+
+	coarseThreshold := hydrologyChannelThreshold(coarseElevation, coarseRunoff, coarseAccumulation, len(coarseElevation), 1)
+	fineThreshold := hydrologyChannelThreshold(fineElevation, fineRunoff, fineAccumulation, len(fineElevation), 1)
+	ratio := fineThreshold / coarseThreshold
+	if ratio < 1.95 || ratio > 2.05 {
+		t.Fatalf("expected channel threshold to follow linear accumulation hierarchy, got ratio %.3f", ratio)
+	}
+}

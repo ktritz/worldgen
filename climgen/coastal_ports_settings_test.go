@@ -19,4 +19,7 @@ func TestDefaultMaritimePortSettingsLoadsEmbeddedJSON(t *testing.T) {
 	if settings.DeepwaterAccessWeight <= 0 || settings.MajorDeepwaterPortThreshold <= 0 {
 		t.Fatalf("expected positive deepwater port settings")
 	}
+	if settings.StopoverSelection.FullComponentAreaEq <= 0 || settings.StopoverSelection.MinComponentScoreFactor <= 0 {
+		t.Fatalf("expected positive stopover selection area taper settings")
+	}
 }

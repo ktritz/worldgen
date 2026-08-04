@@ -22,7 +22,7 @@ type VoronoiCell = icosphere.VoronoiCell
 
 const (
 	// Basin Finding Parameters
-	DefaultMinComponentSize      = 50    // Min vertices for a component to start fitting
+	DefaultMinComponentSize      = 50    // Min baseline-equivalent (L5) cells for a component to start fitting; consumers rescale raw counts by the mesh area scale
 	DefaultMinBasinRadiusRad     = 0.18  // ~10 degrees - balance between structure and coalescence
 	DefaultCapRadiusIncrement    = 0.01  // Angular radius increment per iteration
 	DefaultMaxExpansionIters     = 150   // Safety limit for cap expansion
@@ -66,7 +66,7 @@ func (z LatitudeZone) String() string {
 
 // BasinSettings controls ocean basin detection parameters.
 type BasinSettings struct {
-	MinComponentSize     int     `json:"minComponentSize"`     // Min vertices to consider a component
+	MinComponentSize     int     `json:"minComponentSize"`     // Min baseline-equivalent (L5) cells to consider a component
 	MinBasinRadiusRad    float64 `json:"minBasinRadiusRad"`    // Min angular radius for valid basin
 	CapRadiusIncrement   float64 `json:"capRadiusIncrement"`   // Expansion step size (radians)
 	MaxExpansionIters    int     `json:"maxExpansionIters"`    // Max iterations for cap expansion

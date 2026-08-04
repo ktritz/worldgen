@@ -30,9 +30,13 @@ type CoastalTradeCorridor struct {
 	FromCivilization  int
 	ToCivilization    int
 	TravelCost        float64
+	PathDegrees       float64
+	CostPerDegree     float64
 	Flow              float64
 	MeanExposure      float64
 	MeanCurrentAssist float64
+	FromPortScore     float64
+	ToPortScore       float64
 	Tier              CoastalTradeCorridorTier
 	CellPath          []int
 	InterCivilization bool
@@ -45,28 +49,99 @@ type CoastalTradeDiagnostics struct {
 }
 
 type CoastalTradePairDiagnostics struct {
-	TotalPairs       int
-	MissingEndpoint  int
-	NoPath           int
-	FlowBelowMin     int
-	RejectedPortCap  int
-	RejectedCivCap   int
-	ViableCandidates int
-	BestRejectedCost float64
-	BestRejectedFlow float64
-	BestRejectedFrom int
-	BestRejectedTo   int
+	TotalPairs                    int
+	MissingEndpoint               int
+	NoPath                        int
+	NoPathInternal                int
+	NoPathExternal                int
+	NoPathUnknown                 int
+	OverBudgetInternal            int
+	OverBudgetExternal            int
+	OverBudgetUnknown             int
+	OverBudgetSamples             int
+	BestOverBudgetCost            float64
+	BestOverBudgetFrom            int
+	BestOverBudgetTo              int
+	BestOverBudgetFromCiv         int
+	BestOverBudgetToCiv           int
+	BestOverBudgetExternal        float64
+	BestOverBudgetExternalFrom    int
+	BestOverBudgetExternalTo      int
+	BestOverBudgetExternalFromCiv int
+	BestOverBudgetExternalToCiv   int
+	RouteBudget                   float64
+	FlowBelowMin                  int
+	RejectedPortCap               int
+	RejectedCivCap                int
+	ViableCandidates              int
+	ViableInternal                int
+	ViableExternal                int
+	ViableUnknown                 int
+	SelectedInternal              int
+	SelectedExternal              int
+	SelectedUnknown               int
+	BestRejectedCost              float64
+	BestRejectedFlow              float64
+	BestRejectedFrom              int
+	BestRejectedTo                int
 }
 
 type CoastalTradeEndpointDiagnostics struct {
 	EndpointCount        int
 	PortEndpointCount    int
 	StopoverCount        int
+	PairCount            int
+	DistancePrunedPairs  int
 	EdgeCount            int
+	MeanDegree           float64
+	MaxDegree            int
+	MeanEdgeCost         float64
+	P90EdgeCost          float64
 	Components           int
 	LargestComponent     int
+	PortComponents       int
+	MultiPortComponents  int
 	LargestPortComponent int
+	SecondPortComponent  int
+	MeanPortComponent    float64
 	IsolatedPorts        int
+	PortComponentsDetail []CoastalTradePortComponentDiagnostics
+}
+
+type CoastalTradePortComponentDiagnostics struct {
+	Endpoints     int
+	Ports         int
+	PortNodes     []int
+	Civilizations []int
+}
+
+type MaritimeStopoverDiagnostics struct {
+	CandidateCount             int
+	CandidateIslandCount       int
+	CandidateStraitCount       int
+	CandidateRoadsteadCount    int
+	CandidateTinyComponentEq   int
+	CandidateSmallComponentEq  int
+	CandidateMediumComponentEq int
+	CandidateLargeComponentEq  int
+	MeanCandidateComponentEq   float64
+	BaseSelectedCount          int
+	BaseSpacingRejected        int
+	OceanScoreRejected         int
+	OceanSpacingRejected       int
+	SelectedCount              int
+	IslandCount                int
+	StraitCount                int
+	RoadsteadCount             int
+	SelectedTinyComponentEq    int
+	SelectedSmallComponentEq   int
+	SelectedMediumComponentEq  int
+	SelectedLargeComponentEq   int
+	MeanSelectedComponentEq    float64
+	MeanScore                  float64
+	MeanNeighborDegrees        float64
+	MinSpacingDegrees          float64
+	MeanSelectedSpacingDegrees float64
 }
 
 type CoastalTradeResult struct {
@@ -76,6 +151,7 @@ type CoastalTradeResult struct {
 	Stopovers           []MaritimeStopoverNode
 	MajorPorts          []int
 	Diagnostics         *CoastalTradeDiagnostics
+	StopoverDiagnostics MaritimeStopoverDiagnostics
 	EndpointDiagnostics CoastalTradeEndpointDiagnostics
 	PairDiagnostics     CoastalTradePairDiagnostics
 }
@@ -103,21 +179,25 @@ func BuildCoastalTradeNetwork(
 	}
 
 	civByNode := civilizationByNode(network, proto)
-	candidatePorts := candidateCoastalPorts(network, ports, settings)
+	candidatePorts := civilizedMaritimeCandidatePorts(candidateCoastalPorts(network, ports, settings), civByNode)
 	out.CandidatePorts = append(out.CandidatePorts, candidatePorts...)
-	stopovers := BuildMaritimeStopoverNodes(cells, network, ports, elevation, seaLevel)
+	stopovers, stopoverDiagnostics := BuildMaritimeStopoverNodesWithDiagnostics(sites, cells, network, ports, elevation, seaLevel)
 	out.Stopovers = stopovers
+	out.StopoverDiagnostics = stopoverDiagnostics
 	if len(candidatePorts)+len(stopovers) < 2 {
 		out.MajorPorts = append(out.MajorPorts, ports.MajorPorts...)
 		return out
 	}
 
-	endpoints, edges := buildCoastalTradeEndpointGraph(sites, cells, climate, network, proto, ports, stopovers, elevation, seaLevel, settings, civByNode)
-	out.EndpointDiagnostics = analyzeCoastalEndpointGraph(endpoints, edges)
+	endpoints, edges, distancePrunedPairs := buildCoastalTradeEndpointGraph(sites, cells, climate, network, proto, ports, candidatePorts, stopovers, elevation, seaLevel, settings, civByNode)
+	out.EndpointDiagnostics = analyzeCoastalEndpointGraph(endpoints, edges, distancePrunedPairs)
 	candidates := make([]coastalTradeCandidate, 0)
-	degrees := make([]int, len(network.Nodes))
-	civDegrees := make([]int, len(proto.Civilizations))
+	externalDegrees := make([]int, len(network.Nodes))
+	internalDegrees := make([]int, len(network.Nodes))
+	externalCivDegrees := make([]int, len(proto.Civilizations))
 	routeBudget := coastalRouteBudget(ports.Mode, settings)
+	out.PairDiagnostics.RouteBudget = routeBudget
+	overBudgetSamples := 0
 	for i := 0; i < len(candidatePorts); i++ {
 		for j := i + 1; j < len(candidatePorts); j++ {
 			out.PairDiagnostics.TotalPairs++
@@ -131,6 +211,16 @@ func BuildCoastalTradeNetwork(
 			path := shortestCoastalEndpointPath(endpoints, edges, startIdx, endIdx, routeBudget)
 			if !path.ok {
 				out.PairDiagnostics.NoPath++
+				fromCiv, toCiv := civIDForNode(civByNode, fromNode), civIDForNode(civByNode, toNode)
+				recordNoPathMaritimePair(&out.PairDiagnostics, fromCiv, toCiv)
+				if fromCiv >= 0 && toCiv >= 0 && fromCiv != toCiv && overBudgetSamples < 16 {
+					overBudgetSamples++
+					out.PairDiagnostics.OverBudgetSamples = overBudgetSamples
+					unboundedPath := shortestCoastalEndpointPath(endpoints, edges, startIdx, endIdx, math.Inf(1))
+					if unboundedPath.ok {
+						recordOverBudgetMaritimePair(&out.PairDiagnostics, fromNode, toNode, fromCiv, toCiv, unboundedPath.cost)
+					}
+				}
 				continue
 			}
 			flow := coastalTradeFlow(network, proto, ports, civByNode, fromNode, toNode, path.cost, ports.Mode)
@@ -140,6 +230,7 @@ func BuildCoastalTradeNetwork(
 				continue
 			}
 			out.PairDiagnostics.ViableCandidates++
+			recordViableMaritimePair(&out.PairDiagnostics, civIDForNode(civByNode, fromNode), civIDForNode(civByNode, toNode))
 			candidates = append(candidates, coastalTradeCandidate{
 				from: fromNode,
 				to:   toNode,
@@ -150,6 +241,7 @@ func BuildCoastalTradeNetwork(
 	}
 	sort.Slice(candidates, func(i, j int) bool { return candidates[i].flow > candidates[j].flow })
 	out.Corridors = make([]CoastalTradeCorridor, 0)
+	internalCivDegrees := make([]int, len(proto.Civilizations))
 	for _, cand := range candidates {
 		fromCiv := -1
 		toCiv := -1
@@ -159,22 +251,44 @@ func BuildCoastalTradeNetwork(
 		if cand.to >= 0 && cand.to < len(civByNode) {
 			toCiv = civByNode[cand.to]
 		}
-		if degrees[cand.from] >= settings.MaxPartnersPerPort || degrees[cand.to] >= settings.MaxPartnersPerPort {
-			out.PairDiagnostics.RejectedPortCap++
-			continue
-		}
 		if fromCiv >= 0 && toCiv >= 0 && fromCiv != toCiv {
-			if civDegrees[fromCiv] >= settings.MaxPartnersPerCivilization || civDegrees[toCiv] >= settings.MaxPartnersPerCivilization {
+			if externalDegrees[cand.from] >= settings.MaxPartnersPerPort || externalDegrees[cand.to] >= settings.MaxPartnersPerPort {
+				out.PairDiagnostics.RejectedPortCap++
+				continue
+			}
+			if externalCivDegrees[fromCiv] >= settings.MaxPartnersPerCivilization || externalCivDegrees[toCiv] >= settings.MaxPartnersPerCivilization {
 				out.PairDiagnostics.RejectedCivCap++
 				continue
 			}
+		} else if fromCiv >= 0 && toCiv >= 0 && fromCiv == toCiv {
+			if internalDegrees[cand.from] >= settings.MaxPartnersPerPort || internalDegrees[cand.to] >= settings.MaxPartnersPerPort {
+				out.PairDiagnostics.RejectedPortCap++
+				continue
+			}
+			if internalCivDegrees[fromCiv] >= settings.MaxPartnersPerCivilization {
+				out.PairDiagnostics.RejectedCivCap++
+				continue
+			}
+		} else {
+			if externalDegrees[cand.from] >= settings.MaxPartnersPerPort || externalDegrees[cand.to] >= settings.MaxPartnersPerPort {
+				out.PairDiagnostics.RejectedPortCap++
+				continue
+			}
 		}
-		out.Corridors = append(out.Corridors, buildCoastalTradeCorridor(cand.from, cand.to, fromCiv, toCiv, cand.flow, cand.path))
-		degrees[cand.from]++
-		degrees[cand.to]++
+		out.Corridors = append(out.Corridors, buildCoastalTradeCorridor(len(out.Corridors)+1, cand.from, cand.to, fromCiv, toCiv, cand.flow, cand.path, sites, ports))
+		recordSelectedMaritimePair(&out.PairDiagnostics, fromCiv, toCiv)
 		if fromCiv >= 0 && toCiv >= 0 && fromCiv != toCiv {
-			civDegrees[fromCiv]++
-			civDegrees[toCiv]++
+			externalDegrees[cand.from]++
+			externalDegrees[cand.to]++
+			externalCivDegrees[fromCiv]++
+			externalCivDegrees[toCiv]++
+		} else if fromCiv >= 0 && toCiv >= 0 && fromCiv == toCiv {
+			internalDegrees[cand.from]++
+			internalDegrees[cand.to]++
+			internalCivDegrees[fromCiv]++
+		} else {
+			externalDegrees[cand.from]++
+			externalDegrees[cand.to]++
 		}
 	}
 	classifyCoastalTradeCorridors(out.Corridors, settings)
@@ -217,6 +331,44 @@ func candidateCoastalPorts(network *SettlementNetworkResult, ports *CoastalPortR
 	sort.Slice(out, func(i, j int) bool {
 		return ports.Diagnostics.NodePortScore[out[i]] > ports.Diagnostics.NodePortScore[out[j]]
 	})
+	return dedupeCoastalCandidatePortsByTerminal(out, ports.Diagnostics)
+}
+
+func dedupeCoastalCandidatePortsByTerminal(candidates []int, diag *CoastalPortDiagnostics) []int {
+	if len(candidates) == 0 || diag == nil {
+		return candidates
+	}
+	seenTerminal := make(map[int]struct{}, len(candidates))
+	out := make([]int, 0, len(candidates))
+	for _, nodeIdx := range candidates {
+		terminal := -1
+		if nodeIdx >= 0 && nodeIdx < len(diag.NodeTerminalCell) {
+			terminal = diag.NodeTerminalCell[nodeIdx]
+		}
+		if terminal < 0 {
+			out = append(out, nodeIdx)
+			continue
+		}
+		if _, ok := seenTerminal[terminal]; ok {
+			continue
+		}
+		seenTerminal[terminal] = struct{}{}
+		out = append(out, nodeIdx)
+	}
+	return out
+}
+
+func civilizedMaritimeCandidatePorts(candidates []int, civByNode []int) []int {
+	if len(candidates) == 0 {
+		return nil
+	}
+	out := make([]int, 0, len(candidates))
+	for _, nodeIdx := range candidates {
+		if nodeIdx < 0 || nodeIdx >= len(civByNode) || civByNode[nodeIdx] < 0 {
+			continue
+		}
+		out = append(out, nodeIdx)
+	}
 	return out
 }
 
@@ -292,20 +444,16 @@ func coastalTradeFlow(
 ) float64 {
 	from := network.Nodes[fromNode]
 	to := network.Nodes[toNode]
-	fromPort := 0.0
-	toPort := 0.0
-	if fromNode < len(ports.Diagnostics.NodePortScore) {
-		fromPort = ports.Diagnostics.NodePortScore[fromNode]
-	}
-	if toNode < len(ports.Diagnostics.NodePortScore) {
-		toPort = ports.Diagnostics.NodePortScore[toNode]
-	}
+	fromPort := coastalTerminalQualityForNode(fromNode, ports)
+	toPort := coastalTerminalQualityForNode(toNode, ports)
+	fromSupport := SettlementNodePhysicalSupportWeight(from)
+	toSupport := SettlementNodePhysicalSupportWeight(to)
 	base := 0.16 +
-		0.24*from.Score +
-		0.24*to.Score +
+		0.24*from.Score*fromSupport +
+		0.24*to.Score*toSupport +
 		0.12*fromPort +
 		0.12*toPort +
-		0.08*(float64(from.Kind)+float64(to.Kind))/6.0
+		0.08*(settlementNodeEffectiveRank(from)+settlementNodeEffectiveRank(to))/6.0
 	modeFactor := (0.45 + 0.55*mode.PayloadCapacity) * (0.40 + 0.60*mode.CoastalCapability)
 	reachPenalty := 1.0 / (1.0 + 0.12*travelCost)
 	flow := base * modeFactor * reachPenalty
@@ -327,6 +475,26 @@ func coastalTradeFlow(
 	return flow
 }
 
+func coastalTerminalQualityForNode(nodeIdx int, ports *CoastalPortResult) float64 {
+	if ports == nil || ports.Diagnostics == nil || nodeIdx < 0 {
+		return 0
+	}
+	diag := ports.Diagnostics
+	terminalCell := -1
+	if nodeIdx < len(diag.NodeTerminalCell) {
+		terminalCell = diag.NodeTerminalCell[nodeIdx]
+	}
+	if terminalCell < 0 {
+		return 0
+	}
+	suitability := 0.0
+	if terminalCell < len(diag.PortSuitability) {
+		suitability = diag.PortSuitability[terminalCell]
+	}
+	feature := coastalTerminalFeatureScore(terminalCell, diag)
+	return clamp01(math.Max(suitability, feature))
+}
+
 func endpointIndexForNode(endpoints []coastalTradeEndpoint, nodeIdx int) int {
 	for i, endpoint := range endpoints {
 		if endpoint.Node == nodeIdx {
@@ -341,6 +509,80 @@ func bool01f(v bool) float64 {
 		return 1
 	}
 	return 0
+}
+
+func recordViableMaritimePair(diag *CoastalTradePairDiagnostics, fromCiv, toCiv int) {
+	if diag == nil {
+		return
+	}
+	switch {
+	case fromCiv >= 0 && toCiv >= 0 && fromCiv == toCiv:
+		diag.ViableInternal++
+	case fromCiv >= 0 && toCiv >= 0 && fromCiv != toCiv:
+		diag.ViableExternal++
+	default:
+		diag.ViableUnknown++
+	}
+}
+
+func recordSelectedMaritimePair(diag *CoastalTradePairDiagnostics, fromCiv, toCiv int) {
+	if diag == nil {
+		return
+	}
+	switch {
+	case fromCiv >= 0 && toCiv >= 0 && fromCiv == toCiv:
+		diag.SelectedInternal++
+	case fromCiv >= 0 && toCiv >= 0 && fromCiv != toCiv:
+		diag.SelectedExternal++
+	default:
+		diag.SelectedUnknown++
+	}
+}
+
+func recordNoPathMaritimePair(diag *CoastalTradePairDiagnostics, fromCiv, toCiv int) {
+	if diag == nil {
+		return
+	}
+	switch {
+	case fromCiv >= 0 && toCiv >= 0 && fromCiv == toCiv:
+		diag.NoPathInternal++
+	case fromCiv >= 0 && toCiv >= 0 && fromCiv != toCiv:
+		diag.NoPathExternal++
+	default:
+		diag.NoPathUnknown++
+	}
+}
+
+func recordOverBudgetMaritimePair(diag *CoastalTradePairDiagnostics, fromNode, toNode, fromCiv, toCiv int, cost float64) {
+	if diag == nil {
+		return
+	}
+	switch {
+	case fromCiv >= 0 && toCiv >= 0 && fromCiv == toCiv:
+		diag.OverBudgetInternal++
+	case fromCiv >= 0 && toCiv >= 0 && fromCiv != toCiv:
+		diag.OverBudgetExternal++
+	case fromCiv < 0 || toCiv < 0:
+		diag.OverBudgetUnknown++
+	}
+	if cost <= 0 {
+		return
+	}
+	if diag.BestOverBudgetCost == 0 || cost < diag.BestOverBudgetCost {
+		diag.BestOverBudgetCost = cost
+		diag.BestOverBudgetFrom = fromNode
+		diag.BestOverBudgetTo = toNode
+		diag.BestOverBudgetFromCiv = fromCiv
+		diag.BestOverBudgetToCiv = toCiv
+	}
+	isExternal := fromCiv >= 0 && toCiv >= 0 && fromCiv != toCiv
+	if isExternal && (diag.BestOverBudgetExternal == 0 || cost < diag.BestOverBudgetExternal) {
+		diag.BestOverBudgetExternal = cost
+		diag.BestOverBudgetExternalFrom = fromNode
+		diag.BestOverBudgetExternalTo = toNode
+		diag.BestOverBudgetExternalFromCiv = fromCiv
+		diag.BestOverBudgetExternalToCiv = toCiv
+	}
 }
 
 func recordBestRejectedCoastalPair(diag *CoastalTradePairDiagnostics, from, to int, cost, flow float64) {

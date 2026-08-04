@@ -9,6 +9,26 @@ import (
 // =============================================================================
 // Functions for computing coastline properties and boundary currents.
 
+// coastDirectionCosineThreshold gates whether a land neighbor counts as lying
+// "to the east" (or west) of a water vertex. It is a true direction cosine
+// against the local east tangent, applied to the *normalized* neighbor offset,
+// so it is resolution-independent. The value preserves the historical baseline
+// behavior: the old test compared the unnormalized dot against 0.001, and at
+// the L5 mesh a neighbor offset has magnitude ~0.035 rad, so the old test was
+// effectively a cosine threshold of 0.001/0.035 ~= 0.029, rounded here to 0.03.
+const coastDirectionCosineThreshold = 0.03
+
+// tangentDirectionCosine returns the cosine between an (unnormalized) offset
+// vector toward a neighbor and a unit tangent direction. Zero-length offsets
+// return 0 so they never pass a bearing test.
+func tangentDirectionCosine(toNeighbor, dir Vector3D) float64 {
+	length := Length(toNeighbor)
+	if length < 1e-12 {
+		return 0
+	}
+	return Dot(toNeighbor, dir) / length
+}
+
 // estimateCellSize computes the average angular distance between neighboring vertices.
 // This allows us to convert angular distance targets to cell counts for BFS,
 // making the algorithms resolution-independent.
@@ -67,8 +87,8 @@ func ComputeEasternBoundaryFetch(
 			if elevation[k] >= seaLevelThreshold {
 				// This is a land neighbor - which direction?
 				toNeighbor := Sub(vertices[k], vertices[i])
-				eastComponent := Dot(toNeighbor, east)
-				if eastComponent > 0.001 { // Land is to the east
+				eastComponent := tangentDirectionCosine(toNeighbor, east)
+				if eastComponent > coastDirectionCosineThreshold { // Land is to the east
 					isEasternCoast[i] = true
 					break
 				}
@@ -170,8 +190,8 @@ func ComputeWesternBoundaryLayer(
 			if elevation[k] >= seaLevelThreshold {
 				// This is a land neighbor - which direction?
 				toNeighbor := Sub(vertices[k], vertices[i])
-				eastComponent := Dot(toNeighbor, east)
-				if eastComponent < -0.001 { // Land is to the west
+				eastComponent := tangentDirectionCosine(toNeighbor, east)
+				if eastComponent < -coastDirectionCosineThreshold { // Land is to the west
 					landToWest = true
 					break
 				}
@@ -265,8 +285,10 @@ func CalculateCoastlineLandDirs(
 		}
 	}
 
-	// BFS to find distance from land for water vertices (up to 3 rings)
-	maxRings := 3
+	// BFS to find distance from land for water vertices. The band is 3 rings at
+	// the baseline (L5) mesh; scale the ring count with resolution so the band
+	// keeps the same physical width on finer meshes.
+	maxRings := meshResolutionAdjustedSteps(3, numVertices)
 	queue := make([]int, 0, numVertices)
 
 	// Start with water vertices adjacent to land

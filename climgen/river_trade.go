@@ -192,7 +192,7 @@ func collectRiverTradeCorridors(
 					if !cellPath.ok {
 						continue
 					}
-					flow := riverTradeFlowBetweenCivilizations(a, b, network.Nodes[startNode], network.Nodes[endNode], cellPath.cost, riverRoutes.Mode)
+					flow := riverTradeFlowBetweenCivilizations(a, b, network.Nodes[startNode], network.Nodes[endNode], cellPath.cost, riverRoutes.Mode, len(cells))
 					if flow < settings.MinFlow {
 						continue
 					}
@@ -293,8 +293,8 @@ func topRiverNodesForCivilization(
 	return out
 }
 
-func riverTradeFlowBetweenCivilizations(a, b ProtoCivilization, centerA, centerB SettlementNode, cost float64, mode RiverRouteModeSettings) float64 {
-	base := math.Sqrt(float64(maxInt(a.TerritoryCells, 1))*float64(maxInt(b.TerritoryCells, 1))) / 36.0
+func riverTradeFlowBetweenCivilizations(a, b ProtoCivilization, centerA, centerB SettlementNode, cost float64, mode RiverRouteModeSettings, meshCellCount int) float64 {
+	base := math.Sqrt(meshScaledTerritoryAreaCells(a.TerritoryCells, meshCellCount)*meshScaledTerritoryAreaCells(b.TerritoryCells, meshCellCount)) / 36.0
 	support := 0.60 + 0.45*(a.MeanSupport+b.MeanSupport)
 	nodeScore := 0.45 + 0.40*(centerA.Score+centerB.Score)
 	bonus := 1.0 + 0.26*mode.PayloadCapacity + 0.18*mode.LongHaulTolerance

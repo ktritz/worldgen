@@ -39,16 +39,16 @@ func SoilName(s SoilType) string {
 }
 
 type SoilDiagnostics struct {
-	Moisture      []float64
-	Drainage      []float64
-	Fertility     []float64
-	Weathering    []float64
-	Salinity      []float64
-	Alluvial      []float64
-	Organic       []float64
-	Rockiness     []float64
-	Relief        []float64
-	Coastal       []float64
+	Moisture   []float64
+	Drainage   []float64
+	Fertility  []float64
+	Weathering []float64
+	Salinity   []float64
+	Alluvial   []float64
+	Organic    []float64
+	Rockiness  []float64
+	Relief     []float64
+	Coastal    []float64
 }
 
 type SoilResult struct {
@@ -93,7 +93,8 @@ func ClassifySoils(
 		runoff := hydrologyValue(hydro, i, func(h *HydrologyBiomeInputs) []float64 { return h.Runoff })
 		channel := hydrologyValue(hydro, i, func(h *HydrologyBiomeInputs) []float64 { return h.ChannelStrength })
 		classFactor := hydrologyClassFactor(hydro, i)
-		alluvial := clamp01(0.45*smoothstep01(20, 120, runoff) + 0.35*smoothstep01(0.8, 2.5, channel) + 0.20*classFactor)
+		riparianChannel := hydrologyRiparianChannelSupport(hydro, i)
+		alluvial := clamp01(0.45*smoothstep01(20, 120, runoff) + 0.20*smoothstep01(0.8, 2.5, channel) + 0.15*riparianChannel + 0.20*classFactor)
 		moisture := clamp01(
 			0.50*smoothstep01(20, 180, diag.AnnualPrecipCm[i]) +
 				0.25*smoothstep01(0.45, 2.20, diag.AridityRatio[i]) +
@@ -195,6 +196,10 @@ func determineSoilType(
 
 func computeLocalRelief(cells []VoronoiCell, elevation []float64, seaLevel float64) []float64 {
 	relief := make([]float64, len(elevation))
+	stepScale := meshPathCostResolutionScale(len(cells))
+	if stepScale <= 0 {
+		stepScale = 1
+	}
 	for i, cell := range cells {
 		if elevation[i] < seaLevel || len(cell.NeighborSiteIndices) == 0 {
 			continue
@@ -210,7 +215,7 @@ func computeLocalRelief(cells []VoronoiCell, elevation []float64, seaLevel float
 			count++
 		}
 		if count > 0 {
-			relief[i] = sum / count
+			relief[i] = (sum / count) / stepScale
 		}
 	}
 	return relief
@@ -228,23 +233,43 @@ func hydrologyValue(hydro *HydrologyBiomeInputs, idx int, sel func(*HydrologyBio
 }
 
 func hydrologyClassFactor(hydro *HydrologyBiomeInputs, idx int) float64 {
-	if hydro == nil || idx < 0 || idx >= len(hydro.CellClass) {
+	if hydro == nil || idx < 0 {
 		return 0
 	}
-	switch hydro.CellClass[idx] {
-	case "floodplain":
-		return 1.0
-	case "delta":
-		return 0.95
-	case "lake_reach":
-		return 0.85
-	case "coast_outlet":
-		return 0.65
-	case "confluence":
-		return 0.55
-	case "trunk":
-		return 0.35
-	default:
+	support := 0.0
+	if idx < len(hydro.WetlandClassSupport) {
+		support = hydro.WetlandClassSupport[idx]
+	}
+	if idx < len(hydro.CellClass) {
+		support = math.Max(support, directHydrologyClassFactor(hydro.CellClass[idx]))
+	}
+	return support
+}
+
+func hydrologyRiparianChannelSupport(hydro *HydrologyBiomeInputs, idx int) float64 {
+	if hydro == nil || idx < 0 {
 		return 0
 	}
+	support := 0.0
+	if idx < len(hydro.RiparianChannelSupport) {
+		return hydro.RiparianChannelSupport[idx]
+	}
+	if idx < len(hydro.ChannelStrength) {
+		support = math.Max(support, smoothstep01(0.7, 2.2, hydro.ChannelStrength[idx]))
+	}
+	return support
+}
+
+func hydrologyDepositionalClassFactor(hydro *HydrologyBiomeInputs, idx int) float64 {
+	if hydro == nil || idx < 0 {
+		return 0
+	}
+	support := 0.0
+	if idx < len(hydro.DepositionalClassSupport) {
+		support = hydro.DepositionalClassSupport[idx]
+	}
+	if idx < len(hydro.CellClass) {
+		support = math.Max(support, directDepositionalClassFactor(hydro.CellClass[idx]))
+	}
+	return support
 }

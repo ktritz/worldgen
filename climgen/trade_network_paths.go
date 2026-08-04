@@ -11,13 +11,13 @@ type tradeAdjEdge struct {
 	cost      float64
 }
 
-func buildTradeAdjacency(network *SettlementNetworkResult, landRoutes *LandRouteResult) [][]tradeAdjEdge {
+func buildTradeAdjacency(network *SettlementNetworkResult, landRoutes *LandRouteResult, meshCellCount int) [][]tradeAdjEdge {
 	adj := make([][]tradeAdjEdge, len(network.Nodes))
 	for i, link := range network.Links {
 		if link.From < 0 || link.From >= len(adj) || link.To < 0 || link.To >= len(adj) {
 			continue
 		}
-		cost := tradeLinkTravelCost(link, landRoutes)
+		cost := tradeLinkTravelCost(link, landRoutes, meshCellCount)
 		adj[link.From] = append(adj[link.From], tradeAdjEdge{neighbor: link.To, linkIndex: i, cost: cost})
 		adj[link.To] = append(adj[link.To], tradeAdjEdge{neighbor: link.From, linkIndex: i, cost: cost})
 	}
@@ -144,7 +144,7 @@ func buildTradeCorridor(network *SettlementNetworkResult, path tradeNodePath, fr
 	}
 }
 
-func tradeLinkTravelCost(link SettlementLink, landRoutes *LandRouteResult) float64 {
+func tradeLinkTravelCost(link SettlementLink, landRoutes *LandRouteResult, meshCellCount int) float64 {
 	if landRoutes == nil || landRoutes.Diagnostics == nil || len(link.Path) == 0 {
 		return link.TravelCost
 	}
@@ -168,7 +168,11 @@ func tradeLinkTravelCost(link SettlementLink, landRoutes *LandRouteResult) float
 	meanCost := totalCost / count
 	meanRisk := totalRisk / count
 	meanSupport := totalSupport / count
-	return count * meanCost * (1 + 0.55*meanRisk + 0.22*(1-meanSupport))
+	// Scale the per-cell count so edge costs measure physical distance regardless of
+	// mesh resolution, matching the stepScale-corrected SettlementLink.TravelCost
+	// fallback above and the absolute budgets (e.g. MaxRouteCost) they are compared to.
+	stepScale := meshPathCostResolutionScale(meshCellCount)
+	return count * stepScale * meanCost * (1 + 0.55*meanRisk + 0.22*(1-meanSupport))
 }
 
 func summarizeTradeCellPath(cellPath []int, landRoutes *LandRouteResult) (float64, float64) {
@@ -232,4 +236,3 @@ func reversedInts(values []int) []int {
 	}
 	return out
 }
-

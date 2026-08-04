@@ -158,9 +158,8 @@ func computeClimateDrivenHydrologyFromClimate(
 func computeHydrologyAwareBiomes(
 	climate *climgen.SeasonalClimateResult,
 	elevation []float64,
-	scaffold *terrain.HydrologyScaffold,
+	hydro *climgen.HydrologyBiomeInputs,
 ) *climgen.BiomeResult {
-	hydro := hydrologyBiomeInputsFromScaffold(scaffold)
 	return climgen.ClassifyBiomesSeasonalWithHydrology(climate, elevation, 0.0, hydro)
 }
 
@@ -169,11 +168,10 @@ func computeVegetation(
 	climate *climgen.SeasonalClimateResult,
 	biomes *climgen.BiomeResult,
 	elevation []float64,
-	scaffold *terrain.HydrologyScaffold,
+	hydro *climgen.HydrologyBiomeInputs,
+	coastalExposure []float64,
 	soils *climgen.SoilResult,
 ) *climgen.VegetationResult {
-	coastalExposure := climgen.ComputeCoastalExposure(cells, elevation, 0.0)
-	hydro := hydrologyBiomeInputsFromScaffold(scaffold)
 	return climgen.ClassifyVegetation(climate, biomes, elevation, 0.0, hydro, coastalExposure, soils)
 }
 
@@ -182,10 +180,9 @@ func computeSoils(
 	climate *climgen.SeasonalClimateResult,
 	biomes *climgen.BiomeResult,
 	elevation []float64,
-	scaffold *terrain.HydrologyScaffold,
+	hydro *climgen.HydrologyBiomeInputs,
+	coastalExposure []float64,
 ) *climgen.SoilResult {
-	coastalExposure := climgen.ComputeCoastalExposure(cells, elevation, 0.0)
-	hydro := hydrologyBiomeInputsFromScaffold(scaffold)
 	return climgen.ClassifySoils(cells, climate, biomes, elevation, 0.0, hydro, coastalExposure)
 }
 
@@ -193,10 +190,9 @@ func computeAgriculture(
 	biomes *climgen.BiomeResult,
 	soils *climgen.SoilResult,
 	elevation []float64,
-	scaffold *terrain.HydrologyScaffold,
+	hydro *climgen.HydrologyBiomeInputs,
 	settings climgen.AgricultureProductivitySettings,
 ) *climgen.AgricultureResult {
-	hydro := hydrologyBiomeInputsFromScaffold(scaffold)
 	return climgen.ClassifyAgriculture(biomes, soils, elevation, 0.0, hydro, settings)
 }
 
@@ -205,10 +201,9 @@ func computeWildlife(
 	vegetation *climgen.VegetationResult,
 	soils *climgen.SoilResult,
 	elevation []float64,
-	scaffold *terrain.HydrologyScaffold,
+	hydro *climgen.HydrologyBiomeInputs,
 	settings climgen.WildlifeProductivitySettings,
 ) *climgen.WildlifeResult {
-	hydro := hydrologyBiomeInputsFromScaffold(scaffold)
 	return climgen.ClassifyWildlife(biomes, vegetation, soils, elevation, 0.0, hydro, settings)
 }
 
@@ -220,11 +215,10 @@ func computeCoastalResources(
 	soils *climgen.SoilResult,
 	vegetation *climgen.VegetationResult,
 	elevation []float64,
-	scaffold *terrain.HydrologyScaffold,
+	hydro *climgen.HydrologyBiomeInputs,
+	coastalExposure []float64,
 	settings climgen.CoastalResourceSettings,
 ) *climgen.CoastalResourceResult {
-	hydro := hydrologyBiomeInputsFromScaffold(scaffold)
-	coastalExposure := climgen.ComputeCoastalExposure(cells, elevation, 0.0)
 	return climgen.ClassifyCoastalResources(sites, cells, climate, biomes, soils, vegetation, elevation, 0.0, hydro, coastalExposure, settings)
 }
 
@@ -232,10 +226,9 @@ func computeWaterResources(
 	biomes *climgen.BiomeResult,
 	soils *climgen.SoilResult,
 	elevation []float64,
-	scaffold *terrain.HydrologyScaffold,
+	hydro *climgen.HydrologyBiomeInputs,
 	settings climgen.WaterResourceSettings,
 ) *climgen.WaterResourceResult {
-	hydro := hydrologyBiomeInputsFromScaffold(scaffold)
 	return climgen.ClassifyWaterResources(biomes, soils, elevation, 0.0, hydro, settings)
 }
 
@@ -244,13 +237,20 @@ func computeResources(
 	biomes *climgen.BiomeResult,
 	soils *climgen.SoilResult,
 	elevation []float64,
-	scaffold *terrain.HydrologyScaffold,
+	hydro *climgen.HydrologyBiomeInputs,
 	chains []terrain.HotspotChain,
 	settings climgen.ResourceAbundanceSettings,
 ) *climgen.ResourceResult {
-	hydro := hydrologyBiomeInputsFromScaffold(scaffold)
 	geology := hotspotResourceInputs(len(elevation), chains)
 	return climgen.ClassifyResourcesWithSettings(climate, biomes, soils, elevation, 0.0, hydro, geology, settings)
+}
+
+func resolutionAdjustedHydrologyBiomeInputsFromScaffold(
+	cells []climgen.VoronoiCell,
+	elevation []float64,
+	scaffold *terrain.HydrologyScaffold,
+) *climgen.HydrologyBiomeInputs {
+	return climgen.ResolutionAdjustedHydrologyBiomeInputs(cells, elevation, 0.0, hydrologyBiomeInputsFromScaffold(scaffold))
 }
 
 func hydrologyBiomeInputsFromScaffold(scaffold *terrain.HydrologyScaffold) *climgen.HydrologyBiomeInputs {

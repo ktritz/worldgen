@@ -13,13 +13,15 @@ type Hotspot struct {
 
 // HotspotIsland represents a single island in a hotspot chain
 type HotspotIsland struct {
-	CellIndex int     // Index of the cell containing this island
-	Age       float64 // Normalized age: 0 = newest (active), 1 = oldest
-	Strength  float64 // Relative eruption strength for this position in the chain
+	CellIndex int      // Index of the cell containing this island
+	Position  Vector3D // Physical island position on the unit sphere
+	Age       float64  // Normalized age: 0 = newest (active), 1 = oldest
+	Strength  float64  // Relative eruption strength for this position in the chain
 }
 
 // HotspotChain represents a complete island chain from a hotspot
 type HotspotChain struct {
+	ID        int
 	Hotspot   Hotspot
 	Islands   []HotspotIsland
 	IsOceanic bool // Whether this is an oceanic (island) or continental (caldera) chain
@@ -38,6 +40,12 @@ const (
 
 	// Island spacing in radians (~150km = 0.024 radians on Earth)
 	IslandSpacingRadians = 0.024
+
+	// Minimum physical radius for a hotspot feature to become an emergent land
+	// component on the global mesh. Smaller volcanic events remain seamounts or
+	// submerged shoals so fine meshes do not materialize one-cell islands that a
+	// coarser mesh cannot physically resolve.
+	MinEmergentHotspotIslandRadius = IslandSpacingRadians * 0.45
 
 	// Base maximum chain length in radians (~4000km = 0.63 radians)
 	// Actual length varies with plate velocity (faster = longer chain)

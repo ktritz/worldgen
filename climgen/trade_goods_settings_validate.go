@@ -2,6 +2,14 @@ package climgen
 
 import "fmt"
 
+// ValidateTradeGoodsSettings checks everything that is *locally* decidable from a
+// single settings document: required fields, value ranges, malformed entries.
+//
+// It deliberately does NOT check cross-good relationships (input names, cycles,
+// declaration order). Trade goods settings are loaded per document and may be
+// merged, so any one document can legitimately be a partial catalog whose
+// consumers' inputs are declared elsewhere. Cross-good rules are checked by
+// ValidateTradeGoodsCatalog on the fully assembled catalog instead.
 func ValidateTradeGoodsSettings(settings TradeGoodsSettings) error {
 	if settings.SchemaVersion == "" {
 		return fmt.Errorf("trade goods schemaVersion is required")
@@ -197,6 +205,11 @@ func validateTradeGoodsMultimodalSettings(settings TradeGoodsMultimodalSettings)
 			return fmt.Errorf("trade goods multimodal endpointNeedShareByCategory[%q] must be in [0,1]", category)
 		}
 	}
+	for category, value := range settings.EndpointSurplusReliefByCategory {
+		if value < 0 {
+			return fmt.Errorf("trade goods multimodal endpointSurplusReliefByCategory[%q] must be non-negative", category)
+		}
+	}
 	if err := validateTradeGoodsResponseCurves(settings.LocalNeedResponse, "localNeedResponse"); err != nil {
 		return err
 	}
@@ -295,9 +308,19 @@ func validateTradeGoodsDemandSettings(settings TradeGoodsDemandSettings) error {
 			return fmt.Errorf("trade goods demand categoryDemandScale[%q] must be > 0", category)
 		}
 	}
+	for good, value := range settings.GoodDemandScale {
+		if value <= 0 {
+			return fmt.Errorf("trade goods demand goodDemandScale[%q] must be > 0", good)
+		}
+	}
 	for category, value := range settings.LocalSupplyReliefByCategory {
 		if value < 0 || value > 1.5 {
 			return fmt.Errorf("trade goods demand localSupplyReliefByCategory[%q] must be in [0,1.5]", category)
+		}
+	}
+	for good, value := range settings.LocalSupplyReliefByGood {
+		if value < 0 || value > 1.5 {
+			return fmt.Errorf("trade goods demand localSupplyReliefByGood[%q] must be in [0,1.5]", good)
 		}
 	}
 	for category, value := range settings.DriverSpecializationScale {
@@ -308,6 +331,11 @@ func validateTradeGoodsDemandSettings(settings TradeGoodsDemandSettings) error {
 	for category, value := range settings.MarketCategoryDemandScale {
 		if value <= 0 {
 			return fmt.Errorf("trade goods demand marketCategoryDemandScale[%q] must be > 0", category)
+		}
+	}
+	for good, value := range settings.MarketGoodDemandScale {
+		if value <= 0 {
+			return fmt.Errorf("trade goods demand marketGoodDemandScale[%q] must be > 0", good)
 		}
 	}
 	for category, value := range settings.MarketWealthPullScale {

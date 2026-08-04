@@ -137,7 +137,10 @@ func main() {
 		record := newBaselineSeedMetrics(seed)
 		terrainKey := terrainCacheKey(*level, *numPlates, *landFrac, seed)
 		elevation, isLand, diagnostics := loadOrGenerateTerrain(cacheStore, terrainKey, sites, cells, *numPlates, seed, *landFrac)
-		seasonalClimate := loadOrGenerateClimate(cacheStore, terrainKey, climateSites, climateCells, elevation, climateAdj, seed, *climateHydrology || *climateBiomes)
+		var seasonalClimate *climgen.SeasonalClimateResult
+		if *climateHydrology || *climateBiomes {
+			seasonalClimate = loadOrGenerateClimate(cacheStore, terrainKey, climateSites, climateCells, elevation, climateAdj, seed, *climateHydrology || *climateBiomes)
+		}
 
 		if *climateHydrology {
 			if seasonalClimate == nil {
@@ -154,11 +157,15 @@ func main() {
 		record.Score = result.Score
 		record.Drain = result.Metrics.FluvialChannelCoverage * 100
 		record.Endo = result.Metrics.EndorheicCatchmentPct * 100
-		printSummary(result, diagnostics)
+		printSummary(result, diagnostics, sites, cells)
+		printLandComponentDiagnostics(cells, elevation, 0)
+		printLandLatitudeDiagnostics(sites, elevation, 0)
 		prefix := filepath.Join(*outputDir, fmt.Sprintf("seed_%d", seed))
 
 		if *climateBiomes && seasonalClimate != nil {
-			biomeResult := computeHydrologyAwareBiomes(seasonalClimate, elevation, diagnostics.Hydrology.Scaffold)
+			hydroInputs := resolutionAdjustedHydrologyBiomeInputsFromScaffold(cells, elevation, diagnostics.Hydrology.Scaffold)
+			printHydrologySupportDiagnostics(diagnostics.Hydrology.Scaffold, hydroInputs, elevation, 0.0)
+			biomeResult := computeHydrologyAwareBiomes(seasonalClimate, elevation, hydroInputs)
 			needDerivedBundle := *climateSoils || *climateVegetation || *climateAgriculture || *climateWildlife || *climateWaterResources || *climateCoastalResources || *climateResources || *climateTradeGoods || *climateSettlements || *settlementProfiles || *climatePopulation || *climateSettlementNetwork || *climateProtoCivilizations || *climateTradeNetwork || *climateRiverTrade || *climateCoastalPorts || *climateCoastalTrade || *climateOceanTrade || *climatePolitySpheres
 			var soilResult *climgen.SoilResult
 			var vegetationResult *climgen.VegetationResult
@@ -170,8 +177,22 @@ func main() {
 			var tradeGoodResult *climgen.TradeGoodResult
 			var settlementResult *climgen.SettlementResult
 			var populationResult *climgen.PopulationResult
+			var derivedKey string
 			if needDerivedBundle {
 				climateKey := climateCacheKey(terrainKey, seed)
+				derivedKey = derivedCacheKey(
+					terrainKey,
+					climateKey,
+					*climateHydrology,
+					cacheSettingsDigest(derivedReviewSettings{
+						Resource:    resourceSettings,
+						Agriculture: agricultureSettings,
+						Wildlife:    wildlifeSettings,
+						Coastal:     coastalResourceSettings,
+						Water:       waterResourceSettings,
+						Population:  populationSettings,
+					}),
+				)
 				derived := loadOrGenerateDerivedReview(
 					cacheStore,
 					terrainKey,
@@ -184,7 +205,6 @@ func main() {
 					diagnostics,
 					derivedReviewSettings{
 						Resource:    resourceSettings,
-						TradeGoods:  tradeGoodsSettings,
 						Agriculture: agricultureSettings,
 						Wildlife:    wildlifeSettings,
 						Coastal:     coastalResourceSettings,
@@ -201,9 +221,11 @@ func main() {
 					waterResourceResult = derived.WaterResources
 					coastalResourceResult = derived.CoastalResources
 					resourceResult = derived.Resources
-					tradeGoodResult = derived.TradeGoods
 					settlementResult = derived.Settlement
 					populationResult = derived.Population
+					if *climateTradeGoods {
+						tradeGoodResult, _ = loadOrGenerateTradeGoodsReview(cacheStore, derivedKey, derived, cells, elevation, diagnostics, tradeGoodsSettings)
+					}
 				}
 			}
 			record.Arid, record.Forest, record.Wetland = collectBiomeMetrics(biomeResult)
@@ -283,20 +305,6 @@ func main() {
 						renderPopulationMap(sites, index, populationResult, prefix+"_population.png", width, height)
 					}
 					if *climateSettlementNetwork {
-						derivedKey := derivedCacheKey(
-							terrainKey,
-							climateCacheKey(terrainKey, seed),
-							*climateHydrology,
-							cacheSettingsDigest(derivedReviewSettings{
-								Resource:    resourceSettings,
-								TradeGoods:  tradeGoodsSettings,
-								Agriculture: agricultureSettings,
-								Wildlife:    wildlifeSettings,
-								Coastal:     coastalResourceSettings,
-								Water:       waterResourceSettings,
-								Population:  populationSettings,
-							}),
-						)
 						civilizationReview, civilizationKey := loadOrGenerateCivilizationReview(
 							cacheStore,
 							derivedKey,
@@ -312,28 +320,31 @@ func main() {
 								WaterResources:   waterResourceResult,
 								CoastalResources: coastalResourceResult,
 								Resources:        resourceResult,
-								TradeGoods:       tradeGoodResult,
 								Settlement:       settlementResult,
 								Population:       populationResult,
 							},
 							elevation,
 							diagnostics,
 							civilizationReviewSettings{
-								LandRoutes:  landRouteSettings,
-								RiverRoutes: riverRouteSettings,
-								TradeGoods:  tradeGoodsSettings,
-								Profiles:    profileCatalog,
+								SettlementNetwork: climgen.DefaultSettlementNetworkSettings(),
+								ProtoCivilization: climgen.DefaultProtoCivilizationSettings(),
+								LandRoutes:        landRouteSettings,
+								TradeNetwork:      climgen.DefaultTradeNetworkSettings(),
+								RiverRoutes:       riverRouteSettings,
+								RiverTrade:        climgen.DefaultRiverTradeSettings(),
+								PolitySpheres:     climgen.DefaultPolitySphereSettings(),
+								Profiles:          profileCatalog,
 							},
 						)
 						networkResult := civilizationReview.Network
-						printSettlementNetworkSummary(networkResult)
+						printSettlementNetworkSummary(climateSites, climateCells, populationResult, networkResult)
 						if *renderMaps {
 							renderSettlementNetworkMap(sites, elevation, index, networkResult, prefix+"_settlement_network.png", width, height)
 							renderSettlementRegionMap(sites, elevation, index, networkResult, prefix+"_settlement_regions.png", width, height)
 						}
 						if *climateProtoCivilizations {
 							protoResult := civilizationReview.Proto
-							printProtoCivilizationSummary(protoResult)
+							printProtoCivilizationSummary(protoResult, networkResult)
 							if *renderMaps {
 								renderProtoCivilizationMap(sites, elevation, index, protoResult, networkResult, prefix+"_proto_civilizations.png", width, height)
 							}
@@ -407,7 +418,7 @@ func main() {
 										if *climateOceanTrade {
 											oceanTradeResult := maritimeReview.OceanTrade
 											oceanTradeForGoods = oceanTradeResult
-											printOceanTradeSummary(oceanTradeResult, networkResult)
+											printOceanTradeSummary(oceanTradeResult, networkResult, coastalPortResult)
 											if *renderMaps {
 												renderOceanTradeMap(sites, elevation, index, oceanTradeResult, networkResult, prefix+"_ocean_trade"+suffix+".png", width, height)
 											}
@@ -423,14 +434,12 @@ func main() {
 									}
 									polityProfiles := civilizationReview.Profiles
 									if *climateTradeGoods && tradeGoodResult != nil {
-										nodeGoods := civilizationReview.NodeGoods
-										printNodeGoodsSummary(nodeGoods, networkResult)
 										economyReview, _ := loadOrGenerateEconomyReview(
 											cacheStore,
 											civilizationKey,
 											maritimeKeyForGoods,
 											climateCells,
-											&cachedDerivedReview{TradeGoods: tradeGoodResult},
+											tradeGoodResult,
 											civilizationReview,
 											&cachedMaritimeReview{
 												CoastalTrade: coastalTradeForGoods,
@@ -438,16 +447,30 @@ func main() {
 											},
 											tradeGoodsSettings,
 										)
+										nodeGoods := economyReview.NodeGoods
+										printNodeGoodsSummary(nodeGoods, networkResult)
 										nodeMarkets := economyReview.NodeMarkets
-										polityGoods := civilizationReview.PolityGoods
+										polityGoods := economyReview.PolityGoods
 										printTradeNodeMarketSummary(nodeMarkets, networkResult, tradeGoodsSettings)
 										printTradeChainSummary(nodeGoods, nodeMarkets, networkResult)
 										multimodalTrade := economyReview.Multimodal
 										polityProfiles = climgen.ApplyMultimodalTradeToPolityProfiles(polityProfiles, multimodalTrade)
 										printPolityProfileSummary(polityProfiles)
 										printPolityGoodsSummary(polityGoods, tradeGoodsSettings)
+										printPolityGoodAggregateDiagnostics(polityGoods, tradeGoodsSettings)
+										printTradeGoodPathSummary("resin", nodeGoods, nodeMarkets, polityGoods, multimodalTrade, networkResult)
+										printTradeGoodPathSummary("timber", nodeGoods, nodeMarkets, polityGoods, multimodalTrade, networkResult)
+										printTradeGoodPathSummary("copper_ore", nodeGoods, nodeMarkets, polityGoods, multimodalTrade, networkResult)
+										printTradeGoodPathSummary("precious_ore", nodeGoods, nodeMarkets, polityGoods, multimodalTrade, networkResult)
+										printTradeGoodPathSummary("salt", nodeGoods, nodeMarkets, polityGoods, multimodalTrade, networkResult)
 										printTradeGoodPathSummary("paper", nodeGoods, nodeMarkets, polityGoods, multimodalTrade, networkResult)
 										printTradeGoodPathSummary("soap", nodeGoods, nodeMarkets, polityGoods, multimodalTrade, networkResult)
+										printTradeGoodPathSummary("cloth", nodeGoods, nodeMarkets, polityGoods, multimodalTrade, networkResult)
+										printTradeGoodPathSummary("woolens", nodeGoods, nodeMarkets, polityGoods, multimodalTrade, networkResult)
+										printTradeGoodPathSummary("fine_clothing", nodeGoods, nodeMarkets, polityGoods, multimodalTrade, networkResult)
+										printTradeGoodPathSummary("preserved_food", nodeGoods, nodeMarkets, polityGoods, multimodalTrade, networkResult)
+										printTradeGoodPathSummary("ceramics", nodeGoods, nodeMarkets, polityGoods, multimodalTrade, networkResult)
+										printTradeGoodPathSummary("weapons_armor", nodeGoods, nodeMarkets, polityGoods, multimodalTrade, networkResult)
 										printMultimodalTradeSummary(multimodalTrade, tradeGoodsSettings)
 									} else {
 										printPolityProfileSummary(polityProfiles)

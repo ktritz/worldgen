@@ -54,7 +54,9 @@ func identifyMajorCoastalPorts(
 		}
 		portSuit := diag.PortSuitability[node.CellIndex]
 		rawNodeSuit := 0.0
-		if i < len(diag.NodePortScore) {
+		if i < len(diag.NodeBasePortScore) && diag.NodeBasePortScore[i] > 0 {
+			rawNodeSuit = diag.NodeBasePortScore[i]
+		} else if i < len(diag.NodePortScore) {
 			rawNodeSuit = diag.NodePortScore[i]
 		}
 		if math.Max(portSuit, rawNodeSuit) < settings.PortSuitabilityFloor && !(node.Coastal || node.River) {
@@ -73,7 +75,7 @@ func identifyMajorCoastalPorts(
 			settings.NodeScoreWeight*node.Score +
 			settings.TradeCentralityWeight*tradeNorm +
 			settings.RiverCentralityWeight*riverNorm
-		switch node.Kind {
+		switch settlementNodePortAnchorTier(node) {
 		case SettlementNodeCity, SettlementNodeTown:
 			score += settings.RegionalAnchorBonus
 		case SettlementNodeVillage:
@@ -140,7 +142,9 @@ func identifyMajorDeepwaterPorts(
 			continue
 		}
 		rawNodeSuit := 0.0
-		if i < len(diag.NodeDeepwaterScore) {
+		if i < len(diag.NodeBaseDeepwaterScore) && diag.NodeBaseDeepwaterScore[i] > 0 {
+			rawNodeSuit = diag.NodeBaseDeepwaterScore[i]
+		} else if i < len(diag.NodeDeepwaterScore) {
 			rawNodeSuit = diag.NodeDeepwaterScore[i]
 		}
 		effectiveSuit := math.Max(rawNodeSuit, diag.DeepwaterSuitability[node.CellIndex])
@@ -159,7 +163,7 @@ func identifyMajorDeepwaterPorts(
 			settings.NodeScoreWeight*node.Score +
 			settings.TradeCentralityWeight*tradeNorm +
 			settings.RiverCentralityWeight*riverNorm
-		switch node.Kind {
+		switch settlementNodePortAnchorTier(node) {
 		case SettlementNodeCity, SettlementNodeTown:
 			score += settings.RegionalAnchorBonus
 		case SettlementNodeVillage:
@@ -226,13 +230,27 @@ func coastalPortCentralityMaxima(trade *TradeNetworkResult, riverTrade *RiverTra
 
 func eligibleMajorCoastalPort(node SettlementNode, tradeNorm, riverNorm float64, settings MaritimePortSettings) bool {
 	centrality := math.Max(tradeNorm, riverNorm)
-	switch node.Kind {
+	switch settlementNodePortAnchorTier(node) {
 	case SettlementNodeCity, SettlementNodeTown:
 		return centrality >= settings.RegionalMinCentrality
 	case SettlementNodeVillage:
 		return centrality >= settings.DistrictMinCentrality
 	default:
 		return centrality >= settings.LocalMinCentrality
+	}
+}
+
+func settlementNodePortAnchorTier(node SettlementNode) SettlementNodeKind {
+	effectiveRank := settlementNodeEffectiveRank(node)
+	switch {
+	case effectiveRank >= float64(SettlementNodeCity):
+		return SettlementNodeCity
+	case effectiveRank >= float64(SettlementNodeTown):
+		return SettlementNodeTown
+	case effectiveRank >= float64(SettlementNodeVillage):
+		return SettlementNodeVillage
+	default:
+		return SettlementNodeHamlet
 	}
 }
 
@@ -248,6 +266,12 @@ func populateBaseCoastalNodeScores(
 		return
 	}
 	adj := BuildFlatAdjacency(cells)
+	cellCount := len(cells)
+	if cellCount <= 0 {
+		cellCount = len(elevation)
+	}
+	catchmentHops := meshResolutionAdjustedSteps(settings.NodeCatchmentHops, cellCount)
+	stepScale := meshPathCostResolutionScale(cellCount)
 	for i, node := range network.Nodes {
 		cellIdx := node.CellIndex
 		if cellIdx < 0 || cellIdx >= len(elevation) {
@@ -266,7 +290,7 @@ func populateBaseCoastalNodeScores(
 		for len(queue) > 0 {
 			cur := queue[0]
 			queue = queue[1:]
-			decay := math.Pow(settings.NodeCatchmentDecay, float64(cur.hops))
+			decay := math.Pow(settings.NodeCatchmentDecay, float64(cur.hops)*stepScale)
 			if isCoastalLand(cur.cell, elevation, seaLevel, adj) {
 				candidate := decay * (diag.PortSuitability[cur.cell] + settings.NodeFeatureWeight*maritimePortFeatureScore(cur.cell, diag, settings))
 				if candidate > best {
@@ -279,7 +303,7 @@ func populateBaseCoastalNodeScores(
 					bestDeepwaterCell = cur.cell
 				}
 			}
-			if cur.hops >= settings.NodeCatchmentHops {
+			if cur.hops >= catchmentHops {
 				continue
 			}
 			for _, neighbor := range adj.GetNeighbors(cur.cell) {
@@ -294,8 +318,14 @@ func populateBaseCoastalNodeScores(
 			}
 		}
 		diag.NodePortScore[i] = clamp01(best)
+		if i < len(diag.NodeBasePortScore) {
+			diag.NodeBasePortScore[i] = clamp01(best)
+		}
 		if i < len(diag.NodeDeepwaterScore) {
 			diag.NodeDeepwaterScore[i] = clamp01(bestDeepwater)
+		}
+		if i < len(diag.NodeBaseDeepwaterScore) {
+			diag.NodeBaseDeepwaterScore[i] = clamp01(bestDeepwater)
 		}
 		if i < len(diag.NodeTerminalCell) {
 			diag.NodeTerminalCell[i] = bestCell

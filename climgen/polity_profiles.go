@@ -159,7 +159,7 @@ func buildPolityAttitudes(
 			tradeAdj := tradeBonus[[2]int{from.ID, to.ID}]
 			borderAdj := borderPenalty[[2]int{from.ID, to.ID}]
 			competitionAdj := polityCompetitionPenalty(fromAssignment, toAssignment, borderAdj, tradeAdj)
-			competitionAdj += polityTerritorialRivalryPenalty(from, to, fromAssignment, toAssignment, borderAdj, tradeAdj, polities.Relations)
+			competitionAdj += polityTerritorialRivalryPenalty(from, to, fromAssignment, toAssignment, borderAdj, tradeAdj, polities.Relations, len(cells))
 			allianceAdj := polityAllianceBonus(from.ID, to.ID, from, to, fromAssignment, toAssignment, affinity, tradeAdj, borderAdj, competitionAdj, polities.Relations)
 			strategicTension := borderAdj + competitionAdj
 			score := affinity + tradeAdj + allianceAdj - strategicTension
@@ -212,9 +212,17 @@ func polityBorderPressure(cells []VoronoiCell, polities *PolitySphereResult) map
 		}
 	}
 	for key, count := range borderCounts {
-		out[key] = 0.03 * math.Min(float64(count), 12)
+		out[key] = borderPressureFromCount(count, len(cells))
 	}
 	return out
+}
+
+// borderPressureFromCount converts a count of border cell-adjacency pairs (a linear
+// measure that grows with sqrt(cellCount) for a fixed physical border) into a
+// baseline-equivalent pressure so the saturation cap is resolution-independent.
+func borderPressureFromCount(count int, meshCellCount int) float64 {
+	scaled := float64(count) * meshPathCostResolutionScale(meshCellCount)
+	return 0.03 * math.Min(scaled, 12)
 }
 
 func polityTradeBonus(polities *PolitySphereResult, network *SettlementNetworkResult, trade *TradeNetworkResult) map[[2]int]float64 {
@@ -284,6 +292,7 @@ func polityTerritorialRivalryPenalty(
 	borderAdj float64,
 	tradeAdj float64,
 	relations []PolitySphereRelation,
+	meshCellCount int,
 ) float64 {
 	if borderAdj <= 0 {
 		return 0
@@ -313,7 +322,7 @@ func polityTerritorialRivalryPenalty(
 		meanSupport = 0.30
 	}
 	scarcity := clamp01((0.36 - meanSupport) / 0.22)
-	crowding := clamp01((170.0 - math.Min(float64(from.TerritoryCells), float64(to.TerritoryCells))) / 140.0)
+	crowding := clamp01((170.0 - math.Min(meshScaledTerritoryAreaCells(from.TerritoryCells, meshCellCount), meshScaledTerritoryAreaCells(to.TerritoryCells, meshCellCount))) / 140.0)
 	ambition := profileRivalryDisposition(fromAssignment.Profile, toAssignment.Profile)
 
 	penalty := borderFactor * (0.16 + 0.28*nicheOverlap + 0.18*economicOverlap + kinRivalry + 0.16*scarcity + 0.12*crowding)

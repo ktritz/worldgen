@@ -119,7 +119,9 @@ func computeSeasonalStormBandSupportField(
 ) []float64 {
 	frontalExposure := computeSeasonalFrontalExposureField(vertices, elevation, seaLevelThreshold, adj, wind, solar)
 	parent, strength := computeStrongestUpwindGraph(vertices, adj, wind)
-	upwindLandSteps := computeUpwindLandStepCounts(parent, strength, elevation, seaLevelThreshold, precipInlandTransportSteps+2)
+	transportSteps := resolutionAdjustedPrecipSteps(precipInlandTransportSteps, len(vertices)) +
+		resolutionAdjustedPrecipSteps(2, len(vertices))
+	upwindLandSteps := computeUpwindLandStepCounts(parent, strength, elevation, seaLevelThreshold, transportSteps)
 
 	raw := make([]float64, len(vertices))
 	shiftDeg := SeasonalThermalEquatorShiftDeg(solar)
@@ -151,7 +153,7 @@ func computeSeasonalStormBandSupportField(
 		}
 		travel := 0.0
 		if i < len(upwindLandSteps) && upwindLandSteps[i] >= 0 {
-			travel = Clamp(float64(upwindLandSteps[i])/float64(precipInlandTransportSteps+2), 0, 1)
+			travel = Clamp(float64(upwindLandSteps[i])/float64(transportSteps), 0, 1)
 		}
 		corridor := transportCorridorWeight(travel)
 		onshore := coastalOnshoreScore(i, vertices, elevation, seaLevelThreshold, adj, wind)
@@ -211,7 +213,13 @@ func computeSeasonalStormMemoryField(
 		return nil
 	}
 	current := append([]float64(nil), field...)
-	for iter := 0; iter < seasonalDynamicStormMemoryIters; iter++ {
+	// Each iteration advects strictly one hop upwind, so the iteration count is
+	// scaled to hold the physical propagation span fixed, and the per-hop carry
+	// is raised to the physical hop length so the memory's e-folding distance is
+	// resolution independent. Exact no-op at the L5 baseline.
+	iterations := resolutionAdjustedPrecipSteps(seasonalDynamicStormMemoryIters, len(vertices))
+	carryPerHop := precipitationPerStepFactor(seasonalDynamicStormMemoryCarry, len(vertices))
+	for iter := 0; iter < iterations; iter++ {
 		next := append([]float64(nil), current...)
 		for i := range current {
 			if i >= len(elevation) || elevation[i] < seaLevelThreshold {
@@ -225,7 +233,7 @@ func computeSeasonalStormMemoryField(
 			if i < len(landInterior) {
 				interior = Clamp(landInterior[i], 0, 1)
 			}
-			carry := seasonalDynamicStormMemoryCarry * (0.30 + 0.70*interior)
+			carry := carryPerHop * (0.30 + 0.70*interior)
 			next[i] = Clamp(
 				(1.0-seasonalDynamicStormMemoryBlend)*current[i]+
 					seasonalDynamicStormMemoryBlend*(0.35*current[i]+carry*upwindMean),
@@ -358,7 +366,9 @@ func seasonalFrontalExposureAt(
 	current := i
 	oceanHits := 0.0
 	stormHits := 0.0
-	for step := 0; step < precipFetchMaxSteps; step++ {
+	fetchSteps := resolutionAdjustedPrecipSteps(precipFetchMaxSteps, len(vertices))
+	stepScale := precipitationPhysicalStepScale(len(vertices))
+	for step := 0; step < fetchSteps; step++ {
 		next, upwindness := strongestUpwindNeighbor(current, vertices, adj, wind)
 		if next < 0 || upwindness <= 0.05 {
 			break
@@ -366,7 +376,12 @@ func seasonalFrontalExposureAt(
 		latDeg := getLatitudeDeg(vertices[next])
 		climateLat := latDeg - SeasonalThermalEquatorShiftDeg(solar)
 		stormWeight := seasonalStormTrackWeight(latDeg, climateLat, summerHemisphere)
-		weight := upwindness / float64(step+1)
+		// Harmonic falloff per physical distance, not per hop. oceanHits and
+		// stormHits are unnormalized sums fed to Clamp(...,0,1), and fetchSteps
+		// already scales with resolution, so the weight carries stepScale as a
+		// per-step measure: without it the sum grows ~2x at L6 and ~4x at L7 for
+		// the same physical fetch. Exact no-op at L5 where stepScale == 1.
+		weight := upwindness * stepScale / (1.0 + float64(step)*stepScale)
 		if elevation[next] < seaLevelThreshold {
 			oceanHits += weight
 		}

@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Callable
 
 
-CACHE_HIT_RE = re.compile(r"^\s+([a-z]+) cache hit:")
+CACHE_HIT_RE = re.compile(r"^\s+([a-z_ ]+) cache hit:")
 CACHE_LOAD_FAILED_RE = re.compile(r"^\s+([a-z_]+) cache load failed")
 TRADE_RE = re.compile(r"multimodalTrade: .*?score=([0-9.]+) volume=([0-9.]+)")
 PHASE_START_RE = re.compile(r"^\s+phase start: layer=([a-z_]+) started_at=(\d+)")
@@ -36,6 +36,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cache", choices=("true", "false"), default="true")
     parser.add_argument("--go-bin", default="/usr/local/go/bin/go")
     parser.add_argument("--gocache", default="/tmp/go-build-cache")
+    parser.add_argument(
+        "--review-arg",
+        action="append",
+        default=[],
+        help="additional argument to pass through to cmd/review_planets; repeat for multiple args",
+    )
     return parser.parse_args()
 
 
@@ -74,7 +80,7 @@ def parse_cache_hits(text: str) -> str:
     for line in text.splitlines():
         match = CACHE_HIT_RE.search(line)
         if match:
-            hits.append(match.group(1))
+            hits.append(match.group(1).replace(" ", "_"))
     return ",".join(hits)
 
 
@@ -132,7 +138,7 @@ def parse_phase_stats(text: str) -> dict[str, dict[str, int]]:
 
 def format_phase_summary(stats: dict[str, dict[str, int]]) -> str:
     parts: list[str] = []
-    for layer in ("terrain", "climate", "derived", "civilization", "maritime", "economy"):
+    for layer in ("terrain", "climate", "derived", "trade_goods", "civilization", "maritime", "economy"):
         layer_stats = stats.get(layer)
         if not layer_stats:
             continue
@@ -173,6 +179,7 @@ def run_seed(
         "-seeds",
         str(seed),
     ]
+    cmd.extend(args.review_arg)
     env = os.environ.copy()
     env["GOCACHE"] = args.gocache
 

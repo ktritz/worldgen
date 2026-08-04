@@ -50,3 +50,21 @@ func TestComputeLocalRelief(t *testing.T) {
 		t.Fatalf("expected relief 60, got %.2f", relief[1])
 	}
 }
+
+func TestComputeLocalReliefScalesByMeshResolution(t *testing.T) {
+	cellCount := 40962
+	cells := make([]VoronoiCell, cellCount)
+	for i := range cells {
+		cells[i].SiteIndex = int32(i)
+	}
+	cells[0].NeighborSiteIndices = []int32{1}
+	cells[1].NeighborSiteIndices = []int32{0}
+	elevation := make([]float64, cellCount)
+	elevation[0] = 100
+	elevation[1] = 130
+
+	relief := computeLocalRelief(cells, elevation, 0)
+	if relief[0] < 59 || relief[0] > 61 {
+		t.Fatalf("expected refined-cell relief to scale to about 60, got %.2f", relief[0])
+	}
+}

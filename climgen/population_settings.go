@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-const PopulationSupportSchemaVersion = "population-support/v1"
+const PopulationSupportSchemaVersion = "population-support/v2"
 
 type PopulationSupportSettings struct {
 	SchemaVersion string `json:"schemaVersion"`
@@ -16,6 +16,8 @@ type PopulationSupportSettings struct {
 	TradeMultiplier    float64 `json:"tradeMultiplier"`
 	ResourceMultiplier float64 `json:"resourceMultiplier"`
 	UrbanMultiplier    float64 `json:"urbanMultiplier"`
+	CatchmentHops      int     `json:"catchmentHops"`
+	CatchmentBlend     float64 `json:"catchmentBlend"`
 
 	SparseThreshold     float64 `json:"sparseThreshold"`
 	RuralThreshold      float64 `json:"ruralThreshold"`
@@ -32,6 +34,8 @@ func DefaultPopulationSupportSettings() PopulationSupportSettings {
 		TradeMultiplier:    1.00,
 		ResourceMultiplier: 0.96,
 		UrbanMultiplier:    1.08,
+		CatchmentHops:      1,
+		CatchmentBlend:     0.0,
 
 		SparseThreshold:     0.18,
 		RuralThreshold:      0.34,
@@ -68,6 +72,7 @@ func ValidatePopulationSupportSettings(settings PopulationSupportSettings) error
 		"tradeMultiplier":     settings.TradeMultiplier,
 		"resourceMultiplier":  settings.ResourceMultiplier,
 		"urbanMultiplier":     settings.UrbanMultiplier,
+		"catchmentBlend":      settings.CatchmentBlend,
 		"sparseThreshold":     settings.SparseThreshold,
 		"ruralThreshold":      settings.RuralThreshold,
 		"denseRuralThreshold": settings.DenseRuralThreshold,
@@ -85,6 +90,12 @@ func ValidatePopulationSupportSettings(settings PopulationSupportSettings) error
 	}
 	if settings.UrbanThreshold <= settings.RuralThreshold {
 		return fmt.Errorf("urbanThreshold must exceed ruralThreshold")
+	}
+	if settings.CatchmentHops < 0 {
+		return fmt.Errorf("catchmentHops cannot be negative")
+	}
+	if settings.CatchmentBlend < 0 || settings.CatchmentBlend > 1 {
+		return fmt.Errorf("catchmentBlend must be between 0 and 1")
 	}
 	return nil
 }

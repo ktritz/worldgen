@@ -280,9 +280,18 @@ func placeVolcanicArcs(
 ) {
 	numRegions := len(cells)
 
+	// Iterate trench regions in sorted order: the greedy spacing filter below is
+	// order-sensitive, and Go map iteration order is randomized, so iterating
+	// the map directly would make arc placement nondeterministic per seed.
+	trenchRegions := make([]int, 0, len(trenchR))
+	for trenchRegion := range trenchR {
+		trenchRegions = append(trenchRegions, trenchRegion)
+	}
+	sort.Ints(trenchRegions)
+
 	usedArcSites := make([]int, 0, len(trenchR))
 	arcCenters := make(map[int]bool, len(trenchR))
-	for trenchRegion := range trenchR {
+	for _, trenchRegion := range trenchRegions {
 		tooClose := false
 		for _, usedArc := range usedArcSites {
 			if Distance(sites[trenchRegion], sites[usedArc]) < ArcSeedSpacingRadians {

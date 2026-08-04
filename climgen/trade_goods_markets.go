@@ -155,7 +155,7 @@ func localTradeNodeContribution(
 		if !ok {
 			continue
 		}
-		localPotential := nodeCatchmentPotential(cells, node.CellIndex, localTradeNodeRawCatchmentRadius(spec), endowment.Potential)
+		localPotential := nodeCatchmentPotential(cells, node.CellIndex, resolutionAdjustedCatchmentRadius(localTradeNodeRawCatchmentRadius(spec), len(cells)), endowment.Potential)
 		if localPotential <= 0 {
 			continue
 		}
@@ -254,9 +254,10 @@ func applyMarketDemandShaping(
 			continue
 		}
 		categoryScale := tradeGoodsCategorySetting(demandSettings.MarketCategoryDemandScale, spec.Category, 1.0)
+		goodScale := tradeGoodsCategorySetting(demandSettings.MarketGoodDemandScale, spec.Name, 1.0)
 		wealthPull := 1 + tradeGoodsCategorySetting(demandSettings.MarketWealthPullScale, spec.Category, 0.0)*wealthSignal
 		feederPull := 1 + tradeGoodsCategorySetting(demandSettings.MarketFeederPullScale, spec.Category, 0.0)*feederSignal
-		market.Demand[spec.Name] = clamp01(base * categoryScale * wealthPull * feederPull)
+		market.Demand[spec.Name] = clamp01(base * categoryScale * goodScale * wealthPull * feederPull)
 	}
 }
 
@@ -299,7 +300,7 @@ func localTradeNodeRawPotentials(
 		if !ok {
 			continue
 		}
-		out[spec.Name] = nodeCatchmentPotential(cells, node.CellIndex, localTradeNodeRawCatchmentRadius(spec), endowment.Potential)
+		out[spec.Name] = nodeCatchmentPotential(cells, node.CellIndex, resolutionAdjustedCatchmentRadius(localTradeNodeRawCatchmentRadius(spec), len(cells)), endowment.Potential)
 	}
 	return out
 }

@@ -60,3 +60,86 @@ func TestBuildPolitySpheresCreatesCapitalClaims(t *testing.T) {
 		t.Fatalf("expected capital cell to belong to a polity sphere")
 	}
 }
+
+func TestFinalizePolitySpheresUsesEquivalentTerritoryArea(t *testing.T) {
+	cellCount := 40962
+	diagnostics := &PolitySphereDiagnostics{
+		PolityByCell:  make([]int, cellCount),
+		InfluenceCost: make([]float64, cellCount),
+	}
+	for i := range diagnostics.PolityByCell {
+		diagnostics.PolityByCell[i] = -1
+	}
+	for i := 0; i < 20; i++ {
+		diagnostics.PolityByCell[i] = 0
+	}
+	population := &PopulationResult{Diagnostics: &PopulationDiagnostics{CarryingCapacity: make([]float64, cellCount)}}
+	settings := DefaultPolitySphereSettings()
+	settings.MinTerritoryCells = 18
+
+	filtered := finalizePolitySpheres([]PolitySphere{{ID: 0}}, diagnostics, population, settings)
+	if len(filtered) != 0 {
+		t.Fatalf("expected high-resolution twenty-cell polity fragment to be filtered by equivalent area, got %d spheres", len(filtered))
+	}
+}
+
+func TestPolitySphereSeedsDiscountWeakPhysicalSecondaryHubs(t *testing.T) {
+	network := &SettlementNetworkResult{
+		Nodes: []SettlementNode{
+			{ID: 0, CellIndex: 0, Kind: SettlementNodeTown, PhysicalSupportArea: 1.0},
+			{ID: 1, CellIndex: 1, Kind: SettlementNodeTown, PhysicalSupportArea: 0.25},
+			{ID: 2, CellIndex: 2, Kind: SettlementNodeTown, PhysicalSupportArea: 1.0},
+		},
+		Links: []SettlementLink{
+			{From: 0, To: 1, TravelCost: 9.0},
+			{From: 0, To: 2, TravelCost: 9.0},
+		},
+	}
+	proto := &ProtoCivilizationResult{Civilizations: []ProtoCivilization{
+		{ID: 0, CenterNode: 0, TerritoryCells: 200},
+	}}
+	trade := &TradeNetworkResult{Diagnostics: &TradeNetworkDiagnostics{
+		CivilizationByNode: []int{0, 0, 0},
+		HubScore:           []float64{0, 1.0, 0.99},
+	}}
+	settings := DefaultPolitySphereSettings()
+
+	spheres := politySphereSeeds(network, proto, trade, settings)
+	if len(spheres) != 2 {
+		t.Fatalf("expected primary plus one physically supported secondary sphere, got %d", len(spheres))
+	}
+	if spheres[1].CapitalNode != 2 {
+		t.Fatalf("expected physically supported secondary capital node 2, got %d", spheres[1].CapitalNode)
+	}
+}
+
+func TestAssignPolityNodeOwnershipFallsBackToProtoOwner(t *testing.T) {
+	network := &SettlementNetworkResult{
+		Nodes: []SettlementNode{
+			{ID: 0, CellIndex: 0},
+			{ID: 1, CellIndex: 1},
+			{ID: 2, CellIndex: 2},
+		},
+	}
+	trade := &TradeNetworkResult{Diagnostics: &TradeNetworkDiagnostics{
+		CivilizationByNode: []int{0, 0, 1},
+	}}
+	diagnostics := &PolitySphereDiagnostics{
+		PolityByCell:  []int{0, -1, -1},
+		CapitalByNode: make([]bool, 3),
+		PolityByNode:  []int{-1, -1, -1},
+	}
+	spheres := []PolitySphere{
+		{ID: 0, ProtoCivilizationID: 0, CapitalNode: 0, TerritoryCells: 20},
+		{ID: 1, ProtoCivilizationID: 1, CapitalNode: 2, TerritoryCells: 18},
+	}
+
+	assignPolityNodeOwnership(network, trade, spheres, diagnostics)
+
+	if diagnostics.PolityByNode[1] != 0 {
+		t.Fatalf("expected unclaimed node to fall back to primary polity for its proto, got %d", diagnostics.PolityByNode[1])
+	}
+	if diagnostics.PolityByNode[2] != 1 || !diagnostics.CapitalByNode[2] {
+		t.Fatalf("expected capital node ownership to be preserved, got owner=%d capital=%v", diagnostics.PolityByNode[2], diagnostics.CapitalByNode[2])
+	}
+}

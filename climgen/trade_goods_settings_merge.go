@@ -89,6 +89,11 @@ func (settings TradeGoodsMultimodalSettings) withDefaults() TradeGoodsMultimodal
 			defaults.EndpointNeedShareByCategory[category] = value
 		}
 	}
+	for category, value := range settings.EndpointSurplusReliefByCategory {
+		if value >= 0 {
+			defaults.EndpointSurplusReliefByCategory[category] = value
+		}
+	}
 	for category, curve := range settings.LocalNeedResponse {
 		if curve.Base == 0 && curve.Slope == 0 {
 			continue
@@ -210,9 +215,19 @@ func (settings TradeGoodsDemandSettings) withDefaults() TradeGoodsDemandSettings
 			defaults.CategoryDemandScale[category] = value
 		}
 	}
+	for good, value := range settings.GoodDemandScale {
+		if value > 0 {
+			defaults.GoodDemandScale[good] = value
+		}
+	}
 	for category, value := range settings.LocalSupplyReliefByCategory {
 		if value >= 0 {
 			defaults.LocalSupplyReliefByCategory[category] = value
+		}
+	}
+	for good, value := range settings.LocalSupplyReliefByGood {
+		if value >= 0 {
+			defaults.LocalSupplyReliefByGood[good] = value
 		}
 	}
 	for category, value := range settings.DriverSpecializationScale {
@@ -223,6 +238,11 @@ func (settings TradeGoodsDemandSettings) withDefaults() TradeGoodsDemandSettings
 	for category, value := range settings.MarketCategoryDemandScale {
 		if value > 0 {
 			defaults.MarketCategoryDemandScale[category] = value
+		}
+	}
+	for good, value := range settings.MarketGoodDemandScale {
+		if value > 0 {
+			defaults.MarketGoodDemandScale[good] = value
 		}
 	}
 	for category, value := range settings.MarketWealthPullScale {

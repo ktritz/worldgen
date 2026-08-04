@@ -110,7 +110,13 @@ func computeTransportChunk(
 
 		if D > 1e-12 && len(neighbors) > 0 {
 			lat := math.Abs(v_i.Y) // sin(latitude) for unit sphere
-			latScale := 1.0 + 0.5*math.Sin(2*math.Asin(lat))
+			// sin(2*asin(y)) == 2*y*sqrt(1-y^2); the identity avoids an asin and
+			// a sin per vertex per energy-balance iteration.
+			latSq := lat * lat
+			if latSq > 1 {
+				latSq = 1
+			}
+			latScale := 1.0 + lat*math.Sqrt(1-latSq)
 
 			sumTemp := 0.0
 			count := 0

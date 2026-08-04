@@ -60,6 +60,7 @@ func computePolityGoods(
 	if goods.Diagnostics != nil && len(goods.Diagnostics.ScarcityByGood) > 0 {
 		out.GlobalScarcityByGood = cloneFloatMap(goods.Diagnostics.ScarcityByGood)
 	}
+	meshCellCount := len(polities.Diagnostics.PolityByCell)
 	for _, sphere := range polities.Spheres {
 		assignment := profileByPolity[sphere.ID]
 		balance := PolityGoodBalance{
@@ -76,7 +77,7 @@ func computePolityGoods(
 				supply = clamp01(0.50*supply + 0.50*nodeSupplyMeanByPolity[sphere.ID][spec.Name])
 			}
 			balance.Supply[spec.Name] = supply
-			demand := polityGoodDemand(spec, sphere, assignment, network, trade, balance.Supply, balance.MarketWealth, scarcity, tuning, demandSettings)
+			demand := polityGoodDemand(spec, sphere, assignment, network, trade, balance.Supply, balance.MarketWealth, scarcity, tuning, demandSettings, meshCellCount)
 			if len(spec.Inputs) > 0 && nodeDemandMeanByPolity != nil {
 				demand = clamp01(0.50*demand + 0.50*nodeDemandMeanByPolity[sphere.ID][spec.Name])
 			}
@@ -188,8 +189,9 @@ func polityGoodDemand(
 	scarcity float64,
 	tuning TradeGoodsScarcitySettings,
 	demandSettings TradeGoodsDemandSettings,
+	meshCellCount int,
 ) float64 {
-	popScale := clamp01(0.42*sphere.MeanSupport/0.45 + 0.28*math.Sqrt(math.Max(float64(sphere.TerritoryCells), 0))/18.0 + 0.30*polityCapitalTier(sphere, network))
+	popScale := clamp01(0.42*sphere.MeanSupport/0.45 + 0.28*meshScaledTerritoryLinearCells(sphere.TerritoryCells, meshCellCount)/18.0 + 0.30*polityCapitalTier(sphere, network))
 	valueDemand := clamp01(0.25 + 0.55*spec.BaseValue + 0.20*(1-spec.Bulkiness))
 	categoryDemand := tradeGoodCategoryDemand(spec.Category)
 	driverDemand := profileDemandDrivers(spec.DemandDrivers, sphere, assignment, network, trade)
@@ -197,10 +199,11 @@ func polityGoodDemand(
 	scarcityDemand := scarcityDemandPressureWithSettings(spec, scarcity, tuning)
 	profileAffinity := profileGoodAffinity(spec.ProfileDemandAffinity, assignment)
 	base := 0.24*popScale + 0.16*valueDemand + 0.14*categoryDemand + 0.12*driverDemand + 0.18*wealthDemand + 0.16*scarcityDemand
-	localRelief := tradeGoodsDemandRelief(spec.Category, currentSupply[spec.Name], demandSettings)
+	localRelief := tradeGoodsDemandRelief(spec, currentSupply[spec.Name], demandSettings)
 	driverSpecialization := tradeGoodsDriverDemandMultiplier(spec.Category, driverDemand, demandSettings)
 	categoryScale := tradeGoodsCategorySetting(demandSettings.CategoryDemandScale, spec.Category, 1.0)
-	return clamp01(base * categoryScale * driverSpecialization * localRelief * profileAffinity)
+	goodScale := tradeGoodsCategorySetting(demandSettings.GoodDemandScale, spec.Name, 1.0)
+	return clamp01(base * categoryScale * goodScale * driverSpecialization * localRelief * profileAffinity)
 }
 
 func polityMeanPotential(polityID int, potential []float64, polities *PolitySphereResult) float64 {
@@ -226,7 +229,7 @@ func polityCapitalTier(sphere PolitySphere, network *SettlementNetworkResult) fl
 	if network == nil || sphere.CapitalNode < 0 || sphere.CapitalNode >= len(network.Nodes) {
 		return 0.30
 	}
-	return clamp01(float64(network.Nodes[sphere.CapitalNode].Kind) / 3.0)
+	return clamp01(settlementNodeEffectiveRank(network.Nodes[sphere.CapitalNode]) / 3.0)
 }
 
 func polityTradeAccess(sphere PolitySphere, trade *TradeNetworkResult) float64 {

@@ -22,7 +22,7 @@ func addWaystationBridges(
 		nodeByCell[node.CellIndex] = i
 	}
 	degree := make([]int, len(nodes))
-	initialLinks := buildSettlementLinks(cells, nodes, movementCost, settlements, resources, settings)
+	initialLinks := buildSettlementLinks(cells, nodes, movementCost, settlements, resources, settings, nil)
 	for _, link := range initialLinks {
 		degree[link.From]++
 		degree[link.To]++
@@ -32,7 +32,7 @@ func addWaystationBridges(
 		if degree[i] > 0 {
 			continue
 		}
-		if node.Kind < SettlementNodeTown && !(node.Kind == SettlementNodeVillage && node.CarryingCapacity >= settings.TownThreshold-0.02) {
+		if node.Kind < SettlementNodeTown && !(node.Kind == SettlementNodeVillage && node.CarryingCapacity >= SettlementCarryingKindThreshold(SettlementNodeTown, settings)-0.02) {
 			continue
 		}
 		maxTravel := nodeTravelLimit(node.Kind, settings) * 1.8
@@ -42,7 +42,7 @@ func addWaystationBridges(
 			continue
 		}
 		path := reconstructSettlementPath(node.CellIndex, nodes[targetIdx].CellIndex, prev)
-		if len(path) < 4 {
+		if settlementPathLengthDeg(path, sites) < settings.HamletSpacingDeg {
 			continue
 		}
 		bridgeCells := selectWaystationCells(path, sites, nodeByCell, settlements, population, elevation, seaLevel, settings)
@@ -61,14 +61,15 @@ func addWaystationBridges(
 			}
 			nodeByCell[cellIdx] = len(nodes)
 			nodes = append(nodes, SettlementNode{
-				ID:               len(nodes),
-				CellIndex:        cellIdx,
-				Kind:             kind,
-				Score:            clamp01(0.58*carrying + 0.42*urban),
-				CarryingCapacity: carrying,
-				UrbanPotential:   urban,
-				Coastal:          settlements.Diagnostics.CoastalBonus[cellIdx] >= 0.16,
-				River:            settlements.Diagnostics.RiverBonus[cellIdx] >= 0.24,
+				ID:                  len(nodes),
+				CellIndex:           cellIdx,
+				Kind:                kind,
+				Score:               clamp01(0.58*carrying + 0.42*urban),
+				CarryingCapacity:    carrying,
+				UrbanPotential:      urban,
+				PhysicalSupportArea: SettlementNodePhysicalSupportArea(cellIdx, kind, cells, population, settings),
+				Coastal:             settlements.Diagnostics.CoastalBonus[cellIdx] >= 0.16,
+				River:               settlements.Diagnostics.RiverBonus[cellIdx] >= 0.24,
 			})
 		}
 	}
@@ -105,15 +106,16 @@ func selectWaystationCells(
 		return nil
 	}
 	targetFractions := []float64{0.5}
-	if len(path) >= 10 {
+	if settlementPathLengthDeg(path, sites) >= settings.VillageSpacingDeg*1.4 {
 		targetFractions = []float64{0.33, 0.66}
 	}
+	searchRadius := meshResolutionAdjustedSteps(2, len(sites))
 	bridgeCells := make([]int, 0, len(targetFractions))
 	for _, frac := range targetFractions {
 		center := int(frac * float64(len(path)-1))
 		bestCell := -1
 		bestScore := -1.0
-		for offset := -2; offset <= 2; offset++ {
+		for offset := -searchRadius; offset <= searchRadius; offset++ {
 			idx := center + offset
 			if idx <= 0 || idx >= len(path)-1 {
 				continue
@@ -129,7 +131,7 @@ func selectWaystationCells(
 				continue
 			}
 			carrying := population.Diagnostics.CarryingCapacity[cellIdx]
-			if carrying < settings.HamletThreshold {
+			if carrying < SettlementCarryingKindThreshold(SettlementNodeHamlet, settings) {
 				continue
 			}
 			score := 0.65*carrying + 0.35*settlements.Diagnostics.AccessScore[cellIdx]
@@ -143,6 +145,22 @@ func selectWaystationCells(
 		}
 	}
 	return bridgeCells
+}
+
+func settlementPathLengthDeg(path []int, sites []Vector3D) float64 {
+	if len(path) < 2 || len(sites) == 0 {
+		return 0
+	}
+	total := 0.0
+	for i := 1; i < len(path); i++ {
+		prev := path[i-1]
+		cur := path[i]
+		if prev < 0 || prev >= len(sites) || cur < 0 || cur >= len(sites) {
+			continue
+		}
+		total += greatCircleDistanceDeg(sites[prev], sites[cur])
+	}
+	return total
 }
 
 func appendKnownCells(nodeByCell map[int]int, extra []int) []int {

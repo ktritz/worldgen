@@ -8,10 +8,14 @@ import (
 )
 
 type civilizationReviewSettings struct {
-	LandRoutes  climgen.LandRouteSettings
-	RiverRoutes climgen.RiverRouteSettings
-	TradeGoods  climgen.TradeGoodsSettings
-	Profiles    *climgen.ProfileCatalog
+	SettlementNetwork climgen.SettlementNetworkSettings
+	ProtoCivilization climgen.ProtoCivilizationSettings
+	LandRoutes        climgen.LandRouteSettings
+	TradeNetwork      climgen.TradeNetworkSettings
+	RiverRoutes       climgen.RiverRouteSettings
+	RiverTrade        climgen.RiverTradeSettings
+	PolitySpheres     climgen.PolitySphereSettings
+	Profiles          *climgen.ProfileCatalog
 }
 
 type maritimeReviewSettings struct {
@@ -50,9 +54,10 @@ func loadOrGenerateCivilizationReview(
 	if derived == nil || derived.Settlement == nil || derived.Population == nil || derived.Biome == nil || derived.Soils == nil {
 		return out, cacheKey
 	}
-	out.Network = computeSettlementNetwork(sites, cells, derived.Settlement, derived.Population, derived.Biome, derived.Soils, derived.Resources, elevation)
+	hydro := resolutionAdjustedHydrologyBiomeInputsFromScaffold(cells, elevation, diagnostics.Hydrology.Scaffold)
+	out.Network = computeSettlementNetwork(sites, cells, derived.Settlement, derived.Population, derived.Biome, derived.Soils, derived.Resources, elevation, settings.SettlementNetwork)
 	if out.Network != nil {
-		out.Proto = computeProtoCivilizations(cells, out.Network, derived.Settlement, derived.Population, derived.Biome, derived.Soils, elevation)
+		out.Proto = computeProtoCivilizations(cells, out.Network, derived.Settlement, derived.Population, derived.Biome, derived.Soils, elevation, settings.ProtoCivilization)
 		out.LandRoutes = computeLandRoutes(
 			derived.Settlement,
 			derived.Population,
@@ -62,30 +67,26 @@ func loadOrGenerateCivilizationReview(
 			derived.Wildlife,
 			derived.WaterResources,
 			elevation,
-			hydrologyBiomeInputsFromScaffold(diagnostics.Hydrology.Scaffold),
+			hydro,
 			settings.LandRoutes,
 		)
 		if out.Proto != nil && out.LandRoutes != nil {
-			out.Trade = computeTradeNetwork(cells, out.Network, out.Proto, out.LandRoutes)
+			out.Trade = computeTradeNetwork(cells, out.Network, out.Proto, out.LandRoutes, settings.TradeNetwork)
 			out.RiverRoutes = computeRiverRoutes(
 				derived.Settlement,
 				derived.Population,
 				derived.Soils,
 				derived.WaterResources,
 				elevation,
-				hydrologyBiomeInputsFromScaffold(diagnostics.Hydrology.Scaffold),
+				hydro,
 				settings.RiverRoutes,
 			)
 			if out.RiverRoutes != nil {
-				out.RiverTrade = computeRiverTrade(cells, out.Network, out.Proto, out.RiverRoutes, elevation)
+				out.RiverTrade = computeRiverTrade(cells, out.Network, out.Proto, out.RiverRoutes, elevation, settings.RiverTrade)
 			}
-			out.Polities = computePolitySpheres(cells, out.Network, out.Proto, out.Trade, derived.Population, derived.Settlement, elevation)
+			out.Polities = computePolitySpheres(cells, out.Network, out.Proto, out.Trade, derived.Population, derived.Settlement, elevation, settings.PolitySpheres)
 			if out.Polities != nil {
-				out.Profiles = computePolityProfiles(cells, out.Polities, out.Network, out.Trade, derived.Biome, derived.Vegetation, derived.Soils, diagnostics.Hydrology.Scaffold, settings.Profiles)
-				if derived.TradeGoods != nil && out.Profiles != nil {
-					out.NodeGoods = climgen.ComputeNodeGoods(cells, derived.TradeGoods, settings.TradeGoods, out.Polities, out.Profiles, out.Network, out.Trade)
-					out.PolityGoods = climgen.ComputePolityGoodsWithNodeMarkets(derived.TradeGoods, settings.TradeGoods, out.Polities, out.Profiles, out.Network, out.Trade, out.NodeGoods)
-				}
+				out.Profiles = computePolityProfiles(cells, out.Polities, out.Network, out.Trade, derived.Biome, derived.Vegetation, derived.Soils, hydro, settings.Profiles)
 			}
 		}
 	}
@@ -127,6 +128,7 @@ func loadOrGenerateMaritimeReview(
 	if civilization == nil || civilization.Network == nil || civilization.Trade == nil || civilization.Proto == nil || derived == nil {
 		return out, cacheKey
 	}
+	hydro := resolutionAdjustedHydrologyBiomeInputsFromScaffold(cells, elevation, diagnostics.Hydrology.Scaffold)
 	out.CoastalPorts = computeCoastalPorts(
 		cells,
 		climate,
@@ -137,7 +139,7 @@ func loadOrGenerateMaritimeReview(
 		civilization.RiverRoutes,
 		derived.Soils,
 		elevation,
-		diagnostics.Hydrology.Scaffold,
+		hydro,
 		settings.Routes,
 		settings.Ports,
 	)
@@ -177,7 +179,7 @@ func loadOrGenerateEconomyReview(
 	civilizationKey string,
 	maritimeKey string,
 	cells []climgen.VoronoiCell,
-	derived *cachedDerivedReview,
+	tradeGoods *climgen.TradeGoodResult,
 	civilization *cachedCivilizationReview,
 	maritime *cachedMaritimeReview,
 	settings climgen.TradeGoodsSettings,
@@ -195,32 +197,40 @@ func loadOrGenerateEconomyReview(
 		}
 	}
 	out := &cachedEconomyReview{}
-	if civilization == nil || derived == nil || derived.TradeGoods == nil || civilization.Polities == nil || civilization.Profiles == nil || civilization.Network == nil || civilization.Trade == nil || civilization.PolityGoods == nil || civilization.NodeGoods == nil {
+	if civilization == nil || tradeGoods == nil || civilization.Polities == nil || civilization.Profiles == nil || civilization.Network == nil || civilization.Trade == nil {
 		return out, cacheKey
+	}
+	out.NodeGoods = climgen.ComputeNodeGoods(cells, tradeGoods, settings, civilization.Polities, civilization.Profiles, civilization.Network, civilization.Trade)
+	out.PolityGoods = climgen.ComputePolityGoodsWithNodeMarkets(tradeGoods, settings, civilization.Polities, civilization.Profiles, civilization.Network, civilization.Trade, out.NodeGoods)
+	var coastalTrade *climgen.CoastalTradeResult
+	var oceanTrade *climgen.OceanTradeResult
+	if maritime != nil {
+		coastalTrade = maritime.CoastalTrade
+		oceanTrade = maritime.OceanTrade
 	}
 	out.NodeMarkets = climgen.ComputeTradeNodeMarketsWithRouteSupport(
 		cells,
-		derived.TradeGoods,
+		tradeGoods,
 		settings,
 		civilization.Polities,
 		civilization.Profiles,
 		civilization.Network,
 		civilization.Trade,
 		civilization.RiverTrade,
-		maritime.CoastalTrade,
-		maritime.OceanTrade,
-		civilization.PolityGoods,
-		civilization.NodeGoods,
+		coastalTrade,
+		oceanTrade,
+		out.PolityGoods,
+		out.NodeGoods,
 	)
 	out.Multimodal = climgen.ComputeMultimodalTradeWithNodeMarkets(
-		civilization.PolityGoods,
+		out.PolityGoods,
 		settings,
 		civilization.Polities,
 		civilization.Network,
 		civilization.Trade,
 		civilization.RiverTrade,
-		maritime.CoastalTrade,
-		maritime.OceanTrade,
+		coastalTrade,
+		oceanTrade,
 		out.NodeMarkets,
 	)
 	if cacheStore != nil {

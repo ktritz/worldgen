@@ -530,6 +530,47 @@ type TerrainRefinementScaffold struct {
 type PlanetGenerationDiagnostics struct {
 	HotspotChains []HotspotChain       `json:"hotspotChains"`
 	Hydrology     HydrologyDiagnostics `json:"hydrology"`
+	// Not serialized: these are ten per-cell arrays, so caching them adds tens
+	// of MB per seed at L7 and passes every element through the reflective
+	// cache sanitizer. Nothing consumes them yet; give this a json tag when a
+	// consumer lands and is worth the cache cost.
+	Tectonics TectonicDiagnostics `json:"-"`
+}
+
+// TectonicDiagnostics exports the plate scaffolding that terrain generation
+// already computes internally and previously discarded. It carries the plate
+// assignment plus the per-cell distance fields to each boundary class, which is
+// the structural context a later lithology / crustal-age pass needs without
+// rerunning any part of the tectonic simulation.
+//
+// All distance fields are graph-hop distances over the Voronoi neighbor graph,
+// each restricted to the domain it is meaningful in: DistFromCoast,
+// DistFromMountain, DistFromCollision, DistFromArc and DistFromRift propagate
+// through continental cells only, while OceanDistFromCoast, DistFromRidge and
+// DistFromTrench propagate through oceanic cells only. Cells outside a field's
+// domain, or with no reachable seed of that class, hold
+// TectonicDistanceUnreachable instead of +Inf so the struct stays
+// JSON-encodable.
+type TectonicDiagnostics struct {
+	NumPlates          int       `json:"numPlates"`
+	NumOceanicPlates   int       `json:"numOceanicPlates"`
+	PlateID            []int     `json:"plateId"`
+	PlateIsOcean       []bool    `json:"plateIsOcean"`
+	CoastlineSeeds     int       `json:"coastlineSeeds"`
+	MountainSeeds      int       `json:"mountainSeeds"`
+	CollisionSeeds     int       `json:"collisionSeeds"`
+	ArcSeeds           int       `json:"arcSeeds"`
+	RidgeSeeds         int       `json:"ridgeSeeds"`
+	TrenchSeeds        int       `json:"trenchSeeds"`
+	RiftSeeds          int       `json:"riftSeeds"`
+	DistFromCoast      []float64 `json:"distFromCoast"`
+	OceanDistFromCoast []float64 `json:"oceanDistFromCoast"`
+	DistFromMountain   []float64 `json:"distFromMountain"`
+	DistFromCollision  []float64 `json:"distFromCollision"`
+	DistFromArc        []float64 `json:"distFromArc"`
+	DistFromRidge      []float64 `json:"distFromRidge"`
+	DistFromTrench     []float64 `json:"distFromTrench"`
+	DistFromRift       []float64 `json:"distFromRift"`
 }
 
 // --- Scoring Weights ---

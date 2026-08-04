@@ -35,6 +35,28 @@ Top-level sections:
 - `demand`
 - `goods`
 
+The `demand` section supports category-wide and per-good controls:
+- `categoryDemandScale`
+- `goodDemandScale`
+- `localSupplyReliefByCategory`
+- `localSupplyReliefByGood`
+- `driverSpecializationScale`
+- `marketCategoryDemandScale`
+- `marketGoodDemandScale`
+- `marketWealthPullScale`
+- `marketFeederPullScale`
+- `driverSpecializationPivot`
+
+The `multimodal` section supports:
+- `capacityScaleByMode`
+- `capacityFactorByMode`
+- `volumeBaseByMode`
+- `endpointNeedShareByCategory`
+- `endpointSurplusReliefByCategory`
+- `localNeedResponse`
+- `globalRarityResponse`
+- market wealth and feeder scaling fields
+
 Each `goods[]` entry uses:
 - `name`
 - `category`
@@ -69,6 +91,29 @@ Maritime vessels and route settings:
   - `config/coastal_trade_earthlike.json`
   - `config/ocean_trade_earthlike.json`
 
+Ocean trade stopover selection includes:
+- `maxStopovers`
+- `stopoverScoreFloor`
+- `stopoverSpacingHops`
+
+Ocean trade port candidate selection includes:
+- `candidatePortThreshold`
+- `candidateSecondaryPortFloor`
+- `candidatePhysicalDeepwaterFloor`
+- `maxCandidatePortsPerCivilization`
+
+Maritime port stopover node selection includes:
+- `stopoverSelection.minStopoverValue`
+- `stopoverSelection.minPortSuitability`
+- `stopoverSelection.scoreFloor`
+- `stopoverSelection.stopoverValueWeight`
+- `stopoverSelection.portSuitabilityWeight`
+- `stopoverSelection.oceanExposureWeight`
+- `stopoverSelection.landScarcityWeight`
+- `stopoverSelection.fullComponentAreaEq`
+- `stopoverSelection.minComponentScoreFactor`
+- `stopoverSelection.componentTaperPower`
+
 ## Resources And Population
 
 Resource abundance:
@@ -79,9 +124,16 @@ Resource abundance:
 
 Population support:
 - Schema/types:
-  - `climgen/population_support_settings.go`
+  - `climgen/population_settings.go`
 - Pack:
   - `config/population_support_earthlike.json`
+
+Population support includes optional catchment smoothing fields for blending
+cell-local food, water, trade, resource, suitability, and hazard inputs over a
+physical neighborhood. The current earthlike pack keeps this disabled with
+`catchmentBlend: 0.0` while upstream resolution fixes are validated:
+- `catchmentHops`
+- `catchmentBlend`
 
 ## Profiles
 
@@ -101,6 +153,7 @@ Current review cache layers are:
 - terrain
 - climate
 - derived
+- trade_goods
 - civilization
 - maritime
 - economy

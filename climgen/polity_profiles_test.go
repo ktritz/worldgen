@@ -107,9 +107,9 @@ func TestPolityTerritorialRivalryPenalizesCrowdedSameNicheBorders(t *testing.T) 
 	fromSphere := PolitySphere{ID: 1, TerritoryCells: 86, MeanSupport: 0.22}
 	toSphere := PolitySphere{ID: 2, TerritoryCells: 92, MeanSupport: 0.24}
 
-	rivalry := polityTerritorialRivalryPenalty(fromSphere, toSphere, from, to, 0.36, 0, nil)
-	buffered := polityTerritorialRivalryPenalty(fromSphere, toSphere, from, to, 0.36, 0.32, nil)
-	noBorder := polityTerritorialRivalryPenalty(fromSphere, toSphere, from, to, 0, 0, nil)
+	rivalry := polityTerritorialRivalryPenalty(fromSphere, toSphere, from, to, 0.36, 0, nil, 0)
+	buffered := polityTerritorialRivalryPenalty(fromSphere, toSphere, from, to, 0.36, 0.32, nil, 0)
+	noBorder := polityTerritorialRivalryPenalty(fromSphere, toSphere, from, to, 0, 0, nil, 0)
 	if rivalry < 0.40 {
 		t.Fatalf("expected crowded same-niche border to create strong rivalry, got %.3f", rivalry)
 	}
@@ -214,6 +214,7 @@ func TestBuildPolityEnvironmentContextDistinguishesFloodplainFromMarsh(t *testin
 			MeanWetland:    0.18,
 			FloodplainFrac: 0.24,
 		},
+		0,
 	)
 	if !hasProfileTag(river.Tags, "floodplain") || !hasProfileTag(river.Tags, "alluvial") || !hasProfileTag(river.Tags, "agrarian") {
 		t.Fatalf("expected floodplain river polity tags, got %v", river.Tags)
@@ -232,6 +233,7 @@ func TestBuildPolityEnvironmentContextDistinguishesFloodplainFromMarsh(t *testin
 			DeltaFrac:        0.12,
 			LakeFrac:         0.10,
 		},
+		0,
 	)
 	if !hasProfileTag(marsh.Tags, "wetland") || !hasProfileTag(marsh.Tags, "marsh") || !hasProfileTag(marsh.Tags, "delta") {
 		t.Fatalf("expected marsh polity tags, got %v", marsh.Tags)
@@ -248,6 +250,7 @@ func TestBuildPolityEnvironmentContextAddsThermalTags(t *testing.T) {
 			MeanIce:    0.02,
 			ForestFrac: 0.28,
 		},
+		0,
 	)
 	if !hasProfileTag(hot.Tags, "hot") {
 		t.Fatalf("expected hot tag for warm polity, got %v", hot.Tags)
@@ -264,12 +267,43 @@ func TestBuildPolityEnvironmentContextAddsThermalTags(t *testing.T) {
 			MeanTemp: 3,
 			MeanIce:  0.08,
 		},
+		0,
 	)
 	if !hasProfileTag(cold.Tags, "cold") {
 		t.Fatalf("expected cold tag for cool polity, got %v", cold.Tags)
 	}
 	if hasProfileTag(cold.Tags, "hot") {
 		t.Fatalf("did not expect hot tag for cool polity, got %v", cold.Tags)
+	}
+}
+
+func TestBuildPolityProfileContextScalesLargePolityByResolution(t *testing.T) {
+	coarse := buildPolityProfileContext(
+		PolitySphere{Style: ProtoCivilizationRiverine, TerritoryCells: 140},
+		&SettlementNetworkResult{},
+		nil,
+		10242,
+	)
+	refinedSameArea := buildPolityProfileContext(
+		PolitySphere{Style: ProtoCivilizationRiverine, TerritoryCells: 560},
+		&SettlementNetworkResult{},
+		nil,
+		40962,
+	)
+	refinedRawOnly := buildPolityProfileContext(
+		PolitySphere{Style: ProtoCivilizationRiverine, TerritoryCells: 140},
+		&SettlementNetworkResult{},
+		nil,
+		40962,
+	)
+	if !hasProfileTag(coarse.Tags, "large-polity") {
+		t.Fatalf("expected coarse physical large-polity tag, got %v", coarse.Tags)
+	}
+	if !hasProfileTag(refinedSameArea.Tags, "large-polity") {
+		t.Fatalf("expected refined equivalent-area large-polity tag, got %v", refinedSameArea.Tags)
+	}
+	if hasProfileTag(refinedRawOnly.Tags, "large-polity") {
+		t.Fatalf("did not expect raw refined cell count alone to trigger large-polity, got %v", refinedRawOnly.Tags)
 	}
 }
 

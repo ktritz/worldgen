@@ -36,6 +36,10 @@ type riverAdjEdge struct {
 	cost      float64
 }
 
+// buildRiverTradeAdjacency and the node-graph path below (riverLinkDirectionalTravelCost,
+// shortestRiverNodePath, buildRiverTradeCorridor) are currently unused by the river trade
+// build, which routes over cells via shortestRiverCellPath instead. Costs here are kept in
+// the same resolution-scaled units as the cell path so the node-graph path stays revivable.
 func buildRiverTradeAdjacency(
 	cells []VoronoiCell,
 	network *SettlementNetworkResult,
@@ -51,7 +55,7 @@ func buildRiverTradeAdjacency(
 		if _, ok := transitNodes[link.To]; !ok {
 			continue
 		}
-		forwardCost, reverseCost := riverLinkDirectionalTravelCost(network, link, riverRoutes, elevation)
+		forwardCost, reverseCost := riverLinkDirectionalTravelCost(network, link, riverRoutes, elevation, len(cells))
 		if !math.IsInf(forwardCost, 1) {
 			adj[link.From] = append(adj[link.From], riverAdjEdge{neighbor: link.To, linkIndex: i, cost: forwardCost})
 		}
@@ -67,6 +71,7 @@ func riverLinkDirectionalTravelCost(
 	link SettlementLink,
 	riverRoutes *RiverRouteResult,
 	elevation []float64,
+	meshCellCount int,
 ) (float64, float64) {
 	if riverRoutes == nil || riverRoutes.Diagnostics == nil {
 		return math.Inf(1), math.Inf(1)
@@ -112,6 +117,11 @@ func riverLinkDirectionalTravelCost(
 		return math.Inf(1), math.Inf(1)
 	}
 	coveragePenalty := 1 + 0.55*(1-coverage)
+	// Per-cell costs accumulate once per traversed cell, so scale the totals to
+	// baseline-mesh units to match shortestRiverCellPath.
+	stepScale := meshPathCostResolutionScale(meshCellCount)
+	totalDown *= stepScale
+	totalUp *= stepScale
 	forwardDownstream := riverLinkForwardIsDownstream(network, link, elevation)
 	if forwardDownstream {
 		return totalDown * coveragePenalty, totalUp * coveragePenalty
