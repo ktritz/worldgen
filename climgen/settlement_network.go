@@ -2,6 +2,7 @@ package climgen
 
 import (
 	"container/heap"
+	"fmt"
 	"math"
 	"sort"
 )
@@ -49,6 +50,12 @@ type SettlementNetworkDiagnostics struct {
 	NodeFormation   SettlementNodeFormationDiagnostics
 	LinkFormation   SettlementLinkFormationDiagnostics
 	RegionFormation RegionFormationDiagnostics
+	// KindCalibrationError is non-empty when the per-level kind calibration
+	// table was rejected and the run fell back to the absolute settings
+	// thresholds. A rejected table is a configuration bug, not a world
+	// property: it is reported here rather than silently classifying against
+	// garbage cut points.
+	KindCalibrationError string
 }
 
 // SettlementFieldDistribution summarizes a per-land-cell support field so the
@@ -160,12 +167,21 @@ type SettlementKindThresholds struct {
 }
 
 // SettlementKindLevelCalibration is one row of the per-level threshold table:
-// the absolute cut points that reproduce the level-5 reference land fractions
-// on a mesh of Cells cells.
+// the resolution correction that reproduces the level-5 reference land
+// fractions on a mesh of Cells cells.
+//
+// The correction is stored as a per-kind multiplier on the absolute settings
+// thresholds, not as an absolute cut point, so the settings stay the tuning
+// knob: raising TownThreshold moves the town cut at every resolution together,
+// and the level-5 row is 1.0 by construction rather than by a rounded
+// coincidence with the constants.
 type SettlementKindLevelCalibration struct {
-	Cells    int
-	Carrying [4]float64
-	Urban    [4]float64
+	Cells int
+	// CarryingScale and UrbanScale are indexed by SettlementNodeKind and
+	// multiply the kind's absolute settings threshold. The city entry is
+	// carried for shape only: the city cut stays absolute at every level.
+	CarryingScale [4]float64
+	UrbanScale    [4]float64
 }
 
 type SettlementNetworkSettings struct {
@@ -174,13 +190,18 @@ type SettlementNetworkSettings struct {
 	TownThreshold    float64
 	CityThreshold    float64
 
-	// KindCalibration holds per-level absolute cut points: for each calibrated
-	// mesh size, the CarryingCapacity / UrbanPotential value that selects the
-	// same mean land fraction at that resolution as the absolute thresholds
-	// above select on the level-5 reference mesh. Entries must be sorted by
-	// Cells; a mesh between two entries interpolates in log cell count and one
-	// outside the range clamps to the nearest entry. An empty table falls back
-	// to the absolute thresholds.
+	// KindCalibration holds the per-level resolution correction: for each
+	// calibrated mesh size, the multiplier on the absolute thresholds above
+	// that selects the same mean land fraction at that resolution as the
+	// unscaled thresholds select on the level-5 reference mesh. Entries must be
+	// sorted by strictly increasing positive Cells and carry finite positive
+	// scales; a mesh between two entries interpolates in log cell count and one
+	// outside the range clamps to the nearest entry. An empty table — or one
+	// that fails ValidateSettlementKindCalibration — falls back to the absolute
+	// thresholds.
+	//
+	// Because the table only scales the settings, the four threshold fields
+	// above remain the tuning knob at every resolution.
 	//
 	// The two fields are calibrated separately because CarryingCapacity and
 	// UrbanPotential have visibly different distributions: at the same absolute
@@ -230,18 +251,27 @@ func DefaultSettlementNetworkSettings() SettlementNetworkSettings {
 	}
 }
 
-// defaultSettlementKindCalibration returns the per-level absolute cut points:
-// for each mesh size, the CarryingCapacity / UrbanPotential value that selects
-// the same mean land fraction as the level-5 absolute thresholds
-// (0.38 / 0.46 / 0.55) select on level-5 meshes.
+// defaultSettlementKindCalibration returns the per-level resolution correction:
+// for each mesh size, the multiplier on the absolute thresholds that makes the
+// CarryingCapacity / UrbanPotential cut select the same mean land fraction as
+// the unscaled thresholds (0.38 / 0.46 / 0.55) select on level-5 meshes.
 //
 // Method: land-cell distributions were measured on reference worlds and the cut
 // point solved per level against the level-5 mean fraction of the *same* seeds,
-// so seed-to-seed habitability differences cancel out of the correction.
-// Level 5 was calibrated on seeds 4, 6, 7, 42, 84, 123 and reproduces the
-// absolute constants exactly (0.3800 / 0.4600 / 0.5500), which is the
-// correctness check on the procedure. Levels 6 and 7 were calibrated on seeds
-// 42 and 123, the two seeds with reference worlds at those resolutions.
+// so seed-to-seed habitability differences cancel out of the correction. The
+// measured absolute cut point was then divided by the level-5 threshold it
+// corrects, giving the scale stored here. Level 5 was calibrated on seeds 4, 6,
+// 7, 42, 84, 123 and reproduced the absolute constants exactly
+// (0.3800 / 0.4600 / 0.5500), i.e. a scale of 1.0 — the correctness check on
+// the procedure. Levels 6 and 7 were calibrated on seeds 42 and 123, the two
+// seeds with reference worlds at those resolutions.
+//
+// The measured absolute cut points these scales reproduce, for reference:
+//
+//	L5 carrying 0.3800 / 0.4600 / 0.5500   urban 0.3800 / 0.4600 / 0.5500
+//	L6 carrying 0.3876 / 0.4705 / 0.5507   urban 0.3890 / 0.4704 / 0.5496
+//	L7 carrying 0.3244 / 0.4714 / 0.5558   urban 0.3544 / 0.4738 / 0.5500
+//	L8 carrying 0.2612 / 0.4723 / 0.5609   urban 0.3198 / 0.4772 / 0.5504
 //
 // The corrections are not monotone in level: the hamlet cut rises slightly from
 // L5 to L6 and then falls sharply at L7 (the fraction above 0.38 drops as fine
@@ -253,14 +283,15 @@ func DefaultSettlementNetworkSettings() SettlementNetworkSettings {
 // count. Treat it as provisional and re-derive it once an L8 world is available.
 //
 // The city column is not calibrated: at level 5 the city cut selects well under
-// one cell per world, so a fraction target there is meaningless. It carries the
-// absolute CityThreshold, which resolveSettlementKindThresholds re-applies.
+// one cell per world, so a fraction target there is meaningless. It stays at
+// 1.0 and resolveSettlementKindThresholds re-pins it to the absolute
+// CityThreshold regardless.
 func defaultSettlementKindCalibration() []SettlementKindLevelCalibration {
 	return []SettlementKindLevelCalibration{
-		{Cells: 10242, Carrying: [4]float64{0.3800, 0.4600, 0.5500, 0.64}, Urban: [4]float64{0.3800, 0.4600, 0.5500, 0.64}},
-		{Cells: 40962, Carrying: [4]float64{0.3876, 0.4705, 0.5507, 0.64}, Urban: [4]float64{0.3890, 0.4704, 0.5496, 0.64}},
-		{Cells: 163842, Carrying: [4]float64{0.3244, 0.4714, 0.5558, 0.64}, Urban: [4]float64{0.3544, 0.4738, 0.5500, 0.64}},
-		{Cells: 655362, Carrying: [4]float64{0.2612, 0.4723, 0.5609, 0.64}, Urban: [4]float64{0.3198, 0.4772, 0.5504, 0.64}},
+		{Cells: 10242, CarryingScale: [4]float64{1.000000, 1.000000, 1.000000, 1.0}, UrbanScale: [4]float64{1.000000, 1.000000, 1.000000, 1.0}},
+		{Cells: 40962, CarryingScale: [4]float64{1.020000, 1.022826, 1.001273, 1.0}, UrbanScale: [4]float64{1.023684, 1.022609, 0.999273, 1.0}},
+		{Cells: 163842, CarryingScale: [4]float64{0.853684, 1.024783, 1.010545, 1.0}, UrbanScale: [4]float64{0.932632, 1.030000, 1.000000, 1.0}},
+		{Cells: 655362, CarryingScale: [4]float64{0.687368, 1.026739, 1.019818, 1.0}, UrbanScale: [4]float64{0.841579, 1.037391, 1.000727, 1.0}},
 	}
 }
 
@@ -290,8 +321,13 @@ func BuildSettlementNetwork(
 		return out
 	}
 
-	// Resolve the calibrated kind thresholds once, before any per-cell work.
-	settings = resolveSettlementKindThresholds(settings, n)
+	// Resolve the calibrated kind thresholds once, before any per-cell work. A
+	// rejected calibration table falls back to the absolute thresholds and is
+	// reported in the diagnostics instead of failing silently.
+	settings, calibrationErr := resolveSettlementKindThresholds(settings, n)
+	if calibrationErr != nil {
+		out.Diagnostics.KindCalibrationError = calibrationErr.Error()
+	}
 	thresholds := settlementKindThresholds(settings)
 	out.KindThresholds = &thresholds
 
@@ -479,37 +515,109 @@ func settlementNodeCandidates(
 // the level-5 absolute thresholds select at level 5. Within a level the cut
 // point is constant, so world-to-world habitability differences survive.
 //
+// Because the table stores a multiplier rather than an absolute cut point, the
+// four threshold settings stay authoritative: at level 5 every scale is 1.0 and
+// the resolved cut points equal the settings exactly, and changing a setting
+// moves that kind's cut at every resolution.
+//
 // This is called once per run; per-cell comparisons then read the cached array.
-func resolveSettlementKindThresholds(settings SettlementNetworkSettings, cellCount int) SettlementNetworkSettings {
+// A calibration table that fails validation is rejected with an error and the
+// caller falls back to the absolute thresholds, which are always finite — a
+// malformed table must never yield NaN cut points, because every threshold
+// comparison against NaN is false and the world would silently come back with
+// no settlement nodes at all.
+func resolveSettlementKindThresholds(settings SettlementNetworkSettings, cellCount int) (SettlementNetworkSettings, error) {
 	if len(settings.KindCalibration) == 0 || cellCount <= 0 {
-		return settings
+		return settings, nil
 	}
-	resolved := interpolateSettlementKindCalibration(settings.KindCalibration, cellCount)
-	// The city cut point stays absolute at every level: at level 5 it selects
-	// well under one cell per world, so a fraction target there is meaningless
-	// and a calibrated value would just track the mesh maximum.
-	resolved.Carrying[SettlementNodeCity] = settings.CityThreshold
-	resolved.Urban[SettlementNodeCity] = settings.CityThreshold
-	enforceNonDecreasing(&resolved.Carrying)
-	enforceNonDecreasing(&resolved.Urban)
+	if err := ValidateSettlementKindCalibration(settings.KindCalibration); err != nil {
+		return settings, err
+	}
+	scale := interpolateSettlementKindCalibration(settings.KindCalibration, cellCount)
+	var resolved SettlementKindThresholds
+	for kind := SettlementNodeHamlet; kind <= SettlementNodeCity; kind++ {
+		absolute := settlementNodeKindThreshold(kind, settings)
+		resolved.Carrying[kind] = absolute * scale.Carrying[kind]
+		resolved.Urban[kind] = absolute * scale.Urban[kind]
+	}
+	enforceSettlementKindThresholdOrder(&resolved.Carrying, settings.CityThreshold)
+	enforceSettlementKindThresholdOrder(&resolved.Urban, settings.CityThreshold)
+	if !settlementKindThresholdsFinite(resolved) {
+		return settings, fmt.Errorf("settlement kind calibration produced non-finite thresholds at %d cells", cellCount)
+	}
 	settings.resolved = &resolved
-	return settings
+	return settings, nil
+}
+
+// ValidateSettlementKindCalibration reports whether a calibration table can be
+// interpolated safely. Callers that build their own table should check it at
+// configuration time; BuildSettlementNetwork also checks it and records the
+// failure in its diagnostics rather than classifying against bad cut points.
+//
+// Cells must be positive and strictly increasing: a zero or negative row makes
+// the log-cell-count span infinite, which passes a naive span > 0 guard and
+// yields a NaN interpolation fraction and NaN thresholds.
+func ValidateSettlementKindCalibration(table []SettlementKindLevelCalibration) error {
+	prev := 0
+	for i, row := range table {
+		if row.Cells <= 0 {
+			return fmt.Errorf("settlement kind calibration row %d has non-positive Cells %d", i, row.Cells)
+		}
+		if row.Cells <= prev {
+			return fmt.Errorf("settlement kind calibration row %d has Cells %d, want strictly greater than the previous row's %d", i, row.Cells, prev)
+		}
+		prev = row.Cells
+		for kind := range row.CarryingScale {
+			if !validSettlementKindScale(row.CarryingScale[kind]) {
+				return fmt.Errorf("settlement kind calibration row %d kind %d has invalid carrying scale %v", i, kind, row.CarryingScale[kind])
+			}
+			if !validSettlementKindScale(row.UrbanScale[kind]) {
+				return fmt.Errorf("settlement kind calibration row %d kind %d has invalid urban scale %v", i, kind, row.UrbanScale[kind])
+			}
+		}
+	}
+	return nil
+}
+
+func validSettlementKindScale(scale float64) bool {
+	return scale > 0 && !math.IsInf(scale, 0)
+}
+
+func settlementKindThresholdsFinite(thresholds SettlementKindThresholds) bool {
+	for kind := range thresholds.Carrying {
+		if math.IsNaN(thresholds.Carrying[kind]) || math.IsInf(thresholds.Carrying[kind], 0) {
+			return false
+		}
+		if math.IsNaN(thresholds.Urban[kind]) || math.IsInf(thresholds.Urban[kind], 0) {
+			return false
+		}
+	}
+	return true
+}
+
+// settlementKindScales holds the per-kind resolution multipliers resolved for a
+// single mesh, in the same [4]float64 layout as the threshold arrays.
+type settlementKindScales struct {
+	Carrying [4]float64
+	Urban    [4]float64
 }
 
 // interpolateSettlementKindCalibration looks up cellCount in the calibration
 // table, interpolating in log cell count between rows and clamping outside the
-// calibrated range. The table is assumed sorted by Cells.
-func interpolateSettlementKindCalibration(table []SettlementKindLevelCalibration, cellCount int) SettlementKindThresholds {
-	var out SettlementKindThresholds
+// calibrated range. The table must already have passed
+// ValidateSettlementKindCalibration, so every Cells value is positive and the
+// log span between two rows is finite and non-zero.
+func interpolateSettlementKindCalibration(table []SettlementKindLevelCalibration, cellCount int) settlementKindScales {
+	var out settlementKindScales
 	if len(table) == 0 {
 		return out
 	}
 	if cellCount <= table[0].Cells {
-		return SettlementKindThresholds{Carrying: table[0].Carrying, Urban: table[0].Urban}
+		return settlementKindScales{Carrying: table[0].CarryingScale, Urban: table[0].UrbanScale}
 	}
 	last := table[len(table)-1]
 	if cellCount >= last.Cells {
-		return SettlementKindThresholds{Carrying: last.Carrying, Urban: last.Urban}
+		return settlementKindScales{Carrying: last.CarryingScale, Urban: last.UrbanScale}
 	}
 	hi := 1
 	for hi < len(table) && table[hi].Cells < cellCount {
@@ -518,20 +626,35 @@ func interpolateSettlementKindCalibration(table []SettlementKindLevelCalibration
 	lo := hi - 1
 	span := math.Log(float64(table[hi].Cells)) - math.Log(float64(table[lo].Cells))
 	frac := 0.0
-	if span > 0 {
+	if span > 0 && !math.IsInf(span, 0) {
 		frac = (math.Log(float64(cellCount)) - math.Log(float64(table[lo].Cells))) / span
 	}
 	for kind := range out.Carrying {
-		out.Carrying[kind] = table[lo].Carrying[kind] + frac*(table[hi].Carrying[kind]-table[lo].Carrying[kind])
-		out.Urban[kind] = table[lo].Urban[kind] + frac*(table[hi].Urban[kind]-table[lo].Urban[kind])
+		out.Carrying[kind] = table[lo].CarryingScale[kind] + frac*(table[hi].CarryingScale[kind]-table[lo].CarryingScale[kind])
+		out.Urban[kind] = table[lo].UrbanScale[kind] + frac*(table[hi].UrbanScale[kind]-table[lo].UrbanScale[kind])
 	}
 	return out
 }
 
-func enforceNonDecreasing(values *[4]float64) {
-	for i := 1; i < len(values); i++ {
+// enforceSettlementKindThresholdOrder makes the calibrated cut points
+// non-decreasing and pins the city cut to its absolute setting.
+//
+// The city cut point stays absolute at every level: at level 5 it selects well
+// under one cell per world, so a fraction target there is meaningless and a
+// calibrated value would just track the mesh maximum. The pin therefore has to
+// survive the ordering pass — a calibration row whose town cut lands above
+// CityThreshold clamps the lower cuts down to the city cut instead of raising
+// the city cut above the configured absolute.
+func enforceSettlementKindThresholdOrder(values *[4]float64, cityThreshold float64) {
+	for i := 1; i <= int(SettlementNodeTown); i++ {
 		if values[i] < values[i-1] {
 			values[i] = values[i-1]
+		}
+	}
+	values[SettlementNodeCity] = cityThreshold
+	for i := int(SettlementNodeTown); i >= 0; i-- {
+		if values[i] > cityThreshold {
+			values[i] = cityThreshold
 		}
 	}
 }
