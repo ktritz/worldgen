@@ -149,3 +149,69 @@ func TestConnectSeedCentersOnPlateBridgesGap(t *testing.T) {
 		t.Fatalf("expected linked path to fill gap, got %v", target)
 	}
 }
+
+// placeVolcanicArcs feeds trench cells through a greedy, order-sensitive
+// spacing filter. Iterating the trench map directly made arc placement depend
+// on Go's randomized map order; the sorted iteration must yield identical
+// output on every run.
+func TestPlaceVolcanicArcsIsDeterministic(t *testing.T) {
+	latLon := func(lat, lon float64) Vector3D {
+		return Vector3D{
+			X: math.Cos(lat) * math.Cos(lon),
+			Y: math.Cos(lat) * math.Sin(lon),
+			Z: math.Sin(lat),
+		}
+	}
+
+	// Four trench cells (0..3) packed within ArcSeedSpacingRadians of each
+	// other, each with its own single-cell continental column (4..7) close
+	// enough that the first placed arc suppresses every other trench. Which
+	// trench wins is exactly what map iteration order used to randomize.
+	const numTrenches = 4
+	sites := make([]Vector3D, 0, 2*numTrenches)
+	cells := make([]VoronoiCell, 0, 2*numTrenches)
+	rPlate := make([]int, 0, 2*numTrenches)
+	trenchR := map[int]bool{}
+	for i := 0; i < numTrenches; i++ {
+		sites = append(sites, latLon(0, float64(i)*0.004))
+		cells = append(cells, VoronoiCell{SiteIndex: int32(i), NeighborSiteIndices: []int32{int32(numTrenches + i)}})
+		rPlate = append(rPlate, 0)
+		trenchR[i] = true
+	}
+	for i := 0; i < numTrenches; i++ {
+		sites = append(sites, latLon(0.01, float64(i)*0.004))
+		cells = append(cells, VoronoiCell{SiteIndex: int32(numTrenches + i), NeighborSiteIndices: []int32{int32(i)}})
+		rPlate = append(rPlate, 1)
+	}
+	plateIsOcean := map[int]bool{0: true, 1: false}
+
+	var firstArcs, firstMountains map[int]bool
+	for run := 0; run < 6; run++ {
+		arcR := map[int]bool{}
+		mountainR := map[int]bool{}
+		placeVolcanicArcs(sites, cells, rPlate, plateIsOcean, trenchR, arcR, mountainR)
+
+		if run == 0 {
+			firstArcs = arcR
+			firstMountains = mountainR
+			// Sorted iteration processes trench 0 first, so its column wins.
+			if !arcR[numTrenches] || len(arcR) != 1 {
+				t.Fatalf("expected single arc at region %d, got %v", numTrenches, arcR)
+			}
+			continue
+		}
+		if len(arcR) != len(firstArcs) || len(mountainR) != len(firstMountains) {
+			t.Fatalf("run %d produced different arc counts: %v vs %v", run, arcR, firstArcs)
+		}
+		for region := range firstArcs {
+			if !arcR[region] {
+				t.Fatalf("run %d arc set %v differs from first run %v", run, arcR, firstArcs)
+			}
+		}
+		for region := range firstMountains {
+			if !mountainR[region] {
+				t.Fatalf("run %d mountain set %v differs from first run %v", run, mountainR, firstMountains)
+			}
+		}
+	}
+}

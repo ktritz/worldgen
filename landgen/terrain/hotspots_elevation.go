@@ -8,6 +8,29 @@ import (
 	"math/rand"
 )
 
+// oceanicIslandPeakCap limits oceanic hotspot island peak heights by physical
+// island size. The radius is normalized by the BASELINE (L5) cell angular
+// radius, not the actual mesh spacing, so an island of a given physical size
+// gets the same cap at every mesh resolution.
+// At normalized radius 0: max ~800m (tiny seamount)
+// At normalized radius 1: max ~1650m (small island)
+// At normalized radius 2: max ~2500m (medium island)
+// At normalized radius 3: max ~3350m (large island)
+// At normalized radius 4+: max ~4200m (massive shield volcano)
+func oceanicIslandPeakCap(targetRadius float64) float64 {
+	normalizedRadius := targetRadius / baselineCellAngularRadius
+	return 800.0 + 850.0*math.Min(normalizedRadius, 4.0)
+}
+
+// underwaterContinentalPeakCap is the Kerguelen-style analogue of
+// oceanicIslandPeakCap: lower ceiling (~1800m) reflecting thicker continental
+// crust, again normalized by the baseline cell radius for resolution
+// independence.
+func underwaterContinentalPeakCap(targetRadius float64) float64 {
+	normalizedRadius := targetRadius / baselineCellAngularRadius
+	return 600.0 + 400.0*math.Min(normalizedRadius, 3.0)
+}
+
 // spreadOceanicElevation creates smooth volcanic shield slopes for oceanic islands
 // Uses DIRECT RADIAL SELECTION instead of BFS to completely avoid hexagonal grid artifacts
 // Each cell is evaluated based on its actual spherical distance and angle from center
@@ -158,69 +181,72 @@ func spreadOceanicElevation(
 	return cellCount
 }
 
-// spreadAdditiveElevation applies additive elevation boost with gaussian-like falloff
-// Instead of setting absolute elevation, it ADDS boost to existing terrain
-// Resolution-independent: normalizes distance to 0-1 range based on spreadDepth
-func spreadAdditiveElevation(
+// spreadAdditiveElevationRadial applies an additive elevation boost with
+// gaussian-like falloff to every cell within targetRadius true angular
+// distance of the center. Instead of setting absolute elevation, it ADDS
+// boost to existing terrain.
+// Uses DIRECT RADIAL SELECTION (same pattern as spreadOceanicElevation) so
+// the feature keeps its physical footprint at every mesh resolution, unlike
+// a ring-BFS depth which shrinks as cells get smaller.
+func spreadAdditiveElevationRadial(
 	elevation []float64,
-	cells []VoronoiCell,
+	sites []Vector3D,
 	centerIdx int,
-	spreadDepth int,
+	targetRadius float64,
 	centerBoost float64,
 	numRegions int,
 	cellFilter func(int) bool,
 	hotspotCells map[int]HotspotCellInfo,
 	rng *rand.Rand,
 ) int {
-	if spreadDepth <= 0 {
+	if targetRadius <= 0 {
 		return 0
 	}
 
 	cellCount := 0
-	visited := make(map[int]bool)
-	visited[centerIdx] = true
-	currentRing := []int{centerIdx}
+	centerPos := sites[centerIdx].Normalize()
 
-	for ring := 1; ring <= spreadDepth; ring++ {
-		nextRing := []int{}
-		// Normalize ring to 0-1 range for resolution-independent falloff
-		normalizedDist := float64(ring) / float64(spreadDepth)
-		// Gaussian-like falloff: at edge (dist=1), fraction is ~0.22
-		ringFraction := math.Exp(-normalizedDist * 1.5)
-		ringBoost := centerBoost * ringFraction
-
-		if ringBoost < 50 {
-			break // Stop when boost becomes negligible
+	for idx := 0; idx < numRegions; idx++ {
+		if idx == centerIdx {
+			continue
+		}
+		if !cellFilter(idx) {
+			continue
 		}
 
-		for _, idx := range currentRing {
-			for _, neighborIdx := range cells[idx].NeighborSiteIndices {
-				nIdx := int(neighborIdx)
-				if nIdx >= numRegions || visited[nIdx] {
-					continue
-				}
-				visited[nIdx] = true
-
-				if !cellFilter(nIdx) {
-					continue
-				}
-
-				// Small random variation for natural look
-				actualBoost := ringBoost * (0.8 + 0.4*rng.Float64())
-
-				// Add boost to existing elevation
-				elevation[nIdx] += actualBoost
-				cellCount++
-
-				// Track with minimum based on boost
-				hotspotCells[nIdx] = HotspotCellInfo{
-					IsOceanic:    false,
-					MinElevation: elevation[nIdx] - actualBoost*0.5, // Allow some erosion
-				}
-				nextRing = append(nextRing, nIdx)
-			}
+		// Actual spherical distance from the feature center
+		cellPos := sites[idx]
+		dot := centerPos.X*cellPos.X + centerPos.Y*cellPos.Y + centerPos.Z*cellPos.Z
+		if dot > 1.0 {
+			dot = 1.0
 		}
-		currentRing = nextRing
+		if dot < -1.0 {
+			dot = -1.0
+		}
+		actualDist := math.Acos(dot)
+		if actualDist > targetRadius {
+			continue
+		}
+
+		// Gaussian-like falloff: at edge (dist=targetRadius), fraction is ~0.22
+		normalizedDist := actualDist / targetRadius
+		boost := centerBoost * math.Exp(-normalizedDist*1.5)
+		if boost < 50 {
+			continue // Skip when boost becomes negligible
+		}
+
+		// Small random variation for natural look
+		actualBoost := boost * (0.8 + 0.4*rng.Float64())
+
+		// Add boost to existing elevation
+		elevation[idx] += actualBoost
+		cellCount++
+
+		// Track with minimum based on boost
+		hotspotCells[idx] = HotspotCellInfo{
+			IsOceanic:    false,
+			MinElevation: elevation[idx] - actualBoost*0.5, // Allow some erosion
+		}
 	}
 
 	return cellCount
@@ -316,7 +342,7 @@ func ApplyHotspotElevation(
 	chains []HotspotChain,
 	rPlate []int,
 	plateIsOcean map[int]bool,
-	rng *rand.Rand,
+	seed int64,
 ) (int, []int, map[int]HotspotCellInfo) {
 	totalCells := 0
 	numRegions := len(elevation)
@@ -328,6 +354,7 @@ func ApplyHotspotElevation(
 	cellAngularRadius := 2.0 / math.Sqrt(float64(numRegions))
 
 	for _, chain := range chains {
+		chainRNG := terrainFeatureRNG(seed, 30, int64(chain.ID), terrainVectorSeedPart(chain.Hotspot.Position))
 		var cellCount int
 		var sizes []int
 		var chainHotspotCells map[int]HotspotCellInfo
@@ -335,12 +362,12 @@ func ApplyHotspotElevation(
 		if chain.IsOceanic {
 			// True oceanic plate: Hawaii-style volcanic islands
 			cellCount, sizes, chainHotspotCells = applyOceanicChainElevation(
-				elevation, cells, sites, chain, rPlate, plateIsOcean, cellAngularRadius, numRegions, rng)
+				elevation, cells, sites, chain, rPlate, plateIsOcean, cellAngularRadius, numRegions, seed, chainRNG)
 		} else {
 			// Continental plate: check if underwater or above water
 			// Process each island in the chain separately based on local elevation
 			cellCount, sizes, chainHotspotCells = applyContinentalChainElevationMixed(
-				elevation, cells, sites, chain, rPlate, plateIsOcean, cellAngularRadius, numRegions, rng)
+				elevation, cells, sites, chain, rPlate, plateIsOcean, cellAngularRadius, numRegions, seed, chainRNG)
 		}
 
 		totalCells += cellCount
@@ -366,7 +393,8 @@ func applyOceanicChainElevation(
 	plateIsOcean map[int]bool,
 	cellAngularRadius float64,
 	numRegions int,
-	rng *rand.Rand,
+	seed int64,
+	chainRNG *rand.Rand,
 ) (int, []int, map[int]HotspotCellInfo) {
 	totalCells := 0
 	islandSizes := make([]int, 0)
@@ -381,9 +409,10 @@ func applyOceanicChainElevation(
 	)
 
 	// Each chain has its own "vigor" - some hotspots are more active
-	chainVigor := 0.5 + rng.Float64() // 0.5x to 1.5x elevation multiplier
+	chainVigor := 0.5 + chainRNG.Float64() // 0.5x to 1.5x elevation multiplier
 
-	for _, island := range chain.Islands {
+	for islandOrdinal, island := range chain.Islands {
+		islandRNG := terrainFeatureRNG(seed, 31, int64(chain.ID), int64(islandOrdinal), terrainVectorSeedPart(island.Position))
 		cellIdx := island.CellIndex
 		if cellIdx < 0 || cellIdx >= numRegions {
 			continue
@@ -425,7 +454,7 @@ func applyOceanicChainElevation(
 		}
 
 		// Apply chain vigor and per-island random variation
-		islandVariation := 0.6 + 0.8*rng.Float64() // 0.6x to 1.4x
+		islandVariation := 0.6 + 0.8*islandRNG.Float64() // 0.6x to 1.4x
 		prelimPeakElev := baseElev * chainVigor * islandVariation * strength
 
 		// Clamp preliminary peak for spread calculation
@@ -488,23 +517,19 @@ func applyOceanicChainElevation(
 			targetRadius *= ageSizeFactor
 
 			// Add per-island random variation (±25%)
-			targetRadius *= 0.75 + 0.5*rng.Float64()
+			targetRadius *= 0.75 + 0.5*islandRNG.Float64()
 			targetRadius *= math.Sqrt(strength)
 		} else {
 			targetRadius = 0
+		}
+		if targetRadius < MinEmergentHotspotIslandRadius {
+			continue
 		}
 
 		// Size-based peak cap using CONTINUOUS function based on targetRadius
 		// Smaller islands erode faster and can't maintain extreme heights
 		// Use smooth curve instead of discrete buckets
-		// normalizedRadius = targetRadius / cellAngularRadius (continuous)
-		normalizedRadius := targetRadius / cellAngularRadius
-		// At radius 0: max ~800m (tiny seamount)
-		// At radius 1: max ~1650m (small island)
-		// At radius 2: max ~2500m (medium island)
-		// At radius 3: max ~3350m (large island)
-		// At radius 4+: max ~4200m (massive shield volcano)
-		sizeCap := 800.0 + 850.0*math.Min(normalizedRadius, 4.0)
+		sizeCap := oceanicIslandPeakCap(targetRadius)
 
 		peakElev := prelimPeakElev
 		if peakElev > sizeCap {
@@ -545,7 +570,7 @@ func applyOceanicChainElevation(
 			elevation, cells, sites, cellIdx, targetRadius, cellAngularRadius,
 			peakElev, baseOceanElev, minElev, numRegions,
 			func(nIdx int) bool { return plateIsOcean[rPlate[nIdx]] },
-			hotspotCells, rng,
+			hotspotCells, islandRNG,
 		)
 		totalCells += spreadCells
 		islandCellCount += spreadCells
@@ -569,14 +594,15 @@ func applyContinentalChainElevationMixed(
 	plateIsOcean map[int]bool,
 	cellAngularRadius float64,
 	numRegions int,
-	rng *rand.Rand,
+	seed int64,
+	chainRNG *rand.Rand,
 ) (int, []int, map[int]HotspotCellInfo) {
 	totalCells := 0
 	featureSizes := make([]int, 0)
 	hotspotCells := make(map[int]HotspotCellInfo)
 
 	// Each chain has its own "vigor" - some hotspots are more active
-	chainVigor := 0.6 + 0.8*rng.Float64() // 0.6x to 1.4x elevation multiplier
+	chainVigor := 0.6 + 0.8*chainRNG.Float64() // 0.6x to 1.4x elevation multiplier
 
 	// First pass: collect all track cell indices for subsidence calculation
 	trackCells := make(map[int]bool)
@@ -584,7 +610,8 @@ func applyContinentalChainElevationMixed(
 		trackCells[feature.CellIndex] = true
 	}
 
-	for _, feature := range chain.Islands {
+	for featureOrdinal, feature := range chain.Islands {
+		featureRNG := terrainFeatureRNG(seed, 32, int64(chain.ID), int64(featureOrdinal), terrainVectorSeedPart(feature.Position))
 		cellIdx := feature.CellIndex
 		if cellIdx < 0 || cellIdx >= numRegions {
 			continue
@@ -599,7 +626,7 @@ func applyContinentalChainElevationMixed(
 		if elevation[cellIdx] <= 0 {
 			// Underwater continental: create Kerguelen-style volcanic islands
 			cellCount, sizes, cellHotspots := applyUnderwaterContinentalIsland(
-				elevation, cells, sites, cellIdx, feature.Age, feature.Strength, chainVigor, cellAngularRadius, numRegions, rng)
+				elevation, cells, sites, cellIdx, feature.Age, feature.Strength, chainVigor, cellAngularRadius, numRegions, featureRNG)
 			totalCells += cellCount
 			featureSizes = append(featureSizes, sizes...)
 			for idx, info := range cellHotspots {
@@ -608,7 +635,7 @@ func applyContinentalChainElevationMixed(
 		} else {
 			// Above water: Yellowstone-style caldera track
 			cellCount, sizes, cellHotspots := applyContinentalCaldera(
-				elevation, cells, cellIdx, feature.Age, feature.Strength, chainVigor, trackCells, rPlate, plateIsOcean, cellAngularRadius, numRegions, rng)
+				elevation, cells, sites, cellIdx, feature.Age, feature.Strength, chainVigor, trackCells, rPlate, plateIsOcean, numRegions, featureRNG)
 			totalCells += cellCount
 			featureSizes = append(featureSizes, sizes...)
 			for idx, info := range cellHotspots {
@@ -706,10 +733,12 @@ func applyUnderwaterContinentalIsland(
 		targetRadius *= 0.75 + 0.5*rng.Float64()
 		targetRadius *= math.Sqrt(strength)
 	}
+	if targetRadius < MinEmergentHotspotIslandRadius {
+		return 0, nil, nil
+	}
 
 	// Continuous size cap based on radius
-	normalizedRadius := targetRadius / cellAngularRadius
-	sizeCap := 600.0 + 400.0*math.Min(normalizedRadius, 3.0) // Max ~1800m
+	sizeCap := underwaterContinentalPeakCap(targetRadius) // Max ~1800m
 
 	peakElev := prelimPeakElev
 	if peakElev > sizeCap {
@@ -761,6 +790,7 @@ func applyUnderwaterContinentalIsland(
 func applyContinentalCaldera(
 	elevation []float64,
 	cells []VoronoiCell,
+	sites []Vector3D,
 	cellIdx int,
 	age float64,
 	strength float64,
@@ -768,7 +798,6 @@ func applyContinentalCaldera(
 	trackCells map[int]bool,
 	rPlate []int,
 	plateIsOcean map[int]bool,
-	cellAngularRadius float64,
 	numRegions int,
 	rng *rand.Rand,
 ) (int, []int, map[int]HotspotCellInfo) {
@@ -815,13 +844,12 @@ func applyContinentalCaldera(
 			boostElev = 200
 		}
 
-		// Smaller footprint for subtler continental features
+		// Smaller footprint for subtler continental features. The footprint is a
+		// physical angular radius; cells are selected by true angular distance
+		// (not BFS ring depth), so the caldera keeps the same physical size at
+		// every mesh resolution.
 		targetRadius := ContinentalCalderaRadius * 0.5 * (0.7 + 0.3*rng.Float64())
 		targetRadius *= math.Sqrt(0.70 + 0.30*strength)
-		spreadDepth := int(targetRadius / cellAngularRadius)
-		if spreadDepth > 2 {
-			spreadDepth = 2 // Cap at 2 rings for subtler calderas
-		}
 
 		// Calculate average neighbor elevation for blending
 		neighborSum := 0.0
@@ -852,9 +880,9 @@ func applyContinentalCaldera(
 		minElev := baseElev + boostElev*0.3
 		hotspotCells[cellIdx] = HotspotCellInfo{IsOceanic: false, MinElevation: minElev}
 
-		// Spread boost to neighbors with smooth gaussian-like falloff
-		spreadCells := spreadAdditiveElevation(
-			elevation, cells, cellIdx, spreadDepth, boostElev, numRegions,
+		// Spread boost to surrounding cells with smooth gaussian-like falloff
+		spreadCells := spreadAdditiveElevationRadial(
+			elevation, sites, cellIdx, targetRadius, boostElev, numRegions,
 			func(nIdx int) bool { return !plateIsOcean[rPlate[nIdx]] && elevation[nIdx] > 0 },
 			hotspotCells, rng,
 		)
