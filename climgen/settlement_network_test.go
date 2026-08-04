@@ -450,28 +450,55 @@ func TestSettlementPathLengthUsesPhysicalDistance(t *testing.T) {
 	}
 }
 
+func mustResolveSettlementKindThresholds(t *testing.T, settings SettlementNetworkSettings, cellCount int) SettlementNetworkSettings {
+	t.Helper()
+	resolved, err := resolveSettlementKindThresholds(settings, cellCount)
+	if err != nil {
+		t.Fatalf("resolveSettlementKindThresholds(%d) failed: %v", cellCount, err)
+	}
+	return resolved
+}
+
 func TestResolveSettlementKindThresholdsUsesCalibratedLevelValues(t *testing.T) {
 	settings := DefaultSettlementNetworkSettings()
 	table := settings.KindCalibration
 	if len(table) < 2 {
 		t.Fatalf("expected a multi-level calibration table, got %d rows", len(table))
 	}
-	// The level-5 row must reproduce the absolute reference thresholds: that is
-	// the correctness check on the calibration procedure itself.
-	if got := table[0].Carrying[SettlementNodeHamlet]; math.Abs(got-settings.HamletThreshold) > 1e-9 {
-		t.Fatalf("level-5 carrying hamlet cut = %.6f, want the absolute %.6f", got, settings.HamletThreshold)
+	// The level-5 row is the reference: its scales are exactly 1.0, so the
+	// resolved cut points equal the absolute settings there by construction.
+	for kind := SettlementNodeHamlet; kind <= SettlementNodeCity; kind++ {
+		if got := table[0].CarryingScale[kind]; got != 1.0 {
+			t.Fatalf("level-5 carrying scale for kind %d = %v, want exactly 1.0", kind, got)
+		}
+		if got := table[0].UrbanScale[kind]; got != 1.0 {
+			t.Fatalf("level-5 urban scale for kind %d = %v, want exactly 1.0", kind, got)
+		}
+	}
+	reference := mustResolveSettlementKindThresholds(t, settings, table[0].Cells)
+	for kind := SettlementNodeHamlet; kind <= SettlementNodeCity; kind++ {
+		want := settlementNodeKindThreshold(kind, settings)
+		if got := SettlementCarryingKindThreshold(kind, reference); got != want {
+			t.Fatalf("level-5 carrying threshold for kind %d = %v, want the absolute %v", kind, got, want)
+		}
+		if got := SettlementUrbanKindThreshold(kind, reference); got != want {
+			t.Fatalf("level-5 urban threshold for kind %d = %v, want the absolute %v", kind, got, want)
+		}
 	}
 	for _, row := range table {
-		resolved := resolveSettlementKindThresholds(settings, row.Cells)
+		resolved := mustResolveSettlementKindThresholds(t, settings, row.Cells)
 		if resolved.resolved == nil {
 			t.Fatalf("expected resolved thresholds for cells=%d", row.Cells)
 		}
 		for kind := SettlementNodeHamlet; kind <= SettlementNodeTown; kind++ {
-			if got := SettlementCarryingKindThreshold(kind, resolved); math.Abs(got-row.Carrying[kind]) > 1e-9 {
-				t.Fatalf("cells=%d kind=%d carrying threshold %.6f, want %.6f", row.Cells, kind, got, row.Carrying[kind])
+			absolute := settlementNodeKindThreshold(kind, settings)
+			wantCarrying := absolute * row.CarryingScale[kind]
+			if got := SettlementCarryingKindThreshold(kind, resolved); math.Abs(got-wantCarrying) > 1e-9 {
+				t.Fatalf("cells=%d kind=%d carrying threshold %.6f, want %.6f", row.Cells, kind, got, wantCarrying)
 			}
-			if got := SettlementUrbanKindThreshold(kind, resolved); math.Abs(got-row.Urban[kind]) > 1e-9 {
-				t.Fatalf("cells=%d kind=%d urban threshold %.6f, want %.6f", row.Cells, kind, got, row.Urban[kind])
+			wantUrban := absolute * row.UrbanScale[kind]
+			if got := SettlementUrbanKindThreshold(kind, resolved); math.Abs(got-wantUrban) > 1e-9 {
+				t.Fatalf("cells=%d kind=%d urban threshold %.6f, want %.6f", row.Cells, kind, got, wantUrban)
 			}
 		}
 		// The city cut stays absolute at every level.
@@ -481,22 +508,81 @@ func TestResolveSettlementKindThresholdsUsesCalibratedLevelValues(t *testing.T) 
 	}
 }
 
+// The shipped scales must still reproduce the measured absolute cut points the
+// calibration was derived from, so re-expressing the table as ratios did not
+// move any level's classification.
+func TestSettlementKindCalibrationReproducesMeasuredCutPoints(t *testing.T) {
+	settings := DefaultSettlementNetworkSettings()
+	measured := []struct {
+		cells    int
+		carrying [3]float64
+		urban    [3]float64
+	}{
+		{10242, [3]float64{0.3800, 0.4600, 0.5500}, [3]float64{0.3800, 0.4600, 0.5500}},
+		{40962, [3]float64{0.3876, 0.4705, 0.5507}, [3]float64{0.3890, 0.4704, 0.5496}},
+		{163842, [3]float64{0.3244, 0.4714, 0.5558}, [3]float64{0.3544, 0.4738, 0.5500}},
+		{655362, [3]float64{0.2612, 0.4723, 0.5609}, [3]float64{0.3198, 0.4772, 0.5504}},
+	}
+	for _, want := range measured {
+		resolved := mustResolveSettlementKindThresholds(t, settings, want.cells)
+		for kind := SettlementNodeHamlet; kind <= SettlementNodeTown; kind++ {
+			if got := SettlementCarryingKindThreshold(kind, resolved); math.Abs(got-want.carrying[kind]) > 5e-5 {
+				t.Fatalf("cells=%d kind=%d carrying threshold %.6f, want the measured %.4f", want.cells, kind, got, want.carrying[kind])
+			}
+			if got := SettlementUrbanKindThreshold(kind, resolved); math.Abs(got-want.urban[kind]) > 5e-5 {
+				t.Fatalf("cells=%d kind=%d urban threshold %.6f, want the measured %.4f", want.cells, kind, got, want.urban[kind])
+			}
+		}
+	}
+}
+
+// The absolute settings must stay the tuning knob at every resolution: the
+// calibration table is a resolution correction, not a replacement.
+func TestSettlementKindThresholdSettingsMoveEveryLevel(t *testing.T) {
+	base := DefaultSettlementNetworkSettings()
+	tuned := DefaultSettlementNetworkSettings()
+	tuned.TownThreshold = 0.60
+	for _, cells := range []int{10242, 40962, 163842, 655362} {
+		baseResolved := mustResolveSettlementKindThresholds(t, base, cells)
+		tunedResolved := mustResolveSettlementKindThresholds(t, tuned, cells)
+		baseTown := SettlementCarryingKindThreshold(SettlementNodeTown, baseResolved)
+		tunedTown := SettlementCarryingKindThreshold(SettlementNodeTown, tunedResolved)
+		if tunedTown <= baseTown {
+			t.Fatalf("cells=%d: raising TownThreshold left the resolved town cut at %.6f (base %.6f)", cells, tunedTown, baseTown)
+		}
+		// The move is proportional to the setting, so the ratio between the two
+		// resolutions of the same level matches the ratio of the settings.
+		wantRatio := tuned.TownThreshold / base.TownThreshold
+		if got := tunedTown / baseTown; math.Abs(got-wantRatio) > 1e-9 {
+			t.Fatalf("cells=%d: town cut scaled by %.6f, want %.6f", cells, got, wantRatio)
+		}
+		// Untouched kinds must not move.
+		if got, want := SettlementCarryingKindThreshold(SettlementNodeVillage, tunedResolved), SettlementCarryingKindThreshold(SettlementNodeVillage, baseResolved); got != want {
+			t.Fatalf("cells=%d: village cut moved to %.6f from %.6f when only TownThreshold changed", cells, got, want)
+		}
+	}
+}
+
 func TestResolveSettlementKindThresholdsInterpolatesAndClamps(t *testing.T) {
 	settings := DefaultSettlementNetworkSettings()
 	table := settings.KindCalibration
-	low := resolveSettlementKindThresholds(settings, table[0].Cells/4)
-	if got := SettlementCarryingKindThreshold(SettlementNodeHamlet, low); math.Abs(got-table[0].Carrying[SettlementNodeHamlet]) > 1e-9 {
-		t.Fatalf("below-range mesh clamped to %.6f, want %.6f", got, table[0].Carrying[SettlementNodeHamlet])
+	hamletAbsolute := settings.HamletThreshold
+	villageAbsolute := settings.VillageThreshold
+	low := mustResolveSettlementKindThresholds(t, settings, table[0].Cells/4)
+	wantLow := hamletAbsolute * table[0].CarryingScale[SettlementNodeHamlet]
+	if got := SettlementCarryingKindThreshold(SettlementNodeHamlet, low); math.Abs(got-wantLow) > 1e-9 {
+		t.Fatalf("below-range mesh clamped to %.6f, want %.6f", got, wantLow)
 	}
 	last := table[len(table)-1]
-	high := resolveSettlementKindThresholds(settings, last.Cells*4)
-	if got := SettlementCarryingKindThreshold(SettlementNodeHamlet, high); math.Abs(got-last.Carrying[SettlementNodeHamlet]) > 1e-9 {
-		t.Fatalf("above-range mesh clamped to %.6f, want %.6f", got, last.Carrying[SettlementNodeHamlet])
+	high := mustResolveSettlementKindThresholds(t, settings, last.Cells*4)
+	wantHigh := hamletAbsolute * last.CarryingScale[SettlementNodeHamlet]
+	if got := SettlementCarryingKindThreshold(SettlementNodeHamlet, high); math.Abs(got-wantHigh) > 1e-9 {
+		t.Fatalf("above-range mesh clamped to %.6f, want %.6f", got, wantHigh)
 	}
 	// A mesh halfway between two rows in log cell count lands halfway between
 	// their cut points.
-	mid := resolveSettlementKindThresholds(settings, int(math.Round(math.Sqrt(float64(table[0].Cells)*float64(table[1].Cells)))))
-	want := 0.5 * (table[0].Carrying[SettlementNodeVillage] + table[1].Carrying[SettlementNodeVillage])
+	mid := mustResolveSettlementKindThresholds(t, settings, int(math.Round(math.Sqrt(float64(table[0].Cells)*float64(table[1].Cells)))))
+	want := 0.5 * villageAbsolute * (table[0].CarryingScale[SettlementNodeVillage] + table[1].CarryingScale[SettlementNodeVillage])
 	if got := SettlementCarryingKindThreshold(SettlementNodeVillage, mid); math.Abs(got-want) > 1e-3 {
 		t.Fatalf("interpolated village threshold %.6f, want about %.6f", got, want)
 	}
@@ -505,7 +591,7 @@ func TestResolveSettlementKindThresholdsInterpolatesAndClamps(t *testing.T) {
 func TestSettlementKindThresholdsFallBackToAbsoluteWithoutCalibration(t *testing.T) {
 	settings := DefaultSettlementNetworkSettings()
 	settings.KindCalibration = nil
-	resolved := resolveSettlementKindThresholds(settings, 40962)
+	resolved := mustResolveSettlementKindThresholds(t, settings, 40962)
 	if resolved.resolved != nil {
 		t.Fatalf("expected no resolution without a calibration table")
 	}
@@ -514,5 +600,101 @@ func TestSettlementKindThresholdsFallBackToAbsoluteWithoutCalibration(t *testing
 	}
 	if got := SettlementUrbanKindThreshold(SettlementNodeCity, resolved); got != settings.CityThreshold {
 		t.Fatalf("city threshold = %v, want absolute %v", got, settings.CityThreshold)
+	}
+}
+
+// A non-positive Cells row makes the log-cell-count span infinite, which used to
+// pass the span > 0 guard and produce NaN cut points — every comparison against
+// which is false, so the world came back with no settlement nodes at all and no
+// error. The table must be rejected loudly and the run must fall back to the
+// finite absolute thresholds.
+func TestResolveSettlementKindThresholdsRejectsNonPositiveCells(t *testing.T) {
+	for _, cells := range []int{0, -1} {
+		settings := DefaultSettlementNetworkSettings()
+		settings.KindCalibration = []SettlementKindLevelCalibration{
+			{Cells: cells, CarryingScale: [4]float64{1, 1, 1, 1}, UrbanScale: [4]float64{1, 1, 1, 1}},
+			{Cells: 163842, CarryingScale: [4]float64{0.85, 1.02, 1.01, 1}, UrbanScale: [4]float64{0.93, 1.03, 1.0, 1}},
+		}
+		if err := ValidateSettlementKindCalibration(settings.KindCalibration); err == nil {
+			t.Fatalf("Cells=%d: expected a validation error", cells)
+		}
+		resolved, err := resolveSettlementKindThresholds(settings, 40962)
+		if err == nil {
+			t.Fatalf("Cells=%d: expected resolveSettlementKindThresholds to report the bad table", cells)
+		}
+		if resolved.resolved != nil {
+			t.Fatalf("Cells=%d: expected a fall back to the absolute thresholds", cells)
+		}
+		for kind := SettlementNodeHamlet; kind <= SettlementNodeCity; kind++ {
+			carrying := SettlementCarryingKindThreshold(kind, resolved)
+			urban := SettlementUrbanKindThreshold(kind, resolved)
+			if math.IsNaN(carrying) || math.IsInf(carrying, 0) || math.IsNaN(urban) || math.IsInf(urban, 0) {
+				t.Fatalf("Cells=%d kind=%d: non-finite thresholds carrying=%v urban=%v", cells, kind, carrying, urban)
+			}
+			if want := settlementNodeKindThreshold(kind, settings); carrying != want || urban != want {
+				t.Fatalf("Cells=%d kind=%d: thresholds %v/%v, want the absolute %v", cells, kind, carrying, urban, want)
+			}
+		}
+	}
+}
+
+func TestValidateSettlementKindCalibrationRejectsBadRows(t *testing.T) {
+	if err := ValidateSettlementKindCalibration(DefaultSettlementNetworkSettings().KindCalibration); err != nil {
+		t.Fatalf("shipped calibration table rejected: %v", err)
+	}
+	cases := map[string][]SettlementKindLevelCalibration{
+		"unsorted cells": {
+			{Cells: 40962, CarryingScale: [4]float64{1, 1, 1, 1}, UrbanScale: [4]float64{1, 1, 1, 1}},
+			{Cells: 10242, CarryingScale: [4]float64{1, 1, 1, 1}, UrbanScale: [4]float64{1, 1, 1, 1}},
+		},
+		"duplicate cells": {
+			{Cells: 10242, CarryingScale: [4]float64{1, 1, 1, 1}, UrbanScale: [4]float64{1, 1, 1, 1}},
+			{Cells: 10242, CarryingScale: [4]float64{1, 1, 1, 1}, UrbanScale: [4]float64{1, 1, 1, 1}},
+		},
+		"zero scale": {
+			{Cells: 10242, CarryingScale: [4]float64{1, 0, 1, 1}, UrbanScale: [4]float64{1, 1, 1, 1}},
+		},
+		"nan scale": {
+			{Cells: 10242, CarryingScale: [4]float64{1, 1, 1, 1}, UrbanScale: [4]float64{1, math.NaN(), 1, 1}},
+		},
+		"inf scale": {
+			{Cells: 10242, CarryingScale: [4]float64{1, 1, math.Inf(1), 1}, UrbanScale: [4]float64{1, 1, 1, 1}},
+		},
+	}
+	for name, table := range cases {
+		if err := ValidateSettlementKindCalibration(table); err == nil {
+			t.Fatalf("%s: expected a validation error", name)
+		}
+	}
+}
+
+// The city cut is absolute at every level: a calibration row whose town cut
+// lands above CityThreshold must clamp the town cut down rather than let the
+// non-decreasing pass drag the city cut above the configured absolute.
+func TestResolveSettlementKindThresholdsKeepsCityAbsolute(t *testing.T) {
+	settings := DefaultSettlementNetworkSettings()
+	// TownThreshold 0.55 * 1.4 = 0.77, well above the 0.64 city cut.
+	settings.KindCalibration = []SettlementKindLevelCalibration{
+		{Cells: 10242, CarryingScale: [4]float64{1, 1, 1.4, 1}, UrbanScale: [4]float64{1, 1, 1.4, 1}},
+	}
+	resolved := mustResolveSettlementKindThresholds(t, settings, 10242)
+	if got := SettlementCarryingKindThreshold(SettlementNodeCity, resolved); got != settings.CityThreshold {
+		t.Fatalf("city carrying cut = %.6f, want the absolute %.6f", got, settings.CityThreshold)
+	}
+	if got := SettlementUrbanKindThreshold(SettlementNodeCity, resolved); got != settings.CityThreshold {
+		t.Fatalf("city urban cut = %.6f, want the absolute %.6f", got, settings.CityThreshold)
+	}
+	// The over-tall town cut is clamped down to the city cut, so the cut points
+	// stay non-decreasing without overriding the pin.
+	if got := SettlementCarryingKindThreshold(SettlementNodeTown, resolved); got != settings.CityThreshold {
+		t.Fatalf("town carrying cut = %.6f, want it clamped to the city cut %.6f", got, settings.CityThreshold)
+	}
+	previous := 0.0
+	for kind := SettlementNodeHamlet; kind <= SettlementNodeCity; kind++ {
+		got := SettlementCarryingKindThreshold(kind, resolved)
+		if got < previous {
+			t.Fatalf("kind %d carrying cut %.6f is below the previous %.6f", kind, got, previous)
+		}
+		previous = got
 	}
 }

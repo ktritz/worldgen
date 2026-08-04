@@ -543,26 +543,41 @@ type PlanetGenerationDiagnostics struct {
 // the structural context a later lithology / crustal-age pass needs without
 // rerunning any part of the tectonic simulation.
 //
-// All distance fields are graph-hop distances over the Voronoi neighbor graph,
-// each restricted to the domain it is meaningful in: DistFromCoast,
+// All Dist* fields are physical distances in great-circle radians on the unit
+// sphere (multiply by the planet radius for length units). They are measured
+// along the Voronoi neighbor graph and are therefore slightly longer than the
+// straight great-circle separation, but they do not depend on mesh resolution:
+// the internal hop counts are scaled by the mesh's mean neighbor spacing, so
+// the same physical world exports the same values at L5 and at L8.
+//
+// Each field is restricted to the domain it is meaningful in: DistFromCoast,
 // DistFromMountain, DistFromCollision, DistFromArc and DistFromRift propagate
 // through continental cells only, while OceanDistFromCoast, DistFromRidge and
 // DistFromTrench propagate through oceanic cells only. Cells outside a field's
-// domain, or with no reachable seed of that class, hold
-// TectonicDistanceUnreachable instead of +Inf so the struct stays
-// JSON-encodable.
+// domain, or with no reachable seed of that class, hold NaN - see
+// TectonicDistanceUndefined for why, and use TectonicDistanceIsDefined to test
+// for it. NaN is not JSON-encodable; this struct is not serialized (see the
+// json:"-" tag on PlanetGenerationDiagnostics.Tectonics), and a future consumer
+// that wants it cached must map the undefined cells to something explicit
+// rather than let review_planets' cache sanitizer silently rewrite NaN to 0
+// (which would read as "on the boundary").
 type TectonicDiagnostics struct {
-	NumPlates          int       `json:"numPlates"`
-	NumOceanicPlates   int       `json:"numOceanicPlates"`
-	PlateID            []int     `json:"plateId"`
-	PlateIsOcean       []bool    `json:"plateIsOcean"`
-	CoastlineSeeds     int       `json:"coastlineSeeds"`
-	MountainSeeds      int       `json:"mountainSeeds"`
-	CollisionSeeds     int       `json:"collisionSeeds"`
-	ArcSeeds           int       `json:"arcSeeds"`
-	RidgeSeeds         int       `json:"ridgeSeeds"`
-	TrenchSeeds        int       `json:"trenchSeeds"`
-	RiftSeeds          int       `json:"riftSeeds"`
+	NumPlates        int    `json:"numPlates"`
+	NumOceanicPlates int    `json:"numOceanicPlates"`
+	PlateID          []int  `json:"plateId"`
+	PlateIsOcean     []bool `json:"plateIsOcean"`
+	// CellAngularSpacing is the mean center-to-center neighbor spacing of the
+	// generating mesh, in radians. It is the quantum of the Dist* fields:
+	// divide by it to recover hop counts.
+	CellAngularSpacing float64 `json:"cellAngularSpacing"`
+	CoastlineSeeds     int     `json:"coastlineSeeds"`
+	MountainSeeds      int     `json:"mountainSeeds"`
+	CollisionSeeds     int     `json:"collisionSeeds"`
+	ArcSeeds           int     `json:"arcSeeds"`
+	RidgeSeeds         int     `json:"ridgeSeeds"`
+	TrenchSeeds        int     `json:"trenchSeeds"`
+	RiftSeeds          int     `json:"riftSeeds"`
+	// Distances in great-circle radians; NaN where undefined.
 	DistFromCoast      []float64 `json:"distFromCoast"`
 	OceanDistFromCoast []float64 `json:"oceanDistFromCoast"`
 	DistFromMountain   []float64 `json:"distFromMountain"`

@@ -40,11 +40,11 @@ func selectPolityResolvedProfile(
 	vegetation *VegetationResult,
 	soils *SoilResult,
 	hydro *HydrologyBiomeInputs,
+	meshCellCount int,
 ) (ResolvedProfile, PolityProfileContext, PolityEnvironmentContext, float64) {
-	meshCellCount := 0
-	if polities != nil && polities.Diagnostics != nil {
-		meshCellCount = len(polities.Diagnostics.PolityByCell)
-	}
+	// meshCellCount is the real mesh cell count (len(cells)); deriving it from an
+	// optional diagnostics slice would silently fall back to 0 -> scale 1 and drop
+	// the resolution correction at L7/L8.
 	context := buildPolityProfileContext(sphere, network, trade, meshCellCount)
 	metrics := computePolityEcologyMetrics(sphere.ID, polities, biomes, vegetation, soils, hydro)
 	env := buildPolityEnvironmentContext(sphere, network, trade, metrics, meshCellCount)

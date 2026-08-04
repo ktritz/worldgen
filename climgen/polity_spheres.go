@@ -106,7 +106,7 @@ func BuildPolitySpheres(
 		return out
 	}
 
-	spheres := politySphereSeeds(network, proto, trade, settings)
+	spheres := politySphereSeeds(network, proto, trade, len(cells), settings)
 	initialSphereCount := len(spheres)
 	if len(spheres) == 0 {
 		return out
@@ -124,6 +124,7 @@ func politySphereSeeds(
 	network *SettlementNetworkResult,
 	proto *ProtoCivilizationResult,
 	trade *TradeNetworkResult,
+	meshCellCount int,
 	settings PolitySphereSettings,
 ) []PolitySphere {
 	spheres := make([]PolitySphere, 0, len(proto.Civilizations))
@@ -163,7 +164,7 @@ func politySphereSeeds(
 			}
 			effectiveHubScore := hubScore * SettlementNodePhysicalSupportWeight(node)
 			threshold := settings.SecondaryHubThreshold
-			if polityProtoTerritoryAreaEq(civ, trade) >= float64(settings.SecondaryLargeProtoCells) {
+			if polityProtoTerritoryAreaEq(civ, meshCellCount) >= float64(settings.SecondaryLargeProtoCells) {
 				threshold = settings.SecondaryLargeHubThreshold
 			}
 			if effectiveHubScore < threshold {
@@ -196,12 +197,11 @@ func politySphereSeeds(
 	return spheres
 }
 
-func polityProtoTerritoryAreaEq(civ ProtoCivilization, trade *TradeNetworkResult) float64 {
-	cellCount := 0
-	if trade != nil && trade.Diagnostics != nil {
-		cellCount = len(trade.Diagnostics.RouteIntensity)
-	}
-	return meshScaledTerritoryAreaCells(civ.TerritoryCells, cellCount)
+// meshCellCount must be the real mesh cell count (len(cells)). Deriving it from an
+// optional diagnostics slice would silently yield 0 -> scale 1 and drop the
+// resolution correction entirely at L7/L8.
+func polityProtoTerritoryAreaEq(civ ProtoCivilization, meshCellCount int) float64 {
+	return meshScaledTerritoryAreaCells(civ.TerritoryCells, meshCellCount)
 }
 
 func assignPolitySphereTerritories(

@@ -1,6 +1,77 @@
 package climgen
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
+
+// An identical physical slope must yield the same corrected orographic rise at any
+// mesh resolution. The local rise is a one-hop elevation difference, so it scales
+// linearly with cell size and needs a linear (not sqrt) correction; the footprint
+// rise spans a resolution-adjusted hop budget, i.e. a fixed physical distance, so
+// it is already resolution-invariant and must not be corrected at all.
+func TestOrographicRiseIsResolutionInvariantForFixedPhysicalSlope(t *testing.T) {
+	const (
+		riseRatePerBaselineStep = 200.0
+		probe                   = 400
+	)
+	type sample struct {
+		cells     int
+		local     float64
+		footprint float64
+	}
+	samples := make([]sample, 0, 3)
+	for _, cellCount := range []int{10242, 40962, 163842} {
+		stepScale := precipitationPhysicalStepScale(cellCount)
+		vertices := make([]Vector3D, cellCount)
+		elevation := make([]float64, cellCount)
+		for i := range vertices {
+			vertices[i] = seasonalLatLonVertex(0, 0.5*stepScale*float64(i))
+			// Elevation rises at a fixed rate per unit physical distance, so the
+			// per-hop step shrinks with the cell size.
+			elevation[i] = riseRatePerBaselineStep * stepScale * float64(i)
+		}
+		adj := pathFlatAdjacency(cellCount)
+		wind := make([]Vector3D, cellCount)
+		for i := range wind {
+			next := i + 1
+			if next >= cellCount {
+				next = i
+			}
+			wind[i] = Normalize(Sub(vertices[next], vertices[i]))
+		}
+
+		diag := computeOrographicLiftDiagnostic(probe, vertices, elevation, adj, wind)
+		if diag.LocalRiseMeters <= 0 || diag.FootprintRiseMeters <= 0 {
+			t.Fatalf("expected positive upwind rise at %d cells, got %+v", cellCount, diag)
+		}
+		samples = append(samples, sample{cells: cellCount, local: diag.LocalRiseMeters, footprint: diag.FootprintRiseMeters})
+	}
+
+	base := samples[0]
+	for _, s := range samples[1:] {
+		// The local rise is an exact one-hop difference, so the linear correction
+		// reproduces the baseline to rounding.
+		if math.Abs(s.local-base.local) > 1e-9*base.local {
+			t.Fatalf(
+				"expected resolution-invariant local rise for a fixed physical slope: %d cells=%.4f, %d cells=%.4f",
+				base.cells, base.local, s.cells, s.local,
+			)
+		}
+		// The footprint kernel is only approximately distance-matched across
+		// levels, so a finer mesh resolves the ramp slightly closer in and lands a
+		// little below the baseline (about -10% at L6, -15% at L7). It must never
+		// land above it: the sqrt correction this replaced inflated the footprint
+		// rise to ~1.27x baseline at L6 and ~1.70x at L7.
+		ratio := s.footprint / base.footprint
+		if ratio < 0.80 || ratio > 1.02 {
+			t.Fatalf(
+				"expected resolution-invariant footprint rise for a fixed physical slope: %d cells=%.4f, %d cells=%.4f (ratio %.3f)",
+				base.cells, base.footprint, s.cells, s.footprint, ratio,
+			)
+		}
+	}
+}
 
 func TestSeasonalOceanEvaporationFactorTracksTemperature(t *testing.T) {
 	cold := seasonalOceanEvaporationFactor(271.15, 0.45)
@@ -153,22 +224,61 @@ func TestPrecipitationPerStepFractionScalesWithMeshResolution(t *testing.T) {
 	}
 }
 
+// The fixture must be at least L6 (40962 cells) so meshPathCostResolutionScale is
+// below 1 and the resolution-adjusted band radius is genuinely exercised. A small
+// fixture clamps to scale 1.0 and only tests the L5 no-op path.
 func TestNeighborOceanFractionUsesPhysicalCoastalBand(t *testing.T) {
-	elevation := []float64{100, 100, 100, -100, 100}
-	adj := &FlatAdjacency{
-		Neighbors: []int{1, 0, 2, 1, 3, 2, 4, 3},
-		Offsets:   []int{0, 1, 3, 5, 7, 8},
+	const cellCount = 40962
+	if scale := precipitationPhysicalStepScale(cellCount); scale >= 1 {
+		t.Fatalf("fixture must sit in the scaled regime, got stepScale=%.3f", scale)
+	}
+	if radius := resolutionAdjustedPrecipSteps(1, cellCount); radius < 2 {
+		t.Fatalf("expected a widened physical coastal band at L6, got radius=%d", radius)
 	}
 
-	nearCoast := computeNeighborOceanFraction(2, elevation, 0, adj)
-	inland := computeNeighborOceanFraction(0, elevation, 0, adj)
+	elevation := make([]float64, cellCount)
+	for i := range elevation {
+		elevation[i] = 100
+	}
+	elevation[0] = -100
+	adj := pathFlatAdjacency(cellCount)
+
+	nearCoast := computeNeighborOceanFraction(1, elevation, 0, adj)
+	bandEdge := computeNeighborOceanFraction(2, elevation, 0, adj)
+	inland := computeNeighborOceanFraction(6, elevation, 0, adj)
 
 	if nearCoast <= 0 {
+		t.Fatalf("expected land cell adjacent to ocean to see ocean support")
+	}
+	// Two hops out is one cell beyond the L5 band but inside the physical band at
+	// L6, so this is zero unless the band radius is resolution-adjusted.
+	if bandEdge <= 0 {
 		t.Fatalf("expected land cell within physical coastal band to see ocean support")
 	}
-	if inland >= nearCoast {
-		t.Fatalf("expected coastal support to decay inland: inland=%.3f nearCoast=%.3f", inland, nearCoast)
+	if bandEdge >= nearCoast {
+		t.Fatalf("expected coastal support to decay inland: bandEdge=%.3f nearCoast=%.3f", bandEdge, nearCoast)
 	}
+	if inland != 0 {
+		t.Fatalf("expected no ocean support well beyond the physical coastal band, got %.3f", inland)
+	}
+}
+
+// pathFlatAdjacency builds a simple 0-1-2-...-(n-1) chain adjacency, which lets a
+// test reach any mesh cell count cheaply while keeping hop distances explicit.
+func pathFlatAdjacency(n int) *FlatAdjacency {
+	neighbors := make([]int, 0, 2*n)
+	offsets := make([]int, 0, n+1)
+	offsets = append(offsets, 0)
+	for i := 0; i < n; i++ {
+		if i > 0 {
+			neighbors = append(neighbors, i-1)
+		}
+		if i < n-1 {
+			neighbors = append(neighbors, i+1)
+		}
+		offsets = append(offsets, len(neighbors))
+	}
+	return &FlatAdjacency{Neighbors: neighbors, Offsets: offsets}
 }
 
 func TestMarineCorridorBlendWeightFavorsInlandStormPath(t *testing.T) {

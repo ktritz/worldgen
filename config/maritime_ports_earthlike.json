@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "maritime-ports/v1",
+  "schemaVersion": "maritime-ports/v2",
   "harborShelterWeight": 0.34,
   "estuaryWeight": 0.18,
   "riverTransferWeight": 0.20,

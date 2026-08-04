@@ -8,7 +8,7 @@ import (
 	worldgen "worldgen"
 )
 
-const OceanTradeSchemaVersion = "ocean-trade/v1"
+const OceanTradeSchemaVersion = "ocean-trade/v2"
 
 type OceanTradeSettings struct {
 	SchemaVersion string `json:"schemaVersion"`

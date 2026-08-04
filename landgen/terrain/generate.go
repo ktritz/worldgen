@@ -74,7 +74,7 @@ func GeneratePlanetElevationWithDiagnostics(
 
 	// Step 4: Assign plate rotations (Euler poles for realistic curved motion)
 	fmt.Println("Step 3: Assigning plate rotations (Euler poles)...")
-	plateRot := AssignPlateRotations(layout, plateIsOcean, plateNeighbors, seed)
+	plateRot := assignPlateRotations(layout, plateIsOcean, plateNeighbors, seed)
 
 	// Step 5: Compute elevation
 	fmt.Println("Step 4: Computing elevation...")
@@ -210,7 +210,7 @@ func GeneratePlanetElevationWithDiagnostics(
 	// Step 11: Add hotspot island chains (AFTER hypsometry, works in meters)
 	// This slightly increases land percentage but creates realistic volcanic islands
 	fmt.Println("Step 7: Generating hotspot island chains...")
-	hotspotChains := PlaceHotspots(sites, cells, layout, plateRot, plateIsOcean, seed)
+	hotspotChains := placeHotspots(sites, cells, layout, plateRot, plateIsOcean, seed)
 	numIslandCells, _, hotspotCells := ApplyHotspotElevation(elevation, cells, sites, hotspotChains, rPlate, plateIsOcean, seed)
 	// Show chain lengths and type breakdown
 	oceanicCount, continentalCount := 0, 0
