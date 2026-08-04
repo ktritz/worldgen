@@ -112,7 +112,7 @@ func BuildPolityProfiles(
 
 	assignments := make([]PolityProfileAssignment, 0, len(polities.Spheres))
 	for _, sphere := range polities.Spheres {
-		resolved, context, env, bestScore := selectPolityResolvedProfile(catalog, sphere, polities, network, trade, biomes, vegetation, soils, hydro)
+		resolved, context, env, bestScore := selectPolityResolvedProfile(catalog, sphere, polities, network, trade, biomes, vegetation, soils, hydro, len(cells))
 		assignments = append(assignments, PolityProfileAssignment{
 			PolityID:        sphere.ID,
 			Profile:         resolved,

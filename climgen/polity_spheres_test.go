@@ -104,7 +104,7 @@ func TestPolitySphereSeedsDiscountWeakPhysicalSecondaryHubs(t *testing.T) {
 	}}
 	settings := DefaultPolitySphereSettings()
 
-	spheres := politySphereSeeds(network, proto, trade, settings)
+	spheres := politySphereSeeds(network, proto, trade, 0, settings)
 	if len(spheres) != 2 {
 		t.Fatalf("expected primary plus one physically supported secondary sphere, got %d", len(spheres))
 	}
