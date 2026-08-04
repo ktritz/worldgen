@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "ocean-trade/v1",
+  "schemaVersion": "ocean-trade/v2",
   "candidatePortThreshold": 0.56,
   "candidateSecondaryPortFloor": 0.48,
   "candidatePhysicalDeepwaterFloor": 0.24,

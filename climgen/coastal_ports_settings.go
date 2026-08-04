@@ -8,7 +8,7 @@ import (
 	worldgen "worldgen"
 )
 
-const MaritimePortSchemaVersion = "maritime-ports/v1"
+const MaritimePortSchemaVersion = "maritime-ports/v2"
 
 type MaritimePortSettings struct {
 	SchemaVersion string `json:"schemaVersion"`
