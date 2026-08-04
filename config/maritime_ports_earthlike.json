@@ -25,7 +25,7 @@
   "nodeFeatureRiverTransferWeight": 0.22,
   "nodeFeatureStopoverWeight": 0.16,
   "nodeCatchmentDecay": 0.82,
-  "nodeCatchmentHops": 4,
+  "nodeCatchmentHops": 6,
   "nodeScoreWeight": 0.24,
   "tradeCentralityWeight": 0.16,
   "riverCentralityWeight": 0.12,
@@ -39,5 +39,17 @@
   "deepwaterNodeWeight": 0.36,
   "regionalMinCentrality": 0.00,
   "districtMinCentrality": 0.04,
-  "localMinCentrality": 0.18
+  "localMinCentrality": 0.18,
+  "stopoverSelection": {
+    "minStopoverValue": 0.26,
+    "minPortSuitability": 0.22,
+    "scoreFloor": 0.28,
+    "stopoverValueWeight": 0.52,
+    "portSuitabilityWeight": 0.22,
+    "oceanExposureWeight": 0.16,
+    "landScarcityWeight": 0.10,
+    "fullComponentAreaEq": 8.00,
+    "minComponentScoreFactor": 0.48,
+    "componentTaperPower": 0.70
+  }
 }

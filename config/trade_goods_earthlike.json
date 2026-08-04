@@ -79,6 +79,11 @@
       "finished": 0.20,
       "default": 0.0
     },
+    "endpointSurplusReliefByCategory": {
+      "processed": 0.60,
+      "finished": 0.35,
+      "default": 0.0
+    },
     "localNeedResponse": {
       "raw": {"base": 0.74, "slope": 0.48},
       "processed": {"base": 0.80, "slope": 0.56},
@@ -200,6 +205,14 @@
       "strategic": 1.02,
       "default": 1.00
     },
+    "goodDemandScale": {
+      "fine_clothing": 1.55,
+      "weapons_armor": 1.45,
+      "ceramics": 1.38,
+      "cloth": 1.20,
+      "woolens": 1.20,
+      "preserved_food": 1.12
+    },
     "localSupplyReliefByCategory": {
       "raw": 0.48,
       "processed": 0.26,
@@ -207,6 +220,14 @@
       "luxury": 0.06,
       "strategic": 0.12,
       "default": 0.18
+    },
+    "localSupplyReliefByGood": {
+      "fine_clothing": 0.00,
+      "weapons_armor": 0.02,
+      "ceramics": 0.02,
+      "cloth": 0.08,
+      "woolens": 0.08,
+      "preserved_food": 0.12
     },
     "driverSpecializationScale": {
       "raw": 0.36,
@@ -223,6 +244,14 @@
       "luxury": 1.08,
       "strategic": 1.06,
       "default": 1.00
+    },
+    "marketGoodDemandScale": {
+      "fine_clothing": 1.45,
+      "weapons_armor": 1.30,
+      "ceramics": 1.25,
+      "cloth": 1.12,
+      "woolens": 1.12,
+      "preserved_food": 1.08
     },
     "marketWealthPullScale": {
       "raw": 0.06,
@@ -801,12 +830,12 @@
     {
       "name": "paper",
       "category": "processed",
-      "baseValue": 0.64,
-      "bulkiness": 0.18,
+      "baseValue": 0.52,
+      "bulkiness": 0.26,
       "perishability": 0.04,
       "marketConversionScale": 0.14,
-      "marketContextSensitivity": 1.18,
-      "marketDominancePenalty": 0.36,
+      "marketContextSensitivity": 1.12,
+      "marketDominancePenalty": 0.50,
       "marketMinNodeKind": "town",
       "localInputCapabilityFloor": {
         "fiber": 0.40,
@@ -821,26 +850,26 @@
         "resin": 0.10
       },
       "productionDrivers": {
-        "urban": 0.48,
-        "mercantile": 0.28,
-        "imperial": 0.36,
+        "urban": 0.36,
+        "mercantile": 0.22,
+        "imperial": 0.30,
         "river": 0.10
       },
       "demandDrivers": {
-        "urban": 0.6,
-        "mercantile": 0.4,
-        "imperial": 0.3,
-        "luxury": 0.1
+        "urban": 0.36,
+        "mercantile": 0.24,
+        "imperial": 0.24,
+        "luxury": 0.06
       },
       "profileProductionAffinity": {
-        "Merchant League": 1.16,
-        "Gnome": 1.14,
-        "Human": 1.10
+        "Merchant League": 1.08,
+        "Gnome": 1.08,
+        "Human": 1.04
       },
       "profileDemandAffinity": {
-        "Merchant League": 1.18,
-        "Human": 1.10,
-        "Gnome": 1.08
+        "Merchant League": 1.08,
+        "Human": 1.04,
+        "Gnome": 1.04
       }
     },
     {
@@ -985,22 +1014,22 @@
       "baseValue": 0.48,
       "bulkiness": 0.58,
       "perishability": 0.0,
-      "marketConversionScale": 0.13,
-      "marketContextSensitivity": 1.46,
-      "marketDominancePenalty": 0.56,
+      "marketConversionScale": 0.095,
+      "marketContextSensitivity": 1.25,
+      "marketDominancePenalty": 0.70,
       "marketInputCapabilityFloor": {
-        "clay": 0.18,
-        "timber": 0.08
+        "clay": 0.25,
+        "timber": 0.12
       },
       "inputs": {
         "clay": 0.36,
         "timber": 0.12
       },
       "productionDrivers": {
-        "urban": 0.22,
+        "urban": 0.18,
         "mercantile": 0.10,
-        "river": 0.26,
-        "arid": 0.34
+        "river": 0.20,
+        "arid": 0.28
       },
       "demandDrivers": {
         "urban": 0.6,
