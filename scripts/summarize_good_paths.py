@@ -3,6 +3,7 @@
 import argparse
 import json
 import re
+from collections import defaultdict
 from pathlib import Path
 
 
@@ -87,6 +88,64 @@ def write_tsv(path: Path, rows):
             handle.write("\t".join(str(row[h]) for h in headers) + "\n")
 
 
+def average(values):
+    return sum(values) / len(values) if values else 0.0
+
+
+def summarize_goods(rows):
+    grouped = defaultdict(list)
+    for row in rows:
+        grouped[row["good"]].append(row)
+
+    total_seeds = len({row["seed"] for row in rows})
+    summary = []
+    for good in sorted(grouped):
+        good_rows = grouped[good]
+        traded_rows = [row for row in good_rows if row["trade_score"] > 0]
+        summary.append(
+            {
+                "good": good,
+                "seeds": total_seeds,
+                "present": len(good_rows),
+                "traded": len(traded_rows),
+                "avg_polity_supply": f"{average([row['polity_supply'] for row in good_rows]):.2f}",
+                "avg_polity_demand": f"{average([row['polity_demand'] for row in good_rows]):.2f}",
+                "avg_polity_surplus": f"{average([row['polity_surplus'] for row in good_rows]):.2f}",
+                "avg_exporters": f"{average([row['exporters'] for row in good_rows]):.2f}",
+                "avg_importers": f"{average([row['importers'] for row in good_rows]):.2f}",
+                "avg_trade_score": f"{average([row['trade_score'] for row in good_rows]):.2f}",
+                "avg_trade_volume": f"{average([row['trade_volume'] for row in good_rows]):.2f}",
+                "max_trade_score": f"{max([row['trade_score'] for row in good_rows], default=0):.2f}",
+                "max_trade_volume": f"{max([row['trade_volume'] for row in good_rows], default=0):.2f}",
+                "avg_trade_pairs": f"{average([row['trade_pairs'] for row in good_rows]):.2f}",
+            }
+        )
+    return sorted(summary, key=lambda row: (-int(row["traded"]), -float(row["avg_trade_score"]), row["good"]))
+
+
+def write_summary_tsv(path: Path, rows):
+    headers = [
+        "good",
+        "seeds",
+        "present",
+        "traded",
+        "avg_polity_supply",
+        "avg_polity_demand",
+        "avg_polity_surplus",
+        "avg_exporters",
+        "avg_importers",
+        "avg_trade_score",
+        "avg_trade_volume",
+        "max_trade_score",
+        "max_trade_volume",
+        "avg_trade_pairs",
+    ]
+    with path.open("w", encoding="utf-8") as handle:
+        handle.write("\t".join(headers) + "\n")
+        for row in rows:
+            handle.write("\t".join(str(row[h]) for h in headers) + "\n")
+
+
 def main():
     args = parse_args()
     sweep_dir = Path(args.sweep_dir)
@@ -97,6 +156,9 @@ def main():
     rows.sort(key=lambda row: (int(row["seed"]), row["good"]))
     write_tsv(sweep_dir / "good_path_summary.tsv", rows)
     (sweep_dir / "good_path_summary.json").write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
+    aggregate_rows = summarize_goods(rows)
+    write_summary_tsv(sweep_dir / "good_path_aggregate.tsv", aggregate_rows)
+    (sweep_dir / "good_path_aggregate.json").write_text(json.dumps(aggregate_rows, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":
