@@ -1,5 +1,7 @@
 package climgen
 
+import "math"
+
 type oceanAtmosphereDiagnostics struct {
 	OceanSource  []float64
 	WarmMarine   []float64
@@ -64,6 +66,7 @@ func computeOceanAtmosphericMoisture(
 	maxIterations int,
 ) ([]float64, oceanAtmosphereDiagnostics) {
 	moisture := append([]float64(nil), oceanSource...)
+	stepScale := precipitationPhysicalStepScale(len(vertices))
 	diag := oceanAtmosphereDiagnostics{
 		OceanSource:  append([]float64(nil), oceanSource...),
 		WarmMarine:   make([]float64, len(oceanSource)),
@@ -91,7 +94,8 @@ func computeOceanAtmosphericMoisture(
 			diag.WarmMarine[i] = warmMarine
 			diag.DownwindLand[i] = downwindLand
 			diag.Retention[i] = coastalMarineRetention
-			next[i] = maxFloat(0, (q-condensed)*precipOceanRetentionFraction*coastalMarineRetention)
+			retention := math.Pow(precipOceanRetentionFraction*coastalMarineRetention, stepScale)
+			next[i] = maxFloat(0, (q-condensed)*retention)
 			change := absPrecipFloat(next[i] - moisture[i])
 			if change > maxChange {
 				maxChange = change

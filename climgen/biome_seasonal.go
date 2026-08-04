@@ -33,10 +33,14 @@ type BiomeDiagnostics struct {
 // HydrologyBiomeInputs carries just enough routed-hydrology context for biome
 // overrides without coupling the biome package to terrain implementation types.
 type HydrologyBiomeInputs struct {
-	Runoff          []float64
-	ChannelStrength []float64
-	CellClass       []string
-	WaterBodyLabel  []int
+	Runoff                   []float64
+	ChannelStrength          []float64
+	CellClass                []string
+	WaterBodyLabel           []int
+	WetlandClassSupport      []float64
+	LakeClassSupport         []float64
+	RiparianChannelSupport   []float64
+	DepositionalClassSupport []float64
 }
 
 // SummarizeBiomeClimate derives seasonal climate summaries used by the biome
@@ -263,20 +267,7 @@ func computeBiomeAffinities(diag *BiomeDiagnostics, elevation []float64, seaLeve
 			if i < len(hydro.ChannelStrength) {
 				wetlandChannel = smoothstep01(0.9, 2.6, hydro.ChannelStrength[i])
 			}
-			if i < len(hydro.CellClass) {
-				switch hydro.CellClass[i] {
-				case "floodplain":
-					wetlandClass = 1.0
-				case "delta":
-					wetlandClass = 0.9
-				case "lake_reach":
-					wetlandClass = 0.8
-				case "coast_outlet":
-					wetlandClass = 0.55
-				case "confluence":
-					wetlandClass = 0.45
-				}
-			}
+			wetlandClass = hydrologyClassFactor(hydro, i)
 		}
 		diag.WetlandAffinity[i] = clamp01(
 			(0.45*wetlandRunoff +

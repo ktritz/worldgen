@@ -46,7 +46,7 @@ func TestPopulationSupportFavorsFoodAndWaterRichCell(t *testing.T) {
 	}
 	elevation := []float64{100, 100}
 
-	result := ClassifyPopulationSupport(settlements, agriculture, wildlife, water, nil, nil, elevation, 0, settings)
+	result := ClassifyPopulationSupport(settlements, agriculture, wildlife, water, nil, nil, nil, elevation, 0, settings)
 	if result.Diagnostics.CarryingCapacity[0] <= result.Diagnostics.CarryingCapacity[1] {
 		t.Fatalf("expected richer cell to have higher carrying capacity: got %.2f <= %.2f",
 			result.Diagnostics.CarryingCapacity[0], result.Diagnostics.CarryingCapacity[1])

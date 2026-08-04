@@ -67,6 +67,10 @@ type VegetationDiagnostics struct {
 	MangroveAffinity     []float64
 	SaltMarshAffinity    []float64
 	PeatlandAffinity     []float64
+	RiparianHydrology    []float64
+	RiparianAridity      []float64
+	RiparianHeat         []float64
+	RiparianPrecip       []float64
 	RiparianAffinity     []float64
 	CloudForestAffinity  []float64
 	AlpineMeadowAffinity []float64
@@ -78,46 +82,34 @@ type VegetationResult struct {
 }
 
 func ComputeCoastalExposure(cells []VoronoiCell, elevation []float64, seaLevel float64) []float64 {
+	radius := meshResolutionAdjustedSteps(2, len(cells))
+	ocean := make([]float64, len(elevation))
+	for i, elev := range elevation {
+		if elev < seaLevel {
+			ocean[i] = 1
+		}
+	}
+	allCells := make([]float64, len(elevation))
+	for i := range allCells {
+		allCells[i] = 1
+	}
+	waterWeight := spreadPhysicalSumSignal(cells, elevation, seaLevel, ocean, radius)
+	totalWeight := spreadPhysicalSumSignal(cells, elevation, seaLevel, allCells, radius)
+	nearestWater := spreadPhysicalMaxSignal(cells, elevation, seaLevel, ocean, radius)
 	exposure := make([]float64, len(elevation))
-	for i, cell := range cells {
-		if elevation[i] < seaLevel || len(cell.NeighborSiteIndices) == 0 {
+	for i, elev := range elevation {
+		if elev < seaLevel {
 			continue
 		}
-		direct := 0.0
-		second := 0.0
-		totalDirect := 0.0
-		totalSecond := 0.0
-		for _, n := range cell.NeighborSiteIndices {
-			ni := int(n)
-			if ni < 0 || ni >= len(elevation) {
-				continue
-			}
-			totalDirect++
-			if elevation[ni] < seaLevel {
-				direct++
-			}
-			if ni >= 0 && ni < len(cells) {
-				for _, n2 := range cells[ni].NeighborSiteIndices {
-					n2i := int(n2)
-					if n2i < 0 || n2i >= len(elevation) || n2i == i {
-						continue
-					}
-					totalSecond++
-					if elevation[n2i] < seaLevel {
-						second++
-					}
-				}
-			}
+		waterShare := 0.0
+		if i < len(totalWeight) && totalWeight[i] > 0 {
+			waterShare = waterWeight[i] / totalWeight[i]
 		}
-		directFrac := 0.0
-		if totalDirect > 0 {
-			directFrac = direct / totalDirect
+		near := 0.0
+		if i < len(nearestWater) {
+			near = nearestWater[i]
 		}
-		secondFrac := 0.0
-		if totalSecond > 0 {
-			secondFrac = second / totalSecond
-		}
-		exposure[i] = clamp01(0.75*directFrac + 0.25*secondFrac)
+		exposure[i] = clamp01(0.75*waterShare + 0.25*near)
 	}
 	return exposure
 }
@@ -155,6 +147,10 @@ func ClassifyVegetation(
 			MangroveAffinity:     make([]float64, n),
 			SaltMarshAffinity:    make([]float64, n),
 			PeatlandAffinity:     make([]float64, n),
+			RiparianHydrology:    make([]float64, n),
+			RiparianAridity:      make([]float64, n),
+			RiparianHeat:         make([]float64, n),
+			RiparianPrecip:       make([]float64, n),
 			RiparianAffinity:     make([]float64, n),
 			CloudForestAffinity:  make([]float64, n),
 			AlpineMeadowAffinity: make([]float64, n),
@@ -190,46 +186,14 @@ func ClassifyVegetation(
 			if i < len(hydro.ChannelStrength) {
 				waterlogChannel = smoothstep01(0.9, 2.6, hydro.ChannelStrength[i])
 			}
-			if i < len(hydro.CellClass) {
-				switch hydro.CellClass[i] {
-				case "floodplain":
-					waterlogClass = 1.0
-				case "delta":
-					waterlogClass = 0.9
-				case "lake_reach":
-					waterlogClass = 0.8
-				case "coast_outlet":
-					waterlogClass = 0.55
-				case "confluence":
-					waterlogClass = 0.45
-				}
-			}
+			waterlogClass = hydrologyClassFactor(hydro, i)
 		}
 		out.Diagnostics.Waterlogging[i] = clamp01(0.40*waterlogRunoff + 0.35*waterlogChannel + 0.25*waterlogClass)
 
-		channel := 0.0
-		if hydro != nil && i < len(hydro.ChannelStrength) {
-			channel = hydro.ChannelStrength[i]
-		}
-		lowlandWetClass := 0.0
-		if hydro != nil && i < len(hydro.CellClass) {
-			switch hydro.CellClass[i] {
-			case "floodplain":
-				lowlandWetClass = 1.0
-			case "delta":
-				lowlandWetClass = 0.95
-			case "lake_reach":
-				lowlandWetClass = 0.85
-			case "lake_complex":
-				lowlandWetClass = 0.80
-			case "coast_outlet":
-				lowlandWetClass = 0.55
-			case "confluence":
-				lowlandWetClass = 0.45
-			}
-		}
+		lowlandWetClass := hydrologyClassFactor(hydro, i)
+		riparianChannel := hydrologyRiparianChannelSupport(hydro, i)
 		riparianSupport := clamp01(
-			smoothstep01(0.7, 2.2, channel) *
+			riparianChannel *
 				smoothstep01(0.25, 1.8, diag.AridityRatio[i]),
 		)
 		soilFertility := 0.5
@@ -380,12 +344,20 @@ func ClassifyVegetation(
 				smoothstep01(0.55, 0.15, soilDrainage) *
 				(1 - coastalValue(coastalExposure, i)),
 		)
+		riparianHydrology := clamp01(0.65*riparianChannel + 0.35*lowlandWetClass)
+		riparianAridity := peak01(diag.AridityRatio[i], 0.15, 0.9, 2.2)
+		riparianHeat := smoothstep01(6, 20, diag.WarmestSeasonTempC[i])
+		riparianPrecip := 0.55 + 0.45*smoothstep01(25, 120, diag.AnnualPrecipCm[i])
+		out.Diagnostics.RiparianHydrology[i] = riparianHydrology
+		out.Diagnostics.RiparianAridity[i] = riparianAridity
+		out.Diagnostics.RiparianHeat[i] = riparianHeat
+		out.Diagnostics.RiparianPrecip[i] = riparianPrecip
 		out.Diagnostics.RiparianAffinity[i] = clamp01(
-			smoothstep01(0.7, 2.2, channel) *
-				peak01(diag.AridityRatio[i], 0.15, 0.9, 2.2) *
-				smoothstep01(6, 20, diag.WarmestSeasonTempC[i]) *
+			riparianHydrology *
+				riparianAridity *
+				riparianHeat *
 				(0.60 + 0.40*soilAlluvial) *
-				(0.55 + 0.45*smoothstep01(25, 120, diag.AnnualPrecipCm[i])),
+				riparianPrecip,
 		)
 		out.Diagnostics.CloudForestAffinity[i] = clamp01(
 			out.Diagnostics.TreeCover[i] *

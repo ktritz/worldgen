@@ -204,23 +204,47 @@ func coastalOnshoreScore(
 	}
 	windDir := Scale(wind[i], 1.0/speed)
 
+	radius := resolutionAdjustedPrecipSteps(1, len(vertices))
+	stepScale := precipitationPhysicalStepScale(len(vertices))
+	type queueItem struct {
+		idx   int
+		depth int
+	}
+	queue := []queueItem{{idx: i, depth: 0}}
+	visited := map[int]bool{i: true}
 	sum := 0.0
-	count := 0
-	for _, k := range adj.GetNeighbors(i) {
-		if k < 0 || k >= len(vertices) || elevation[k] >= seaLevelThreshold {
+	weightSum := 0.0
+	for len(queue) > 0 {
+		item := queue[0]
+		queue = queue[1:]
+		if item.depth >= radius {
 			continue
 		}
-		fromOcean := Normalize(Sub(vertices[i], vertices[k]))
-		onshore := Dot(windDir, fromOcean)
-		if onshore > 0 {
-			sum += onshore
+		for _, k := range adj.GetNeighbors(item.idx) {
+			if k < 0 || k >= len(vertices) || k >= len(elevation) || visited[k] {
+				continue
+			}
+			visited[k] = true
+			depth := item.depth + 1
+			if elevation[k] < seaLevelThreshold {
+				fromOcean := Normalize(Sub(vertices[i], vertices[k]))
+				onshore := Dot(windDir, fromOcean)
+				if onshore > 0 {
+					distance := float64(depth) * stepScale
+					weight := math.Exp(-1.25 * distance)
+					sum += onshore * weight
+					weightSum += weight
+				}
+			}
+			if depth < radius {
+				queue = append(queue, queueItem{idx: k, depth: depth})
+			}
 		}
-		count++
 	}
-	if count == 0 {
+	if weightSum <= 0 {
 		return 0
 	}
-	return Clamp(sum/float64(count), 0, 1)
+	return Clamp(sum/weightSum, 0, 1)
 }
 
 func smoothRamp(edge0, edge1, x float64) float64 {

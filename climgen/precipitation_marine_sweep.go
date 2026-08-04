@@ -163,6 +163,7 @@ func computeMarineSweepTransport(
 	marineOutgoing := make([]float64, len(elevation))
 	processed := make([]bool, len(elevation))
 	diag := newMarineSweepDiagnostics(len(elevation))
+	stepScale := precipitationPhysicalStepScale(len(vertices))
 	for i := range marineIncoming {
 		if i < len(elevation) && elevation[i] < seaLevel && i < len(oceanAtmosphere) {
 			marineIncoming[i] = oceanAtmosphere[i]
@@ -229,7 +230,7 @@ func computeMarineSweepTransport(
 		if incoming <= 1e-9 {
 			continue
 		}
-		pathWeight := Clamp(0.92+0.06*strength[i], 0.84, 1.00)
+		pathWeight := math.Pow(Clamp(0.92+0.06*strength[i], 0.84, 1.00), stepScale)
 		q := incoming * pathWeight
 		coastalImmediate := Clamp(oceanFetch[i], 0, 1) * Clamp(coastalOnshore[i], 0, 1) * (1.0 - Clamp(landTravel[i], 0, 1))
 		nearInlandCorridor := transportCorridorWeight(landTravel[i])
@@ -237,7 +238,7 @@ func computeMarineSweepTransport(
 		if i >= 0 && i < len(temperature) {
 			tempC = temperature[i] - 273.15
 		}
-		entryScale := marineLandfallEntryScale(coastalImmediate, uplift[i], landTravel[i], tempC)
+		entryScale := math.Pow(marineLandfallEntryScale(coastalImmediate, uplift[i], landTravel[i], tempC), stepScale)
 		q *= entryScale
 		marineIncoming[i] = q
 		diag.DonorIndex[i] = float64(bestDonor)
@@ -321,8 +322,9 @@ func computeMarineSweepTransport(
 		}
 		retentionScale := Clamp(localPrecipitationScale(settings.LandRetentionLocalScale, i), 0.7, 1.5)
 		mix := marineToLandMixFraction(oceanFetch[i], coastalOnshore[i], landTravel[i], landInterior[i])
-		outgoingScale := Clamp(0.94+0.04*coastalImmediate+0.10*nearInlandCorridor+0.05*(retentionScale-1.0), 0.88, 1.00)
-		marineOutgoing[i] = retained * outgoingScale * (1.0 - 0.05*mix)
+		outgoingScale := math.Pow(Clamp(0.94+0.04*coastalImmediate+0.10*nearInlandCorridor+0.05*(retentionScale-1.0), 0.88, 1.00), stepScale)
+		mixLossScale := math.Pow(1.0-0.05*mix, stepScale)
+		marineOutgoing[i] = retained * outgoingScale * mixLossScale
 		processed[i] = true
 	}
 
