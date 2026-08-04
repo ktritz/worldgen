@@ -173,24 +173,19 @@ func computeEffectiveMaritimeAccess(
 	rawOnshore []float64,
 	landTravel []float64,
 	landInterior []float64,
+	footprintOceanSupport []float64,
 ) ([]float64, []float64) {
 	effectiveFetch := append([]float64(nil), rawFetch...)
 	effectiveOnshore := append([]float64(nil), rawOnshore...)
-	footprintSteps := resolutionAdjustedPrecipSteps(precipInlandTransportSteps+4, len(vertices))
 	for i := range effectiveFetch {
 		if i >= len(elevation) || elevation[i] < seaLevel {
 			continue
 		}
 		neighborOceanFraction := computeNeighborOceanFraction(i, elevation, seaLevel, adj)
-		footprintSupport := computeUpwindOceanFootprintSupport(
-			i,
-			vertices,
-			elevation,
-			seaLevel,
-			adj,
-			wind,
-			footprintSteps,
-		)
+		footprintSupport := 0.0
+		if i < len(footprintOceanSupport) {
+			footprintSupport = footprintOceanSupport[i]
+		}
 		marine := 0.0
 		if i < len(marineIncoming) {
 			marine = marineIncoming[i]
@@ -216,4 +211,25 @@ func computeEffectiveMaritimeAccess(
 		effectiveOnshore[i] = diag.EffectiveOnshore
 	}
 	return effectiveFetch, effectiveOnshore
+}
+
+// computeUpwindOceanFootprintSupportField is the batched all-cells form of
+// computeUpwindOceanFootprintSupport. The support value is the ocean share of
+// the normalized footprint weight, which is linear in the footprint operator.
+func computeUpwindOceanFootprintSupportField(
+	vertices []Vector3D,
+	elevation []float64,
+	seaLevel float64,
+	maxDepth int,
+	cache *upwindTransitionCache,
+) []float64 {
+	oceanMask := make([]bool, len(vertices))
+	for i := range oceanMask {
+		oceanMask[i] = i < len(elevation) && elevation[i] < seaLevel
+	}
+	return batchUpwindFootprintMaskShare(
+		cache.get(precipUpwindFootprintMinAlignment),
+		upwindFootprintCoeffs(maxDepth, len(vertices)),
+		oceanMask,
+	)
 }

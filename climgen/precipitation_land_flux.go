@@ -86,7 +86,35 @@ func computeTropicalMarineSource(
 		0.02,
 		nil,
 	)
+	return combineTropicalMarineSource(
+		i,
+		localMarine,
+		directLocal,
+		footprintMean,
+		footprintMax,
+		scale,
+		oceanFetch,
+		coastalOnshore,
+		landTravel,
+		landInterior,
+	)
+}
 
+// combineTropicalMarineSource is the weight-independent tail of
+// computeTropicalMarineSource. It is shared with the batched path so the two
+// forms cannot drift apart.
+func combineTropicalMarineSource(
+	i int,
+	localMarine float64,
+	directLocal float64,
+	footprintMean float64,
+	footprintMax float64,
+	scale float64,
+	oceanFetch []float64,
+	coastalOnshore []float64,
+	landTravel []float64,
+	landInterior []float64,
+) float64 {
 	travel := 0.0
 	if i < len(landTravel) {
 		travel = Clamp(landTravel[i], 0, 1)
@@ -112,4 +140,65 @@ func computeTropicalMarineSource(
 		(0.03 + 0.04*onshore + 0.11*corridor + 0.15*interior + 0.10*travel) *
 		(1.0 - 0.42*coastalImmediate)
 	return Clamp(added, 0, 0.38*available)
+}
+
+// tropicalMarineUpwind holds the batched upwind footprint inputs that
+// computeTropicalMarineSource would otherwise recompute with one frontier BFS
+// per cell. The marine field is constant across the land-budget iterations, so
+// the whole table is built once.
+type tropicalMarineUpwind struct {
+	directLocal   []float64
+	footprintMean []float64
+	footprintMax  []float64
+}
+
+func computeTropicalMarineUpwind(
+	marineField []float64,
+	vertices []Vector3D,
+	cache *upwindTransitionCache,
+) *tropicalMarineUpwind {
+	p := cache.get(0.02)
+	coeffs := upwindFootprintCoeffs(resolutionAdjustedPrecipSteps(4, len(vertices)), len(vertices))
+	directLocal, _ := batchLocalUpwindMean(p, marineField, nil)
+	footprintMean, _ := batchUpwindFootprintMean(p, coeffs, marineField, nil)
+	footprintMax, _ := batchUpwindFootprintMax(p, coeffs, marineField, nil)
+	return &tropicalMarineUpwind{
+		directLocal:   directLocal,
+		footprintMean: footprintMean,
+		footprintMax:  footprintMax,
+	}
+}
+
+// source is the batched equivalent of computeTropicalMarineSource for cell i.
+func (u *tropicalMarineUpwind) source(
+	i int,
+	marineField []float64,
+	elevation []float64,
+	seaLevel float64,
+	oceanFetch []float64,
+	coastalOnshore []float64,
+	landTravel []float64,
+	landInterior []float64,
+	tropicalSourceScale []float64,
+) float64 {
+	scale := localOptionalPrecipitationScale(tropicalSourceScale, i)
+	if scale <= 1e-9 || i < 0 || i >= len(elevation) || elevation[i] < seaLevel {
+		return 0
+	}
+	localMarine := 0.0
+	if i < len(marineField) {
+		localMarine = marineField[i]
+	}
+	return combineTropicalMarineSource(
+		i,
+		localMarine,
+		u.directLocal[i],
+		u.footprintMean[i],
+		u.footprintMax[i],
+		scale,
+		oceanFetch,
+		coastalOnshore,
+		landTravel,
+		landInterior,
+	)
 }

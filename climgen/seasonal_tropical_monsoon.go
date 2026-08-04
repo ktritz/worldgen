@@ -92,6 +92,13 @@ func computeSeasonalTropicalRegimeFields(
 	fetchSteps := resolutionAdjustedPrecipSteps(precipFetchMaxSteps, len(vertices))
 	upwindLandSteps := computeUpwindLandStepCounts(parent, strength, elevation, seaLevelThreshold, transportSteps)
 	rawCrossing := make([]float64, len(vertices))
+	monsoonFootprintSupport := computeUpwindOceanFootprintSupportField(
+		vertices,
+		elevation,
+		seaLevelThreshold,
+		resolutionAdjustedPrecipSteps(precipInlandTransportSteps+4, len(vertices)),
+		newUpwindTransitionCache(vertices, adj, wind),
+	)
 
 	for i, v := range vertices {
 		if i >= len(elevation) || elevation[i] < seaLevelThreshold {
@@ -120,15 +127,7 @@ func computeSeasonalTropicalRegimeFields(
 		}
 		onshore := coastalOnshoreScore(i, vertices, elevation, seaLevelThreshold, adj, wind)
 		oceanFetch := computeUpwindOceanFetch(i, vertices, elevation, seaLevelThreshold, adj, wind, fetchSteps)
-		footprintSupport := computeUpwindOceanFootprintSupport(
-			i,
-			vertices,
-			elevation,
-			seaLevelThreshold,
-			adj,
-			wind,
-			resolutionAdjustedPrecipSteps(precipInlandTransportSteps+4, len(vertices)),
-		)
+		footprintSupport := monsoonFootprintSupport[i]
 		neighborOcean := computeNeighborOceanFraction(i, elevation, seaLevelThreshold, adj)
 		travel := 0.0
 		if i < len(upwindLandSteps) && upwindLandSteps[i] >= 0 {

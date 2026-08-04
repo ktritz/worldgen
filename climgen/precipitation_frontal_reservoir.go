@@ -53,7 +53,32 @@ func computeFrontalStormSource(
 	}
 	directUpwind, _ := frontalUpwindMean(i, marineField, vertices, elevation, seaLevel, adj, wind)
 	secondHop := frontalTwoHopUpwindMean(i, marineField, vertices, elevation, seaLevel, adj, wind)
+	return combineFrontalStormSource(
+		i,
+		localMarine,
+		directUpwind,
+		secondHop,
+		transportScale,
+		oceanFetch,
+		landTravel,
+		landInterior,
+		frontalSourceScale,
+	)
+}
 
+// combineFrontalStormSource is the weight-independent tail of
+// computeFrontalStormSource, shared with the batched path.
+func combineFrontalStormSource(
+	i int,
+	localMarine float64,
+	directUpwind float64,
+	secondHop float64,
+	transportScale float64,
+	oceanFetch []float64,
+	landTravel []float64,
+	landInterior []float64,
+	frontalSourceScale []float64,
+) float64 {
 	travel := 0.0
 	if i < len(landTravel) {
 		travel = Clamp(landTravel[i], 0, 1)
@@ -281,22 +306,30 @@ func applyFrontalStormTransport(
 	frontalSourceScale []float64,
 	frontalRetentionScale []float64,
 	frontalTransportScale []float64,
+	cache *upwindTransitionCache,
 ) {
 	if len(frontal) == 0 {
 		return
 	}
+	if cache == nil {
+		cache = newUpwindTransitionCache(vertices, adj, wind)
+	}
+	landMask := landMaskAtOrAbove(elevation, seaLevel, len(vertices))
 	current := append([]float64(nil), frontal...)
 	for iter := 0; iter < frontalStormTransportIterations; iter++ {
+		// current is read-only within the sweep (writes land in next), so the
+		// whole upwind reduction batches once per iteration.
+		upwind := computeFrontalUpwindBatch(current, vertices, landMask, cache)
 		next := append([]float64(nil), current...)
 		for i := range current {
 			if i >= len(elevation) || elevation[i] < seaLevel {
 				continue
 			}
-			directUpwind, ok := frontalUpwindMean(i, current, vertices, elevation, seaLevel, adj, wind)
+			directUpwind, ok := upwind.direct[i], upwind.directOK[i]
 			if !ok {
 				continue
 			}
-			secondHop := frontalTwoHopUpwindMean(i, current, vertices, elevation, seaLevel, adj, wind)
+			secondHop := upwind.twoHop[i]
 			lateral := frontalCrossWindMean(i, current, vertices, elevation, seaLevel, adj, wind)
 
 			travel := 0.0
@@ -392,6 +425,12 @@ func frontalUpwindMean(
 			return idx >= 0 && idx < len(elevation) && elevation[idx] >= seaLevel
 		},
 	)
+	return combineFrontalUpwindMean(localMean, localOK, footprintMean, footprintOK)
+}
+
+// combineFrontalUpwindMean is the weight-independent tail of frontalUpwindMean,
+// shared with the batched path so the two forms cannot drift apart.
+func combineFrontalUpwindMean(localMean float64, localOK bool, footprintMean float64, footprintOK bool) (float64, bool) {
 	if !localOK {
 		return footprintMean, footprintOK
 	}
@@ -433,6 +472,12 @@ func frontalTwoHopUpwindMean(
 			return idx >= 0 && idx < len(elevation) && elevation[idx] >= seaLevel
 		},
 	)
+	return combineFrontalTwoHopUpwindMean(localMean, localOK, mean, ok)
+}
+
+// combineFrontalTwoHopUpwindMean is the weight-independent tail of
+// frontalTwoHopUpwindMean, shared with the batched path.
+func combineFrontalTwoHopUpwindMean(localMean float64, localOK bool, mean float64, ok bool) float64 {
 	if !ok {
 		if localOK {
 			return localMean
@@ -478,4 +523,81 @@ func frontalCrossWindMean(
 		return 0
 	}
 	return sum / weightSum
+}
+
+// frontalUpwindBatch holds the batched frontalUpwindMean and
+// frontalTwoHopUpwindMean results for one field over every cell. The three
+// underlying reductions (depth-1 local mean, depth-2 footprint, depth-4
+// footprint) all share the same minAlignment, so they reuse a single cached
+// transition operator.
+type frontalUpwindBatch struct {
+	direct   []float64
+	directOK []bool
+	twoHop   []float64
+}
+
+func computeFrontalUpwindBatch(
+	field []float64,
+	vertices []Vector3D,
+	landMask []bool,
+	cache *upwindTransitionCache,
+) *frontalUpwindBatch {
+	p := cache.get(0.02)
+	n := p.n
+	localMean, localOK := batchLocalUpwindMean(p, field, landMask)
+	nearMean, nearOK := batchUpwindFootprintMean(
+		p,
+		upwindFootprintCoeffs(resolutionAdjustedPrecipSteps(2, len(vertices)), len(vertices)),
+		field,
+		landMask,
+	)
+	farMean, farOK := batchUpwindFootprintMean(
+		p,
+		upwindFootprintCoeffs(resolutionAdjustedPrecipSteps(4, len(vertices)), len(vertices)),
+		field,
+		landMask,
+	)
+	batch := &frontalUpwindBatch{
+		direct:   make([]float64, n),
+		directOK: make([]bool, n),
+		twoHop:   make([]float64, n),
+	}
+	for i := 0; i < n; i++ {
+		batch.direct[i], batch.directOK[i] = combineFrontalUpwindMean(localMean[i], localOK[i], nearMean[i], nearOK[i])
+		batch.twoHop[i] = combineFrontalTwoHopUpwindMean(localMean[i], localOK[i], farMean[i], farOK[i])
+	}
+	return batch
+}
+
+// stormSource is the batched equivalent of computeFrontalStormSource for cell i.
+func (b *frontalUpwindBatch) stormSource(
+	i int,
+	marineField []float64,
+	elevation []float64,
+	seaLevel float64,
+	oceanFetch []float64,
+	landTravel []float64,
+	landInterior []float64,
+	frontalSourceScale []float64,
+	frontalTransportScale []float64,
+) float64 {
+	transportScale := localOptionalPrecipitationScale(frontalTransportScale, i)
+	if transportScale <= 1e-9 || i < 0 || i >= len(elevation) || elevation[i] < seaLevel {
+		return 0
+	}
+	localMarine := 0.0
+	if i < len(marineField) {
+		localMarine = marineField[i]
+	}
+	return combineFrontalStormSource(
+		i,
+		localMarine,
+		b.direct[i],
+		b.twoHop[i],
+		transportScale,
+		oceanFetch,
+		landTravel,
+		landInterior,
+		frontalSourceScale,
+	)
 }

@@ -78,6 +78,7 @@ func TestApplyFrontalStormTransportCarriesBandFartherInland(t *testing.T) {
 		sourceScale,
 		retentionScale,
 		transportScale,
+		nil,
 	)
 
 	if frontal[3] <= 0.02 {
