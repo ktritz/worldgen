@@ -122,7 +122,7 @@ func buildHydrologyStateFromRunoff(cells []VoronoiCell, elevation []float64, run
 	if landCount > 0 && runoffSum > 0 {
 		meanRunoff = runoffSum / float64(landCount)
 	}
-	channelThreshold := math.Max(12, 0.001*float64(maxInt(landCount, 1))) * meanRunoff
+	channelThreshold := hydrologyChannelThreshold(elevation, runoff, accumulation, landCount, meanRunoff)
 	channelStrength := make([]float64, len(elevation))
 	inflowCount := make([]int, len(elevation))
 	for i, elev := range elevation {
@@ -170,6 +170,58 @@ func buildHydrologyStateFromRunoff(cells []VoronoiCell, elevation []float64, run
 		OutletMode:       outletMode,
 		MaxOutflows:      maxOutflows,
 	}
+}
+
+func hydrologyChannelThreshold(elevation []float64, runoff []float64, accumulation []float64, landCount int, meanRunoff float64) float64 {
+	if landCount <= 0 {
+		return 1
+	}
+	landAccumulation := make([]float64, 0, landCount)
+	for i, elev := range elevation {
+		if elev <= 0 || i >= len(accumulation) {
+			continue
+		}
+		landAccumulation = append(landAccumulation, math.Max(accumulation[i], 0))
+	}
+	if len(landAccumulation) == 0 {
+		return math.Max(meanRunoff, 1e-6)
+	}
+	sort.Float64s(landAccumulation)
+	// Flow accumulation is computed on the receiver graph, not a raster area
+	// integral. Normalizing by a fixed upper-tail rank keeps channel hierarchy
+	// comparable as the mesh is refined and local catchments split.
+	quantileThreshold := sortedPercentile(landAccumulation, 93.5)
+	runoffFloor := math.Max(12*meanRunoff, maxRunoff(runoff))
+	return math.Max(runoffFloor, quantileThreshold)
+}
+
+func sortedPercentile(sortedValues []float64, pct float64) float64 {
+	if len(sortedValues) == 0 {
+		return 0
+	}
+	if pct <= 0 {
+		return sortedValues[0]
+	}
+	if pct >= 100 {
+		return sortedValues[len(sortedValues)-1]
+	}
+	idx := (float64(len(sortedValues)-1) * pct) / 100
+	lo := int(math.Floor(idx))
+	hi := int(math.Ceil(idx))
+	if lo == hi {
+		return sortedValues[lo]
+	}
+	return sortedValues[lo]*(float64(hi)-idx) + sortedValues[hi]*(idx-float64(lo))
+}
+
+func maxRunoff(runoff []float64) float64 {
+	maxValue := 0.0
+	for _, value := range runoff {
+		if value > maxValue {
+			maxValue = value
+		}
+	}
+	return maxValue
 }
 
 func populateDrainageMetricsFromState(metrics *TerrainMetrics, elevation []float64, state hydrologyState) {

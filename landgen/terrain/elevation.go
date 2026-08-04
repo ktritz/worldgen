@@ -6,7 +6,7 @@ package terrain
 import (
 	"fmt"
 	"math"
-	"math/rand"
+	"sort"
 )
 
 // ComputeElevation computes elevation using distance field algorithm
@@ -19,8 +19,23 @@ func ComputeElevation(
 	plateRot map[int]PlateRotation,
 	seed int64,
 ) ([]float64, map[int]bool, map[int]bool, map[int]bool, map[int]bool, map[int]bool, map[int]bool) {
+	elevation, seeds := ComputeElevationWithSeeds(sites, cells, plateIsOcean, rPlate, plateRot, seed)
+	return elevation, seeds.Coastline, seeds.Mountain, seeds.Collision, seeds.Arc, seeds.Ridge, seeds.Trench
+}
+
+// ComputeElevationWithSeeds is ComputeElevation with the full boundary seed set
+// returned instead of the historical positional subset. It exists so callers
+// that need seed classes the tuple never carried (notably rift seeds) can reach
+// them without recomputing collisions.
+func ComputeElevationWithSeeds(
+	sites []Vector3D,
+	cells []VoronoiCell,
+	plateIsOcean map[int]bool,
+	rPlate []int,
+	plateRot map[int]PlateRotation,
+	seed int64,
+) ([]float64, BoundarySeeds) {
 	numRegions := len(sites)
-	rng := rand.New(rand.NewSource(seed + 12345))
 	epsilon := 1e-3
 
 	// Find collision zones
@@ -53,9 +68,9 @@ func ComputeElevation(
 	}
 
 	// Compute distance fields
-	rDistanceA := AssignDistanceField(cells, seeds.Mountain, oceanLikeSeeds, rng)
-	rDistanceB := AssignDistanceField(cells, oceanLikeSeeds, seeds.Coastline, rng)
-	rDistanceC := AssignDistanceField(cells, seeds.Coastline, stopR, rng)
+	rDistanceA := AssignDistanceField(cells, seeds.Mountain, oceanLikeSeeds)
+	rDistanceB := AssignDistanceField(cells, oceanLikeSeeds, seeds.Coastline)
+	rDistanceC := AssignDistanceField(cells, seeds.Coastline, stopR)
 
 	// Compute elevation using original formula
 	elevation := make([]float64, numRegions)
@@ -108,11 +123,13 @@ func ComputeElevation(
 		}
 	}
 
-	return elevation, seeds.Coastline, seeds.Mountain, seeds.Collision, seeds.Arc, seeds.Ridge, seeds.Trench
+	return elevation, seeds
 }
 
-// AssignDistanceField computes distance from seeds using randomized BFS
-func AssignDistanceField(cells []VoronoiCell, seedsR map[int]bool, stopR map[int]bool, rng *rand.Rand) []float64 {
+// AssignDistanceField computes graph distance from seeds using deterministic BFS.
+// Randomized queue order made terrain sensitive to map iteration and to unrelated
+// RNG consumption; stable ordering keeps this structural field reproducible.
+func AssignDistanceField(cells []VoronoiCell, seedsR map[int]bool, stopR map[int]bool) []float64 {
 	numRegions := len(cells)
 	rDistance := make([]float64, numRegions)
 	for i := range rDistance {
@@ -120,18 +137,18 @@ func AssignDistanceField(cells []VoronoiCell, seedsR map[int]bool, stopR map[int
 	}
 
 	// Initialize queue with seeds
-	var queue []int
+	queue := make([]int, 0, len(seedsR))
 	for r := range seedsR {
-		queue = append(queue, r)
-		rDistance[r] = 0
+		if r >= 0 && r < numRegions {
+			queue = append(queue, r)
+			rDistance[r] = 0
+		}
 	}
+	sort.Ints(queue)
 
-	// Randomized BFS
+	// Stable FIFO BFS.
 	for queueOut := 0; queueOut < len(queue); queueOut++ {
-		pos := queueOut + rng.Intn(len(queue)-queueOut)
-		currentR := queue[pos]
-		queue[pos] = queue[queueOut]
-
+		currentR := queue[queueOut]
 		for _, neighborIdx := range cells[currentR].NeighborSiteIndices {
 			neighborR := int(neighborIdx)
 			if neighborR < numRegions && math.IsInf(rDistance[neighborR], 1) && !stopR[neighborR] {
@@ -603,6 +620,10 @@ func ApplyOceanBasinStructure(
 		maxOceanDist = 1
 	}
 
+	// distFromRidge is a BFS hop count; convert hops to physical distance so
+	// the abyssal-hill band wavelength does not shrink as the mesh is refined.
+	stepScale := meshPathCostResolutionScale(len(elevation))
+
 	for r, elev := range elevation {
 		plate := rPlate[r]
 		if !plateIsOcean[plate] {
@@ -647,7 +668,7 @@ func ApplyOceanBasinStructure(
 		// Abyssal hills are organized roughly parallel to ridge flanks, so use
 		// distance from spreading centers to create ridge-parallel bands.
 		ridgeBandFreq := 0.75 + 0.18*(1.0+FBMNoiseWithFreq(sites[r], seed+141414, 6.0, 2))
-		ridgeBands := math.Sin(distFromRidge[r] * ridgeBandFreq)
+		ridgeBands := math.Sin(distFromRidge[r] * stepScale * ridgeBandFreq)
 		ridgeHillAmp := 0.014 * (0.35 + 0.65*(1.0-matureOcean)) * (0.25 + 0.75*openOcean)
 		structure += ridgeBands * ridgeHillAmp
 
@@ -815,25 +836,36 @@ func ComputeCoastalExposure(cells []VoronoiCell, elevation []float64, oceanDistF
 		}
 	}
 	exposureScale := math.Max(2.0, maxOceanDist*0.18)
+	// Sample a fixed PHYSICAL neighborhood: 2 hops at baseline resolution,
+	// proportionally more hops on finer meshes.
+	maxDepth := meshResolutionAdjustedSteps(2, len(cells))
+
+	type item struct {
+		region int
+		depth  int
+	}
+
+	// Reuse one visited-stamp array and one queue buffer across all cells:
+	// a fresh map[int]bool per cell dominated this function's cost at L7.
+	visited := make([]int32, len(cells))
+	stamp := int32(0)
+	queue := make([]item, 0, 64)
 
 	for r := range cells {
 		if math.Abs(elevation[r]) > 1200 {
 			continue
 		}
 
-		type item struct {
-			region int
-			depth  int
-		}
-
-		queue := []item{{region: r, depth: 0}}
-		visited := map[int]bool{r: true}
+		stamp++
+		queue = append(queue[:0], item{region: r, depth: 0})
+		visited[r] = stamp
+		head := 0
 		sum := 0.0
 		weightSum := 0.0
 
-		for len(queue) > 0 {
-			current := queue[0]
-			queue = queue[1:]
+		for head < len(queue) {
+			current := queue[head]
+			head++
 
 			weight := 1.0 / float64(current.depth+1)
 			if !math.IsInf(oceanDistFromCoast[current.region], 1) {
@@ -841,16 +873,16 @@ func ComputeCoastalExposure(cells []VoronoiCell, elevation []float64, oceanDistF
 				weightSum += weight
 			}
 
-			if current.depth >= 2 {
+			if current.depth >= maxDepth {
 				continue
 			}
 
 			for _, neighborIdx := range cells[current.region].NeighborSiteIndices {
 				neighbor := int(neighborIdx)
-				if neighbor < 0 || neighbor >= len(cells) || visited[neighbor] {
+				if neighbor < 0 || neighbor >= len(cells) || visited[neighbor] == stamp {
 					continue
 				}
-				visited[neighbor] = true
+				visited[neighbor] = stamp
 				queue = append(queue, item{region: neighbor, depth: current.depth + 1})
 			}
 		}

@@ -10,6 +10,29 @@ import (
 // Erosion and smoothing passes for terrain
 // Applied before hypsometric mapping to create more natural mountain ranges
 
+// landmassErosionBaseCheckDepth is the ApplyLandmassErosion ocean-fraction BFS
+// radius expressed in *baseline L5* neighbor hops (see meshResolutionAdjustedSteps).
+//
+// Calibration note: the original hardcoded constant was 15 and its comment read
+// "~15 neighbor hops at level 7 ~= 1000km radius" - i.e. it was calibrated at L7,
+// not at the L5 baseline the scaling helper assumes. Feeding 15 to
+// meshResolutionAdjustedSteps therefore quadrupled the intended physical radius at
+// L7 (60 hops) and cost ~(60/16)^2 ~= 14x in the per-land-cell BFS.
+//
+// A base of 4 reproduces the intended physical radius: mean cell angular radius is
+// 2/sqrt(n), so hop count x cell radius is ~constant across levels.
+//
+//	L4  2562 cells: scale 1.000 ->  4 hops (~ 158 km/hop, uncorrected by design)
+//	L5 10242 cells: scale 1.000 ->  4 hops (~ 126 km/hop -> ~ 504 km radius)
+//	L6 40962 cells: scale 0.500 ->  8 hops (~  63 km/hop -> ~ 504 km radius)
+//	L7 163842 cells: scale 0.250 -> 16 hops (~  31 km/hop -> ~ 504 km radius)
+//	L8 655362 cells: scale 0.125 -> 32 hops (~  16 km/hop -> ~ 504 km radius)
+//
+// 16 hops at L7 is within one hop of the value the constant was originally tuned
+// against, so L7 output is essentially unchanged while L5/L6 gain the physical
+// radius they should always have had.
+const landmassErosionBaseCheckDepth = 4
+
 // LandmassInfo stores info about a connected landmass for erosion calculations
 type LandmassInfo struct {
 	ID           int
@@ -30,6 +53,7 @@ func ApplyThermalErosion(
 	strength float64,
 ) {
 	numRegions := len(elevation)
+	iterations = meshResolutionAdjustedDiffusionIterations(iterations, numRegions)
 	buffer := make([]float64, numRegions)
 
 	for iter := 0; iter < iterations; iter++ {
@@ -68,6 +92,17 @@ func ApplyThermalErosion(
 // ApplySelectiveErosion applies stronger erosion to peaks, preserving valleys
 // This creates more realistic mountain ranges with gradual slopes
 // Uses parallel processing for better performance
+//
+// Cost note (measured 2026-08-02, i7-6700K, 8 threads, 163842-cell mesh):
+// meshResolutionAdjustedDiffusionIterations is the correct policy here - a
+// nearest-neighbour diffusion pass smooths a fixed number of *cells*, so holding
+// the physical smoothing radius constant genuinely requires iterations ~ N. Base
+// 3 becomes 3/12/48/192 iterations at L5/L6/L7/L8. Measured wall time for the
+// whole call: 1.1 ms (L5), 11.8 ms (L6), 185 ms (L7) - i.e. ~2% of a 7.7 s L7
+// terrain run, and ~3 s extrapolated at L8. That is cheap enough that trading
+// accuracy for a wider-stencil single pass (which would need explicit k-ring
+// neighbourhoods this mesh does not precompute) is not worth it. Keep as is; the
+// L7 performance problem was ApplyLandmassErosion's BFS radius, not this.
 func ApplySelectiveErosion(
 	cells []VoronoiCell,
 	elevation []float64,
@@ -76,6 +111,7 @@ func ApplySelectiveErosion(
 	iterations int,
 ) {
 	numRegions := len(elevation)
+	iterations = meshResolutionAdjustedDiffusionIterations(iterations, numRegions)
 	buffer := make([]float64, numRegions)
 	numWorkers := runtime.NumCPU()
 
@@ -150,8 +186,8 @@ func ApplySelectiveErosion(
 
 // ApplyLandmassErosion caps mountain elevations based on ocean proximity
 // Mountains surrounded by ocean can't be as tall as continental interior mountains
-// Uses a radius check: counts what fraction of nearby cells are ocean
-// Resolution-independent: uses angular distance, not cell counts
+// Uses a radius check: counts what fraction of a physical-equivalent nearby
+// cell band is ocean.
 func ApplyLandmassErosion(
 	cells []VoronoiCell,
 	elevation []float64,
@@ -162,9 +198,12 @@ func ApplyLandmassErosion(
 ) {
 	numRegions := len(elevation)
 
-	// For each land cell, count ocean cells within a radius using BFS
-	// Radius of ~1000km - large enough to detect isthmuses and small landmasses
-	const checkDepth = 15 // ~15 neighbor hops at level 7 ≈ 1000km radius
+	// For each land cell, count ocean cells within a physical-equivalent radius.
+	// Radius of ~1000km - large enough to detect isthmuses and small landmasses.
+	checkDepth := meshResolutionAdjustedSteps(landmassErosionBaseCheckDepth, numRegions)
+	stepScale := meshPathCostResolutionScale(numRegions)
+	visited := make([]int, numRegions)
+	stamp := 0
 
 	for r := 0; r < numRegions; r++ {
 		// Only process cells above sea level
@@ -173,9 +212,9 @@ func ApplyLandmassErosion(
 		}
 
 		// BFS to count land vs ocean cells within radius
-		visited := make(map[int]bool)
+		stamp++
 		queue := []int{r}
-		visited[r] = true
+		visited[r] = stamp
 
 		landCount := 0
 		oceanCount := 0
@@ -193,10 +232,10 @@ func ApplyLandmassErosion(
 				// Add unvisited neighbors
 				for _, neighborIdx := range cells[current].NeighborSiteIndices {
 					neighborR := int(neighborIdx)
-					if neighborR >= numRegions || visited[neighborR] {
+					if neighborR < 0 || neighborR >= numRegions || visited[neighborR] == stamp {
 						continue
 					}
-					visited[neighborR] = true
+					visited[neighborR] = stamp
 					nextQueue = append(nextQueue, neighborR)
 				}
 			}
@@ -235,7 +274,7 @@ func ApplyLandmassErosion(
 		// even when they are close to the coast. Relax the cap near collision belts
 		// and volcanic arcs, but keep oceanic/island peaks constrained.
 		if !plateIsOcean[rPlate[r]] {
-			tectonicSupport := hopDistanceSupport(distFromMountain[r], 8)
+			tectonicSupport := hopDistanceSupport(distFromMountain[r]*stepScale, 8)
 			maxElev += 2200 * tectonicSupport
 		}
 
@@ -278,11 +317,13 @@ func ApplyFluvialErosion(
 	BreachDrainageSinks(cells, elevation, receivers, 220)
 	receivers = ComputeDrainageReceivers(cells, elevation)
 	accumulation, order := ComputeFlowAccumulation(receivers, elevation, runoff)
-	FormEndorheicLakes(cells, elevation, receivers, accumulation, runoff)
+	physicalAccumulation := scaleFlowAccumulationForMesh(accumulation, len(cells))
+	FormEndorheicLakes(cells, elevation, receivers, physicalAccumulation, runoff)
 	receivers = ComputeDrainageReceivers(cells, elevation)
 	accumulation, order = ComputeFlowAccumulation(receivers, elevation, runoff)
-	carveFluvialChannels(cells, elevation, receivers, runoff, accumulation)
-	applyFluvialDeposition(cells, elevation, receivers, runoff, accumulation, order)
+	physicalAccumulation = scaleFlowAccumulationForMesh(accumulation, len(cells))
+	carveFluvialChannels(cells, elevation, receivers, runoff, physicalAccumulation)
+	applyFluvialDeposition(cells, elevation, receivers, runoff, physicalAccumulation, order)
 }
 
 // ApplyPostDetailDrainageConditioning removes shallow synthetic traps created
@@ -380,6 +421,16 @@ func BreachDrainageSinks(cells []VoronoiCell, elevation []float64, receivers []i
 		return 0
 	}
 
+	// maxRise and the carve depths compare elevations across a SINGLE cell hop,
+	// so for a fixed physical slope they scale with cell size. Scale them by the
+	// mesh step so breach aggressiveness stays resolution-independent (same
+	// convention as physicalSlope := slope / stepScale elsewhere in this file).
+	stepScale := meshPathCostResolutionScale(len(cells))
+	if stepScale <= 0 {
+		stepScale = 1
+	}
+	maxRise *= stepScale
+
 	breached := 0
 	for pass := 0; pass < 2; pass++ {
 		passBreached := 0
@@ -410,9 +461,10 @@ func BreachDrainageSinks(cells []VoronoiCell, elevation []float64, receivers []i
 			}
 
 			// Carve a shallow spillway through the lowest saddle.
-			targetElev := elevation[r] - math.Min(6.0, 0.25*maxRise)
+			// maxRise is already step-scaled above, so 0.25*maxRise follows it.
+			targetElev := elevation[r] - math.Min(6.0*stepScale, 0.25*maxRise)
 			if targetElev >= elevation[lowestNeighbor] {
-				targetElev = elevation[r] - 2.0
+				targetElev = elevation[r] - 2.0*stepScale
 			}
 			if targetElev < elevation[lowestNeighbor] {
 				elevation[lowestNeighbor] = targetElev
@@ -456,25 +508,61 @@ func FormEndorheicLakes(
 			lakeCells++
 		}
 
-		for _, neighborIdx := range cells[r].NeighborSiteIndices {
-			neighbor := int(neighborIdx)
-			if neighbor < 0 || neighbor >= len(elevation) || elevation[neighbor] <= 0 {
-				continue
-			}
-			if elevation[neighbor] > 120 {
-				continue
-			}
-			if accumulation[neighbor] < accumulation[r]*0.25 {
-				continue
-			}
-			neighborSurface := targetSurface + 6
-			if elevation[neighbor] > neighborSurface {
-				elevation[neighbor] = neighborSurface
-				lakeCells++
-			}
-		}
+		lakeCells += spreadEndorheicLakeSurface(cells, elevation, r, targetSurface+6, accumulation[r], accumulation)
 	}
 	return lakeCells
+}
+
+func spreadEndorheicLakeSurface(
+	cells []VoronoiCell,
+	elevation []float64,
+	center int,
+	neighborSurface float64,
+	centerAccumulation float64,
+	accumulation []float64,
+) int {
+	if center < 0 || center >= len(cells) {
+		return 0
+	}
+	maxHops := meshResolutionAdjustedSteps(1, len(cells))
+	type state struct {
+		cell int
+		hops int
+	}
+	seen := map[int]struct{}{center: {}}
+	queue := []state{{cell: center, hops: 0}}
+	changed := 0
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		if cur.hops > 0 {
+			if cur.cell < 0 || cur.cell >= len(elevation) || elevation[cur.cell] <= 0 || elevation[cur.cell] > 120 {
+				continue
+			}
+			if cur.cell >= len(accumulation) || accumulation[cur.cell] < centerAccumulation*0.25 {
+				continue
+			}
+			if elevation[cur.cell] > neighborSurface {
+				elevation[cur.cell] = neighborSurface
+				changed++
+			}
+		}
+		if cur.hops >= maxHops {
+			continue
+		}
+		for _, neighborIdx := range cells[cur.cell].NeighborSiteIndices {
+			neighbor := int(neighborIdx)
+			if neighbor < 0 || neighbor >= len(cells) {
+				continue
+			}
+			if _, ok := seen[neighbor]; ok {
+				continue
+			}
+			seen[neighbor] = struct{}{}
+			queue = append(queue, state{cell: neighbor, hops: cur.hops + 1})
+		}
+	}
+	return changed
 }
 
 // ComputeFlowAccumulation routes runoff downslope in descending-elevation order.
@@ -500,6 +588,18 @@ func ComputeFlowAccumulation(receivers []int, elevation []float64, runoff []floa
 	return accumulation, order
 }
 
+func scaleFlowAccumulationForMesh(accumulation []float64, cellCount int) []float64 {
+	areaScale := meshAreaResolutionScale(cellCount)
+	if areaScale == 1 {
+		return accumulation
+	}
+	scaled := make([]float64, len(accumulation))
+	for i, value := range accumulation {
+		scaled[i] = value * areaScale
+	}
+	return scaled
+}
+
 func carveFluvialChannels(
 	cells []VoronoiCell,
 	elevation []float64,
@@ -509,6 +609,10 @@ func carveFluvialChannels(
 ) {
 	buffer := make([]float64, len(elevation))
 	copy(buffer, elevation)
+	stepScale := meshPathCostResolutionScale(len(cells))
+	if stepScale <= 0 {
+		stepScale = 1
+	}
 
 	for r, elev := range elevation {
 		if elev <= 0 {
@@ -524,6 +628,7 @@ func carveFluvialChannels(
 		if slope <= 0 {
 			continue
 		}
+		physicalSlope := slope / stepScale
 
 		channelScale := math.Log1p(accumulation[r])
 		if channelScale <= 0.5 {
@@ -531,7 +636,7 @@ func carveFluvialChannels(
 		}
 
 		runoffFactor := math.Sqrt(runoff[r])
-		slopeFactor := SmoothStep(20, 900, slope)
+		slopeFactor := SmoothStep(20, 900, physicalSlope)
 		incision := 16.0 * runoffFactor * channelScale * slopeFactor
 		if elev > 2400 {
 			incision *= 1.15
@@ -545,26 +650,65 @@ func carveFluvialChannels(
 		// Light valley widening around major channels so drainage reads as a
 		// network instead of isolated single-cell pits.
 		if channelScale > 2.3 {
-			for _, neighborIdx := range cells[r].NeighborSiteIndices {
-				neighbor := int(neighborIdx)
-				if neighbor < 0 || neighbor >= len(elevation) || elevation[neighbor] <= 0 || neighbor == receiver {
-					continue
-				}
-				if accumulation[neighbor] > accumulation[r]*0.7 {
-					continue
-				}
-				widening := incision * 0.18
-				if widening > 24 {
-					widening = 24
-				}
-				if buffer[neighbor] > elevation[neighbor]-widening {
-					buffer[neighbor] = elevation[neighbor] - widening
-				}
-			}
+			spreadChannelWidening(cells, elevation, buffer, r, receiver, accumulation, incision)
 		}
 	}
 
 	copy(elevation, buffer)
+}
+
+func spreadChannelWidening(
+	cells []VoronoiCell,
+	elevation []float64,
+	buffer []float64,
+	center int,
+	receiver int,
+	accumulation []float64,
+	incision float64,
+) {
+	if center < 0 || center >= len(cells) || incision <= 0 {
+		return
+	}
+	maxHops := meshResolutionAdjustedSteps(1, len(cells))
+	widening := incision * 0.18
+	if widening > 24 {
+		widening = 24
+	}
+	type state struct {
+		cell int
+		hops int
+	}
+	seen := map[int]struct{}{center: {}}
+	queue := []state{{cell: center, hops: 0}}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		if cur.hops > 0 {
+			if cur.cell < 0 || cur.cell >= len(elevation) || elevation[cur.cell] <= 0 || cur.cell == receiver {
+				continue
+			}
+			if cur.cell < len(accumulation) && accumulation[cur.cell] > accumulation[center]*0.7 {
+				continue
+			}
+			if buffer[cur.cell] > elevation[cur.cell]-widening {
+				buffer[cur.cell] = elevation[cur.cell] - widening
+			}
+		}
+		if cur.hops >= maxHops {
+			continue
+		}
+		for _, neighborIdx := range cells[cur.cell].NeighborSiteIndices {
+			neighbor := int(neighborIdx)
+			if neighbor < 0 || neighbor >= len(cells) {
+				continue
+			}
+			if _, ok := seen[neighbor]; ok {
+				continue
+			}
+			seen[neighbor] = struct{}{}
+			queue = append(queue, state{cell: neighbor, hops: cur.hops + 1})
+		}
+	}
 }
 
 func applyFluvialDeposition(
@@ -577,6 +721,10 @@ func applyFluvialDeposition(
 ) {
 	buffer := make([]float64, len(elevation))
 	copy(buffer, elevation)
+	stepScale := meshPathCostResolutionScale(len(cells))
+	if stepScale <= 0 {
+		stepScale = 1
+	}
 
 	// Traverse from low to high so downstream lowlands can receive small
 	// deposits from major upstream systems.
@@ -592,13 +740,14 @@ func applyFluvialDeposition(
 		}
 
 		slope := elevation[r] - elevation[receiver]
+		physicalSlope := slope / stepScale
 		channelScale := math.Log1p(accumulation[r])
 		if channelScale < 2.0 {
 			continue
 		}
 
 		// Deposit in low-gradient inland lowlands and near river mouths.
-		depositionFactor := (1.0 - SmoothStep(25, 160, slope)) * math.Sqrt(runoff[r])
+		depositionFactor := (1.0 - SmoothStep(25, 160, physicalSlope)) * math.Sqrt(runoff[r])
 		if depositionFactor <= 0 {
 			continue
 		}
@@ -623,7 +772,7 @@ func applyFluvialDeposition(
 		buffer[receiver] += deposit
 
 		// Major low-gradient rivers should also broaden adjoining floodplains.
-		if channelScale > 2.6 && slope < 90 {
+		if channelScale > 2.6 && physicalSlope < 90 {
 			spreadFloodplainDeposit(cells, elevation, buffer, receiver, deposit*0.35)
 		}
 	}
@@ -635,40 +784,69 @@ func spreadDeltaDeposit(cells []VoronoiCell, elevation []float64, buffer []float
 	if deposit <= 0 {
 		return
 	}
-	for _, neighborIdx := range cells[mouth].NeighborSiteIndices {
-		neighbor := int(neighborIdx)
-		if neighbor < 0 || neighbor >= len(elevation) || elevation[neighbor] <= 0 {
-			continue
-		}
-		if elevation[neighbor] > 220 {
-			continue
-		}
-		buffer[neighbor] += deposit
-		for _, secondIdx := range cells[neighbor].NeighborSiteIndices {
-			second := int(secondIdx)
-			if second < 0 || second >= len(elevation) || elevation[second] <= 0 {
-				continue
-			}
-			if elevation[second] > 160 {
-				continue
-			}
-			buffer[second] += deposit * 0.45
-		}
-	}
+	spreadDepositByPhysicalRadius(cells, elevation, buffer, mouth, deposit, 2, 220, 160, 0.45)
 }
 
 func spreadFloodplainDeposit(cells []VoronoiCell, elevation []float64, buffer []float64, center int, deposit float64) {
 	if deposit <= 0 {
 		return
 	}
-	for _, neighborIdx := range cells[center].NeighborSiteIndices {
-		neighbor := int(neighborIdx)
-		if neighbor < 0 || neighbor >= len(elevation) || elevation[neighbor] <= 0 {
+	spreadDepositByPhysicalRadius(cells, elevation, buffer, center, deposit*0.55, 1, 500, 500, 1)
+}
+
+func spreadDepositByPhysicalRadius(
+	cells []VoronoiCell,
+	elevation []float64,
+	buffer []float64,
+	start int,
+	deposit float64,
+	baseRadius int,
+	innerMaxElevation float64,
+	outerMaxElevation float64,
+	outerMultiplier float64,
+) {
+	if start < 0 || start >= len(cells) || deposit <= 0 {
+		return
+	}
+	maxHops := meshResolutionAdjustedSteps(baseRadius, len(cells))
+	stepScale := meshPathCostResolutionScale(len(cells))
+	type state struct {
+		cell int
+		hops int
+	}
+	seen := map[int]struct{}{start: {}}
+	queue := []state{{cell: start, hops: 0}}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		if cur.hops > 0 {
+			if cur.cell < 0 || cur.cell >= len(elevation) || elevation[cur.cell] <= 0 {
+				continue
+			}
+			physicalDistance := float64(cur.hops) * stepScale
+			maxElevation := innerMaxElevation
+			amount := deposit
+			if physicalDistance > 1 {
+				maxElevation = outerMaxElevation
+				amount *= outerMultiplier
+			}
+			if elevation[cur.cell] <= maxElevation {
+				buffer[cur.cell] += amount
+			}
+		}
+		if cur.hops >= maxHops {
 			continue
 		}
-		if elevation[neighbor] > 500 {
-			continue
+		for _, neighborIdx := range cells[cur.cell].NeighborSiteIndices {
+			neighbor := int(neighborIdx)
+			if neighbor < 0 || neighbor >= len(cells) {
+				continue
+			}
+			if _, ok := seen[neighbor]; ok {
+				continue
+			}
+			seen[neighbor] = struct{}{}
+			queue = append(queue, state{cell: neighbor, hops: cur.hops + 1})
 		}
-		buffer[neighbor] += deposit * 0.55
 	}
 }
