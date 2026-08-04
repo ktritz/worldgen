@@ -81,6 +81,11 @@ func DefaultTradeGoodsMultimodalSettings() TradeGoodsMultimodalSettings {
 		EndpointNeedShareByCategory: map[string]float64{
 			"default": 0.0,
 		},
+		EndpointSurplusReliefByCategory: map[string]float64{
+			"processed": 0.60,
+			"finished":  0.35,
+			"default":   0.0,
+		},
 		LocalNeedResponse: map[string]TradeGoodsResponseCurve{
 			"raw":       {Base: 0.74, Slope: 0.48},
 			"processed": {Base: 0.80, Slope: 0.56},
@@ -201,6 +206,7 @@ func DefaultTradeGoodsDemandSettings() TradeGoodsDemandSettings {
 			"strategic": 1.02,
 			"default":   1.00,
 		},
+		GoodDemandScale: map[string]float64{},
 		LocalSupplyReliefByCategory: map[string]float64{
 			"raw":       0.48,
 			"processed": 0.26,
@@ -209,6 +215,7 @@ func DefaultTradeGoodsDemandSettings() TradeGoodsDemandSettings {
 			"strategic": 0.12,
 			"default":   0.18,
 		},
+		LocalSupplyReliefByGood: map[string]float64{},
 		DriverSpecializationScale: map[string]float64{
 			"raw":       0.36,
 			"processed": 0.44,
@@ -225,6 +232,7 @@ func DefaultTradeGoodsDemandSettings() TradeGoodsDemandSettings {
 			"strategic": 1.06,
 			"default":   1.00,
 		},
+		MarketGoodDemandScale: map[string]float64{},
 		MarketWealthPullScale: map[string]float64{
 			"raw":       0.06,
 			"processed": 0.12,

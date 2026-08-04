@@ -131,12 +131,21 @@ func applyTradeDiagnostics(corridors []TradeCorridor, diagnostics *TradeNetworkD
 		for _, nodeIdx := range corridor.NodePath {
 			if nodeIdx >= 0 && nodeIdx < len(diagnostics.NodeCentrality) {
 				diagnostics.NodeCentrality[nodeIdx] += corridor.Flow
+				if corridor.Role == TradeCorridorRoleFeeder {
+					if nodeIdx < len(diagnostics.FeederCentrality) {
+						diagnostics.FeederCentrality[nodeIdx] += corridor.Flow
+					}
+				} else if nodeIdx < len(diagnostics.TrunkCentrality) {
+					diagnostics.TrunkCentrality[nodeIdx] += corridor.Flow
+				}
 			}
 		}
 		for _, cellIdx := range corridor.CellPath {
 			if cellIdx >= 0 && cellIdx < len(diagnostics.RouteIntensity) {
 				diagnostics.RouteIntensity[cellIdx] += corridor.Flow
-				diagnostics.RouteRiskIntensity[cellIdx] += corridor.Flow * corridor.MeanRisk
+				if cellIdx < len(diagnostics.RouteRiskIntensity) {
+					diagnostics.RouteRiskIntensity[cellIdx] += corridor.Flow * corridor.MeanRisk
+				}
 			}
 		}
 	}
@@ -149,7 +158,11 @@ func identifyMajorTradeHubs(
 	settings TradeNetworkSettings,
 ) []int {
 	maxCentrality := 0.0
-	for _, value := range diagnostics.NodeCentrality {
+	centrality := diagnostics.TrunkCentrality
+	if len(centrality) != len(diagnostics.NodeCentrality) {
+		centrality = diagnostics.NodeCentrality
+	}
+	for _, value := range centrality {
 		if value > maxCentrality {
 			maxCentrality = value
 		}
@@ -165,7 +178,7 @@ func identifyMajorTradeHubs(
 		}
 		centralityNorm := 0.0
 		if maxCentrality > 0 {
-			centralityNorm = diagnostics.NodeCentrality[i] / maxCentrality
+			centralityNorm = centrality[i] / maxCentrality
 		}
 		score := node.Score + 0.18*(float64(node.Kind)/3.0) + 0.24*centralityNorm + centerBonus
 		if node.Coastal {

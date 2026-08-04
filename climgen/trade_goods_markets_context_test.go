@@ -256,21 +256,30 @@ func TestComputeTradeNodeMarketsMarketMinNodeKindScopesManufacturing(t *testing.
 				Demand:   map[string]float64{"fish": 0.20, "salt": 0.16, "preserved_food": 0.30},
 				Surplus:  map[string]float64{"fish": 1.00, "salt": 0.64, "preserved_food": -0.30},
 			},
+			{
+				NodeID:   2,
+				PolityID: 2,
+				Wealth:   0.62,
+				Supply:   map[string]float64{"fish": 1.20, "salt": 0.80, "preserved_food": 0.00},
+				Demand:   map[string]float64{"fish": 0.20, "salt": 0.16, "preserved_food": 0.30},
+				Surplus:  map[string]float64{"fish": 1.00, "salt": 0.64, "preserved_food": -0.30},
+			},
 		},
 	}
 	network := &SettlementNetworkResult{
 		Nodes: []SettlementNode{
-			{ID: 0, CellIndex: 0, Kind: SettlementNodeTown, CarryingCapacity: 0.60, UrbanPotential: 0.70, Coastal: true, River: true},
+			{ID: 0, CellIndex: 0, Kind: SettlementNodeTown, PhysicalSupportArea: 1.0, CarryingCapacity: 0.60, UrbanPotential: 0.70, Coastal: true, River: true},
 			{ID: 1, CellIndex: 1, Kind: SettlementNodeHamlet, CarryingCapacity: 0.60, UrbanPotential: 0.70, Coastal: true, River: true},
+			{ID: 2, CellIndex: 2, Kind: SettlementNodeTown, PhysicalSupportArea: 0.25, CarryingCapacity: 0.60, UrbanPotential: 0.70, Coastal: true, River: true},
 		},
 	}
 	trade := &TradeNetworkResult{
-		Diagnostics: &TradeNetworkDiagnostics{NodeCentrality: []float64{0.32, 0.32}},
+		Diagnostics: &TradeNetworkDiagnostics{NodeCentrality: []float64{0.32, 0.32, 0.32}},
 	}
 
 	result := ComputeTradeNodeMarkets(nil, &TradeGoodResult{}, settings, nil, nil, network, trade, nodeGoods)
-	if len(result.Markets) != 2 {
-		t.Fatalf("expected two markets, got %d", len(result.Markets))
+	if len(result.Markets) != 3 {
+		t.Fatalf("expected three markets, got %d", len(result.Markets))
 	}
 	if result.Markets[0].Manufactured["preserved_food"] <= 0.01 {
 		t.Fatalf("expected town market to manufacture preserved food, got %.3f", result.Markets[0].Manufactured["preserved_food"])
@@ -280,6 +289,9 @@ func TestComputeTradeNodeMarketsMarketMinNodeKindScopesManufacturing(t *testing.
 	}
 	if result.Markets[1].Diagnostics.CandidateCount != 0 {
 		t.Fatalf("expected ineligible hamlet market to omit preserved food candidate, got %d candidates", result.Markets[1].Diagnostics.CandidateCount)
+	}
+	if result.Markets[2].Manufactured["preserved_food"] > 0.01 {
+		t.Fatalf("expected physically weak town market to skip preserved food manufacturing, got %.3f", result.Markets[2].Manufactured["preserved_food"])
 	}
 }
 

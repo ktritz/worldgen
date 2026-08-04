@@ -274,7 +274,7 @@ func TestComputeTradeGoodEndowmentsSupportsPlacerCopperOre(t *testing.T) {
 	}
 }
 
-func TestComputeTradeGoodEndowmentsBoostsClassifiedResourceDeposits(t *testing.T) {
+func TestComputeTradeGoodEndowmentsUsesContinuousResourceAffinities(t *testing.T) {
 	settings := TradeGoodsSettings{
 		SchemaVersion: TradeGoodsSchemaVersion,
 		Goods: []TradeGoodSpec{
@@ -292,11 +292,11 @@ func TestComputeTradeGoodEndowmentsBoostsClassifiedResourceDeposits(t *testing.T
 			},
 		},
 	}, settings)
-	if result.Goods[0].Potential[0] <= 0.70 {
-		t.Fatalf("expected classified iron deposit to boost iron ore potential, got %.2f", result.Goods[0].Potential[0])
+	if result.Goods[0].Potential[0] != 0.22 {
+		t.Fatalf("expected iron ore potential to follow continuous affinity, got %.2f", result.Goods[0].Potential[0])
 	}
-	if result.Goods[1].Potential[1] <= 0.68 {
-		t.Fatalf("expected classified coal deposit to boost coal potential, got %.2f", result.Goods[1].Potential[1])
+	if result.Goods[1].Potential[1] != 0.24 {
+		t.Fatalf("expected coal potential to follow continuous affinity, got %.2f", result.Goods[1].Potential[1])
 	}
 }
 
@@ -602,5 +602,67 @@ func TestComputePolityGoodsDemandReliefReducesSelfSufficientRawDemand(t *testing
 	result := ComputePolityGoods(goods, settings, polities, nil, network, trade)
 	if result.Balances[0].Demand["grain"] >= result.Balances[1].Demand["grain"] {
 		t.Fatalf("expected self-sufficient grain polity to demand less grain, got richSupply=%.3f weakSupply=%.3f", result.Balances[0].Demand["grain"], result.Balances[1].Demand["grain"])
+	}
+}
+
+func TestComputePolityGoodsAppliesPerGoodDemandTuning(t *testing.T) {
+	baseSettings := TradeGoodsSettings{
+		SchemaVersion: TradeGoodsSchemaVersion,
+		Production: TradeGoodsProductionSettings{
+			CategorySupplyScale:         map[string]float64{"processed": 1.0, "default": 1.0},
+			CategorySpecializationScale: map[string]float64{"processed": 0.0, "default": 0.0},
+			ManufacturingBaseScale:      map[string]float64{"processed": 0.60, "default": 0.50},
+			ManufacturingWorkshopScale:  map[string]float64{"processed": 0.20, "default": 0.20},
+			RawPotentialPivot:           0.50,
+			ManufacturingPivot:          0.50,
+		},
+		Demand: TradeGoodsDemandSettings{
+			CategoryDemandScale:         map[string]float64{"processed": 1.0, "default": 1.0},
+			LocalSupplyReliefByCategory: map[string]float64{"processed": 0.80, "default": 0.0},
+			DriverSpecializationScale:   map[string]float64{"processed": 0.0, "default": 0.0},
+			DriverSpecializationPivot:   0.50,
+		},
+		Goods: []TradeGoodSpec{
+			{Name: "fiber", Category: "raw", BaseValue: 0.4, Bulkiness: 0.7, SourceWeights: map[string]float64{"crop": 1}},
+			{Name: "cloth", Category: "processed", BaseValue: 0.6, Bulkiness: 0.3, Inputs: map[string]float64{"fiber": 0.30}},
+		},
+	}
+	tunedSettings := baseSettings
+	tunedSettings.Demand.GoodDemandScale = map[string]float64{"cloth": 1.35}
+	tunedSettings.Demand.LocalSupplyReliefByGood = map[string]float64{"cloth": 0.0}
+
+	goods := &TradeGoodResult{
+		Goods: []TradeGoodEndowment{
+			{Good: "fiber", Category: "raw", Potential: []float64{0.9, 0.8}},
+			{Good: "cloth", Category: "processed", Potential: []float64{0.0, 0.0}},
+		},
+	}
+	polities := &PolitySphereResult{
+		Spheres:     []PolitySphere{{ID: 0, CapitalNode: 0, TerritoryCells: 2, MeanSupport: 0.50}},
+		Diagnostics: &PolitySphereDiagnostics{PolityByCell: []int{0, 0}},
+	}
+	network := &SettlementNetworkResult{Nodes: []SettlementNode{{ID: 0, Kind: SettlementNodeTown}}}
+	trade := &TradeNetworkResult{Diagnostics: &TradeNetworkDiagnostics{NodeCentrality: []float64{0.35}}}
+
+	base := ComputePolityGoods(goods, baseSettings, polities, nil, network, trade)
+	tuned := ComputePolityGoods(goods, tunedSettings, polities, nil, network, trade)
+	if tuned.Balances[0].Demand["cloth"] <= base.Balances[0].Demand["cloth"] {
+		t.Fatalf("expected per-good demand tuning to raise cloth demand, got base=%.3f tuned=%.3f", base.Balances[0].Demand["cloth"], tuned.Balances[0].Demand["cloth"])
+	}
+}
+
+func TestPolityGoodDemandUsesPhysicalTerritoryScale(t *testing.T) {
+	spec := TradeGoodSpec{Name: "cloth", Category: "processed", BaseValue: 0.6, Bulkiness: 0.3}
+	sphere := PolitySphere{ID: 0, CapitalNode: 0, TerritoryCells: 40, MeanSupport: 0.42}
+	refinedSphere := sphere
+	refinedSphere.TerritoryCells = 160
+	network := &SettlementNetworkResult{Nodes: []SettlementNode{{ID: 0, Kind: SettlementNodeTown}}}
+	trade := &TradeNetworkResult{Diagnostics: &TradeNetworkDiagnostics{NodeCentrality: []float64{0.20}}}
+	settings := DefaultTradeGoodsSettings().EffectiveDemandSettings()
+
+	base := polityGoodDemand(spec, sphere, PolityProfileAssignment{}, network, trade, map[string]float64{}, 0.4, 0.5, TradeGoodsScarcitySettings{}, settings, 10242)
+	refined := polityGoodDemand(spec, refinedSphere, PolityProfileAssignment{}, network, trade, map[string]float64{}, 0.4, 0.5, TradeGoodsScarcitySettings{}, settings, 40962)
+	if diff := refined - base; diff < -0.01 || diff > 0.01 {
+		t.Fatalf("expected equivalent physical territory to keep demand stable, got base=%.3f refined=%.3f", base, refined)
 	}
 }

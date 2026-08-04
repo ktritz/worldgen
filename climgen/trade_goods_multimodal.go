@@ -90,7 +90,8 @@ func computeMultimodalTrade(
 			from := tradeNodePolity(corridor.FromNode, polities, network)
 			to := tradeNodePolity(corridor.ToNode, polities, network)
 			quality := (0.72 + 0.28*clamp01(corridor.MeanSupport)) * (1.0 - 0.42*clamp01(corridor.MeanRisk))
-			appendRouteGoodExchanges(out, balances, specs, goods.GlobalScarcityByGood, marketsByNode, corridor.FromNode, corridor.ToNode, from, to, "land", resolvedRouteID(corridor.ID, i), corridor.Flow, corridor.TravelCost, quality, tuning, multimodal)
+			recordRouteEndpointModeDiagnostic(&out.Diagnostics, "land", from, to)
+			appendRouteGoodExchanges(out, balances, specs, goods.GlobalScarcityByGood, marketsByNode, corridor.FromNode, corridor.ToNode, from, to, -1, -1, "land", resolvedRouteID(corridor.ID, i), corridor.Flow, corridor.TravelCost, quality, tuning, multimodal)
 		}
 	}
 	if river != nil {
@@ -98,7 +99,8 @@ func computeMultimodalTrade(
 			from := tradeNodePolity(corridor.FromNode, polities, network)
 			to := tradeNodePolity(corridor.ToNode, polities, network)
 			quality := 0.58 + 0.27*clamp01(corridor.MeanNavigability) + 0.15*clamp01(corridor.MeanTransfer)
-			appendRouteGoodExchanges(out, balances, specs, goods.GlobalScarcityByGood, marketsByNode, corridor.FromNode, corridor.ToNode, from, to, "river", resolvedRouteID(corridor.ID, i), corridor.Flow, corridor.TravelCost, quality, tuning, multimodal)
+			recordRouteEndpointModeDiagnostic(&out.Diagnostics, "river", from, to)
+			appendRouteGoodExchanges(out, balances, specs, goods.GlobalScarcityByGood, marketsByNode, corridor.FromNode, corridor.ToNode, from, to, -1, -1, "river", resolvedRouteID(corridor.ID, i), corridor.Flow, corridor.TravelCost, quality, tuning, multimodal)
 		}
 	}
 	if coastal != nil {
@@ -106,7 +108,8 @@ func computeMultimodalTrade(
 			from := tradeNodePolity(corridor.FromNode, polities, network)
 			to := tradeNodePolity(corridor.ToNode, polities, network)
 			quality := (0.90 + 0.16*clamp01(corridor.MeanCurrentAssist)) * (1.0 - 0.30*clamp01(corridor.MeanExposure))
-			appendRouteGoodExchanges(out, balances, specs, goods.GlobalScarcityByGood, marketsByNode, corridor.FromNode, corridor.ToNode, from, to, "coastal", resolvedRouteID(corridor.ID, i), corridor.Flow, corridor.TravelCost, quality, tuning, multimodal)
+			recordRouteEndpointModeDiagnostic(&out.Diagnostics, "coastal", from, to)
+			appendRouteGoodExchanges(out, balances, specs, goods.GlobalScarcityByGood, marketsByNode, corridor.FromNode, corridor.ToNode, from, to, corridor.FromCivilization, corridor.ToCivilization, "coastal", resolvedRouteID(corridor.ID, i), corridor.Flow, corridor.TravelCost, quality, tuning, multimodal)
 		}
 	}
 	if ocean != nil {
@@ -114,12 +117,28 @@ func computeMultimodalTrade(
 			from := tradeNodePolity(corridor.FromNode, polities, network)
 			to := tradeNodePolity(corridor.ToNode, polities, network)
 			quality := (0.84 + 0.20*clamp01(corridor.MeanCurrentAssist)) * (1.0 - 0.38*clamp01(corridor.MeanExposure))
-			appendRouteGoodExchanges(out, balances, specs, goods.GlobalScarcityByGood, marketsByNode, corridor.FromNode, corridor.ToNode, from, to, "ocean", resolvedRouteID(corridor.ID, i), corridor.Flow, corridor.TravelCost, quality, tuning, multimodal)
+			recordRouteEndpointModeDiagnostic(&out.Diagnostics, "ocean", from, to)
+			appendRouteGoodExchanges(out, balances, specs, goods.GlobalScarcityByGood, marketsByNode, corridor.FromNode, corridor.ToNode, from, to, corridor.FromCivilization, corridor.ToCivilization, "ocean", resolvedRouteID(corridor.ID, i), corridor.Flow, corridor.TravelCost, quality, tuning, multimodal)
 		}
 	}
-	out.Pairs = aggregateTradeGoodPairs(out.Exchanges)
+	endpointSinkCapacity := endpointSinkCapacityByPolityGood(nodeMarkets, specs, balances, multimodal)
+	capDuplicatePairGoodFlows(out, balances, endpointSinkCapacity)
+	capPolityGoodFlows(out, balances, endpointSinkCapacity)
+	out.Pairs = aggregateTradeGoodPairs(externalTradeExchanges(out.Exchanges))
 	populateMultimodalTradeDiagnostics(out)
 	return out
+}
+
+func recordRouteEndpointModeDiagnostic(diagnostics *MultimodalTradeDiagnostics, mode string, fromPolity, toPolity int) {
+	recordModeTradeDiagnostic(diagnostics, mode, func(entry *MultimodalTradeModeDiagnostics) {
+		entry.RouteCorridors++
+		switch {
+		case fromPolity < 0 || toPolity < 0:
+			entry.SkippedUnknown++
+		case fromPolity == toPolity:
+			entry.SkippedSamePolity++
+		}
+	})
 }
 
 func tradeGoodBalanceByPolity(goods *PolityGoodsResult) map[int]PolityGoodBalance {
@@ -149,16 +168,16 @@ func tradeNodePolity(nodeIdx int, polities *PolitySphereResult, network *Settlem
 	if nodeIdx < 0 || network == nil || nodeIdx >= len(network.Nodes) || polities == nil || polities.Diagnostics == nil {
 		return -1
 	}
-	cellIdx := network.Nodes[nodeIdx].CellIndex
-	if cellIdx >= 0 && cellIdx < len(polities.Diagnostics.PolityByCell) {
-		if polityID := polities.Diagnostics.PolityByCell[cellIdx]; polityID >= 0 {
-			return polityID
-		}
-	}
 	if nodeIdx < len(polities.Diagnostics.PolityByNode) {
 		sphereIdx := polities.Diagnostics.PolityByNode[nodeIdx]
 		if sphereIdx >= 0 && sphereIdx < len(polities.Spheres) {
 			return polities.Spheres[sphereIdx].ID
+		}
+	}
+	cellIdx := network.Nodes[nodeIdx].CellIndex
+	if cellIdx >= 0 && cellIdx < len(polities.Diagnostics.PolityByCell) {
+		if polityID := polities.Diagnostics.PolityByCell[cellIdx]; polityID >= 0 {
+			return polityID
 		}
 	}
 	return -1

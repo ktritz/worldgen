@@ -37,7 +37,7 @@ func nodeRawExportOpportunity(
 		if !ok {
 			continue
 		}
-		localPotential := nodeCatchmentPotential(cells, node.CellIndex, nodeCatchmentRadius(node), endowment.Potential)
+		localPotential := nodeCatchmentPotential(cells, node.CellIndex, resolutionAdjustedCatchmentRadius(nodeCatchmentRadius(node), len(cells)), endowment.Potential)
 		valueWeight := 0.30 + 0.70*spec.BaseValue
 		total += valueWeight * localPotential
 		weight += valueWeight

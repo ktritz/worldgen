@@ -18,7 +18,7 @@ func (ctx PolityProfileContext) affinityContext() ProfileAffinityContext {
 	}
 }
 
-func buildPolityProfileContext(sphere PolitySphere, network *SettlementNetworkResult, trade *TradeNetworkResult) PolityProfileContext {
+func buildPolityProfileContext(sphere PolitySphere, network *SettlementNetworkResult, trade *TradeNetworkResult, meshCellCount int) PolityProfileContext {
 	tags := []string{"polity"}
 	traits := map[string]float64{}
 	social := &ProfileSocialModule{}
@@ -153,7 +153,7 @@ func buildPolityProfileContext(sphere PolitySphere, network *SettlementNetworkRe
 		traits["hierarchy"] = 0.46
 		governance.CentralizationPreference = clamp01(governance.CentralizationPreference + 0.06)
 	}
-	if sphere.TerritoryCells >= 140 {
+	if meshScaledTerritoryAreaCells(sphere.TerritoryCells, meshCellCount) >= 140 {
 		tags = append(tags, "large-polity")
 		traits["hierarchy"] = math.Max(traits["hierarchy"], 0.54)
 		governance.CentralizationPreference = clamp01(governance.CentralizationPreference + 0.08)

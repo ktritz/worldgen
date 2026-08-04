@@ -100,21 +100,21 @@ func tradeGoodSourceFields(inputs TradeGoodInputs) map[string][]float64 {
 			iron[i] = tradeGoodIronOrePotential(
 				inputs,
 				i,
-				tradeGoodResourceFieldValue(inputs, i, inputs.Resources.Diagnostics.IronAffinity, ResourceIronOre, 0.84),
+				tradeGoodResourceFieldValue(i, inputs.Resources.Diagnostics.IronAffinity),
 			)
 			copper[i] = tradeGoodCopperOreComponent(inputs, i, inputs.Resources.Diagnostics.CopperAffinity, inputs.Resources.Diagnostics.PlacerAffinity)
-			leadSilver[i] = tradeGoodPreciousOreComponent(inputs, i, inputs.Resources.Diagnostics.LeadSilverAffinity, inputs.Resources.Diagnostics.PlacerAffinity, ResourceLeadSilverOre, 0.58)
-			gold[i] = tradeGoodPreciousOreComponent(inputs, i, inputs.Resources.Diagnostics.GoldAffinity, inputs.Resources.Diagnostics.PlacerAffinity, ResourceGoldOre, 0.62)
-			gems[i] = tradeGoodPreciousOreComponent(inputs, i, inputs.Resources.Diagnostics.GemAffinity, inputs.Resources.Diagnostics.PlacerAffinity, ResourceGemstones, 0.56)
-			coal[i] = tradeGoodResourceFieldValue(inputs, i, inputs.Resources.Diagnostics.CoalAffinity, ResourceCoal, 0.82)
-			evaporitePotential = tradeGoodResourceFieldValue(inputs, i, inputs.Resources.Diagnostics.EvaporiteAffinity, ResourceEvaporite, 0.80)
+			leadSilver[i] = tradeGoodPreciousOreComponent(inputs, i, inputs.Resources.Diagnostics.LeadSilverAffinity, inputs.Resources.Diagnostics.PlacerAffinity, 0.58)
+			gold[i] = tradeGoodPreciousOreComponent(inputs, i, inputs.Resources.Diagnostics.GoldAffinity, inputs.Resources.Diagnostics.PlacerAffinity, 0.62)
+			gems[i] = tradeGoodPreciousOreComponent(inputs, i, inputs.Resources.Diagnostics.GemAffinity, inputs.Resources.Diagnostics.PlacerAffinity, 0.56)
+			coal[i] = tradeGoodResourceFieldValue(i, inputs.Resources.Diagnostics.CoalAffinity)
+			evaporitePotential = tradeGoodResourceFieldValue(i, inputs.Resources.Diagnostics.EvaporiteAffinity)
 			evaporite[i] = evaporitePotential
 			clay[i] = tradeGoodClayPotential(
 				inputs,
 				i,
-				tradeGoodResourceFieldValue(inputs, i, inputs.Resources.Diagnostics.ClayAffinity, ResourceClayAggregate, 0.78),
+				tradeGoodResourceFieldValue(i, inputs.Resources.Diagnostics.ClayAffinity),
 			)
-			stone[i] = tradeGoodResourceFieldValue(inputs, i, inputs.Resources.Diagnostics.StoneAffinity, ResourceIndustrialStone, 0.78)
+			stone[i] = tradeGoodResourceFieldValue(i, inputs.Resources.Diagnostics.StoneAffinity)
 		}
 		if inputs.Resources == nil || inputs.Resources.Diagnostics == nil {
 			iron[i] = tradeGoodIronOrePotential(inputs, i, 0)

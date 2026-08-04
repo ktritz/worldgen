@@ -354,8 +354,17 @@ func TestLoadTradeGoodsSettingsDataAppliesDemandOverrides(t *testing.T) {
 	settings, err := loadTradeGoodsSettingsData([]byte(`{
 		"schemaVersion": "trade-goods/v1",
 		"demand": {
+			"goodDemandScale": {
+				"fine_clothing": 1.25
+			},
 			"localSupplyReliefByCategory": {
 				"raw": 0.65
+			},
+			"localSupplyReliefByGood": {
+				"fine_clothing": 0.0
+			},
+			"marketGoodDemandScale": {
+				"fine_clothing": 1.35
 			},
 			"marketWealthPullScale": {
 				"finished": 0.40
@@ -378,6 +387,15 @@ func TestLoadTradeGoodsSettingsDataAppliesDemandOverrides(t *testing.T) {
 	}
 	if settings.Demand.LocalSupplyReliefByCategory["raw"] != 0.65 {
 		t.Fatalf("expected demand local supply relief override, got %+v", settings.Demand)
+	}
+	if settings.Demand.GoodDemandScale["fine_clothing"] != 1.25 {
+		t.Fatalf("expected demand good demand scale override, got %+v", settings.Demand)
+	}
+	if settings.Demand.LocalSupplyReliefByGood["fine_clothing"] != 0.0 {
+		t.Fatalf("expected demand local supply relief by good override, got %+v", settings.Demand)
+	}
+	if settings.Demand.MarketGoodDemandScale["fine_clothing"] != 1.35 {
+		t.Fatalf("expected demand market good demand scale override, got %+v", settings.Demand)
 	}
 	if settings.Demand.DriverSpecializationPivot != 0.35 {
 		t.Fatalf("expected demand specialization pivot override, got %+v", settings.Demand)

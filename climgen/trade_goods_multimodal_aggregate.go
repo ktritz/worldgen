@@ -88,6 +88,20 @@ func aggregateTradeGoodPairs(exchanges []TradeGoodExchange) []TradeGoodPairFlow 
 	return out
 }
 
+func externalTradeExchanges(exchanges []TradeGoodExchange) []TradeGoodExchange {
+	if len(exchanges) == 0 {
+		return nil
+	}
+	out := make([]TradeGoodExchange, 0, len(exchanges))
+	for _, exchange := range exchanges {
+		if exchange.Internal {
+			continue
+		}
+		out = append(out, exchange)
+	}
+	return out
+}
+
 func topTradeModeValues(values map[string]float64, limit int) []TradeModeValue {
 	out := make([]TradeModeValue, 0, len(values))
 	for mode, value := range values {
@@ -158,14 +172,43 @@ func populateMultimodalTradeDiagnostics(result *MultimodalTradeResult) {
 	totalVolumeCapacity := 0.0
 	totalMarketFit := 0.0
 	for _, exchange := range result.Exchanges {
+		if exchange.Internal {
+			result.Diagnostics.InternalScore += exchange.Value
+			result.Diagnostics.InternalVolume += exchange.Volume
+			result.Diagnostics.InternalMatched += exchange.Matched
+			result.Diagnostics.InternalExchanges++
+			recordModeTradeDiagnostic(&result.Diagnostics, exchange.Mode, func(entry *MultimodalTradeModeDiagnostics) {
+				entry.InternalExchanges++
+				entry.InternalScore += exchange.Value
+				entry.InternalVolume += exchange.Volume
+				entry.TotalMatched += exchange.Matched
+				entry.Capacity += exchange.Capacity
+				entry.VolumeCapacity += exchange.VolumeCapacity
+				entry.MarketFit += exchange.AvgMarketFit
+			})
+			continue
+		}
 		result.Diagnostics.TotalScore += exchange.Value
 		result.Diagnostics.TotalVolume += exchange.Volume
 		result.Diagnostics.TotalMatched += exchange.Matched
+		result.Diagnostics.ExternalExchanges++
 		totalCapacity += exchange.Capacity
 		totalVolumeCapacity += exchange.VolumeCapacity
 		totalMarketFit += exchange.AvgMarketFit
+		recordModeTradeDiagnostic(&result.Diagnostics, exchange.Mode, func(entry *MultimodalTradeModeDiagnostics) {
+			entry.ExternalExchanges++
+			entry.TotalScore += exchange.Value
+			entry.TotalVolume += exchange.Volume
+			entry.TotalMatched += exchange.Matched
+			entry.Capacity += exchange.Capacity
+			entry.VolumeCapacity += exchange.VolumeCapacity
+			entry.MarketFit += exchange.AvgMarketFit
+		})
 	}
-	n := float64(len(result.Exchanges))
+	if result.Diagnostics.ExternalExchanges == 0 {
+		return
+	}
+	n := float64(result.Diagnostics.ExternalExchanges)
 	result.Diagnostics.AvgCapacity = totalCapacity / n
 	result.Diagnostics.AvgVolumeCapacity = totalVolumeCapacity / n
 	result.Diagnostics.AvgMarketFit = totalMarketFit / n
