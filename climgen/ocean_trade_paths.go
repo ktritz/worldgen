@@ -11,14 +11,15 @@ func buildOceanTradeEndpointGraph(
 	climate *SeasonalClimateResult,
 	network *SettlementNetworkResult,
 	ports *CoastalPortResult,
+	candidatePorts []int,
 	stopovers []MaritimeStopoverNode,
 	elevation []float64,
 	seaLevel float64,
 	settings OceanTradeSettings,
 	civByNode []int,
-) ([]coastalTradeEndpoint, [][]coastalEndpointEdge) {
+) ([]coastalTradeEndpoint, [][]coastalEndpointEdge, int) {
 	endpoints := make([]coastalTradeEndpoint, 0, len(ports.MajorDeepwaterPorts)+len(stopovers)+8)
-	for _, nodeIdx := range candidateOceanPorts(network, ports, settings) {
+	for _, nodeIdx := range candidatePorts {
 		cellIdx := network.Nodes[nodeIdx].CellIndex
 		if ports.Diagnostics != nil && nodeIdx >= 0 && nodeIdx < len(ports.Diagnostics.NodeDeepwaterTermCell) && ports.Diagnostics.NodeDeepwaterTermCell[nodeIdx] >= 0 {
 			cellIdx = ports.Diagnostics.NodeDeepwaterTermCell[nodeIdx]
@@ -44,9 +45,16 @@ func buildOceanTradeEndpointGraph(
 	adj := make([][]coastalEndpointEdge, len(endpoints))
 	flatAdj := BuildFlatAdjacency(cells)
 	legBudget := oceanLegBudget(ports.Mode, settings)
+	meanNeighborDeg := maritimeMeanNeighborDegrees(sites, cells)
+	distancePrunedPairs := 0
+	workspace := newMaritimeCellPathWorkspace(len(cells))
 	for i := 0; i < len(endpoints); i++ {
 		for j := i + 1; j < len(endpoints); j++ {
-			path := shortestOceanCellPath(sites, cells, flatAdj, climate, elevation, seaLevel, endpoints[i].Cell, endpoints[j].Cell, ports.Mode, legBudget)
+			if !maritimeEndpointPairWithinBudgetLowerBound(sites, cells, endpoints[i].Cell, endpoints[j].Cell, legBudget, 0.16, meanNeighborDeg) {
+				distancePrunedPairs++
+				continue
+			}
+			path := shortestOceanCellPathWithWorkspace(sites, cells, flatAdj, climate, elevation, seaLevel, endpoints[i].Cell, endpoints[j].Cell, ports.Mode, legBudget, workspace)
 			if !path.ok {
 				continue
 			}
@@ -54,7 +62,7 @@ func buildOceanTradeEndpointGraph(
 			adj[j] = append(adj[j], coastalEndpointEdge{neighbor: i, path: path})
 		}
 	}
-	return endpoints, adj
+	return endpoints, adj, distancePrunedPairs
 }
 
 func shortestOceanCellPath(
@@ -68,22 +76,35 @@ func shortestOceanCellPath(
 	mode MaritimeVesselSettings,
 	maxCost float64,
 ) coastalCellPath {
+	return shortestOceanCellPathWithWorkspace(sites, cells, adj, climate, elevation, seaLevel, start, goal, mode, maxCost, newMaritimeCellPathWorkspace(len(cells)))
+}
+
+func shortestOceanCellPathWithWorkspace(
+	sites []Vector3D,
+	cells []VoronoiCell,
+	adj *FlatAdjacency,
+	climate *SeasonalClimateResult,
+	elevation []float64,
+	seaLevel float64,
+	start, goal int,
+	mode MaritimeVesselSettings,
+	maxCost float64,
+	workspace *maritimeCellPathWorkspace,
+) coastalCellPath {
 	if start < 0 || goal < 0 || start >= len(cells) || goal >= len(cells) || maxCost <= 0 {
 		return coastalCellPath{}
 	}
-	dist := make([]float64, len(cells))
-	prev := make([]int, len(cells))
-	for i := range dist {
-		dist[i] = math.Inf(1)
-		prev[i] = -1
+	if workspace == nil {
+		workspace = newMaritimeCellPathWorkspace(len(cells))
 	}
-	dist[start] = 0
+	workspace.begin(len(cells))
+	workspace.setDist(start, 0, -1)
 	stepScale := meshPathCostResolutionScale(len(cells))
 	pq := &coastalCellHeap{{cell: start, cost: 0}}
 	heap.Init(pq)
 	for pq.Len() > 0 {
 		cur := heap.Pop(pq).(coastalCellState)
-		if cur.cost > dist[cur.cell] || cur.cost > maxCost {
+		if cur.cost > workspace.getDist(cur.cell) || cur.cost > maxCost {
 			continue
 		}
 		if cur.cell == goal {
@@ -99,18 +120,18 @@ func shortestOceanCellPath(
 				continue
 			}
 			nextCost := cur.cost + stepCost*stepScale
-			if nextCost < dist[neighbor] && nextCost <= maxCost {
-				dist[neighbor] = nextCost
-				prev[neighbor] = cur.cell
+			if nextCost < workspace.getDist(neighbor) && nextCost <= maxCost {
+				workspace.setDist(neighbor, nextCost, cur.cell)
 				heap.Push(pq, coastalCellState{cell: neighbor, cost: nextCost})
 			}
 		}
 	}
-	if math.IsInf(dist[goal], 1) {
+	goalCost := workspace.getDist(goal)
+	if math.IsInf(goalCost, 1) {
 		return coastalCellPath{}
 	}
 	path := make([]int, 0)
-	for cur := goal; cur >= 0; cur = prev[cur] {
+	for cur := goal; cur >= 0; cur = workspace.prevCell(cur) {
 		path = append(path, cur)
 		if cur == start {
 			break
@@ -120,7 +141,7 @@ func shortestOceanCellPath(
 		path[i], path[j] = path[j], path[i]
 	}
 	meanExposure, meanAssist := summarizeCoastalPath(sites, climate, elevation, seaLevel, adj, path)
-	return coastalCellPath{ok: true, cost: dist[goal], cells: path, meanExposure: meanExposure, meanAssist: meanAssist}
+	return coastalCellPath{ok: true, cost: goalCost, cells: path, meanExposure: meanExposure, meanAssist: meanAssist}
 }
 
 func oceanCellStepCost(

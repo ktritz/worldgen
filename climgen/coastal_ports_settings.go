@@ -32,28 +32,42 @@ type MaritimePortSettings struct {
 	StormPenalty             float64 `json:"stormPenalty"`
 	PortSuitabilityFloor     float64 `json:"portSuitabilityFloor"`
 
-	PortSuitabilityWeight          float64 `json:"portSuitabilityWeight"`
-	NodeFeatureWeight              float64 `json:"nodeFeatureWeight"`
-	NodeFeatureHarborWeight        float64 `json:"nodeFeatureHarborWeight"`
-	NodeFeatureEstuaryWeight       float64 `json:"nodeFeatureEstuaryWeight"`
-	NodeFeatureRiverTransferWeight float64 `json:"nodeFeatureRiverTransferWeight"`
-	NodeFeatureStopoverWeight      float64 `json:"nodeFeatureStopoverWeight"`
-	NodeCatchmentDecay             float64 `json:"nodeCatchmentDecay"`
-	NodeCatchmentHops              int     `json:"nodeCatchmentHops"`
-	NodeScoreWeight                float64 `json:"nodeScoreWeight"`
-	TradeCentralityWeight          float64 `json:"tradeCentralityWeight"`
-	RiverCentralityWeight          float64 `json:"riverCentralityWeight"`
-	MajorHubBonus                  float64 `json:"majorHubBonus"`
-	RiverHandoffBonus              float64 `json:"riverHandoffBonus"`
-	RegionalAnchorBonus            float64 `json:"regionalAnchorBonus"`
-	DistrictAnchorBonus            float64 `json:"districtAnchorBonus"`
-	LocalAnchorBonus               float64 `json:"localAnchorBonus"`
-	MajorPortThreshold             float64 `json:"majorPortThreshold"`
-	MajorDeepwaterPortThreshold    float64 `json:"majorDeepwaterPortThreshold"`
-	DeepwaterNodeWeight            float64 `json:"deepwaterNodeWeight"`
-	RegionalMinCentrality          float64 `json:"regionalMinCentrality"`
-	DistrictMinCentrality          float64 `json:"districtMinCentrality"`
-	LocalMinCentrality             float64 `json:"localMinCentrality"`
+	PortSuitabilityWeight          float64                           `json:"portSuitabilityWeight"`
+	NodeFeatureWeight              float64                           `json:"nodeFeatureWeight"`
+	NodeFeatureHarborWeight        float64                           `json:"nodeFeatureHarborWeight"`
+	NodeFeatureEstuaryWeight       float64                           `json:"nodeFeatureEstuaryWeight"`
+	NodeFeatureRiverTransferWeight float64                           `json:"nodeFeatureRiverTransferWeight"`
+	NodeFeatureStopoverWeight      float64                           `json:"nodeFeatureStopoverWeight"`
+	NodeCatchmentDecay             float64                           `json:"nodeCatchmentDecay"`
+	NodeCatchmentHops              int                               `json:"nodeCatchmentHops"`
+	NodeScoreWeight                float64                           `json:"nodeScoreWeight"`
+	TradeCentralityWeight          float64                           `json:"tradeCentralityWeight"`
+	RiverCentralityWeight          float64                           `json:"riverCentralityWeight"`
+	MajorHubBonus                  float64                           `json:"majorHubBonus"`
+	RiverHandoffBonus              float64                           `json:"riverHandoffBonus"`
+	RegionalAnchorBonus            float64                           `json:"regionalAnchorBonus"`
+	DistrictAnchorBonus            float64                           `json:"districtAnchorBonus"`
+	LocalAnchorBonus               float64                           `json:"localAnchorBonus"`
+	MajorPortThreshold             float64                           `json:"majorPortThreshold"`
+	MajorDeepwaterPortThreshold    float64                           `json:"majorDeepwaterPortThreshold"`
+	DeepwaterNodeWeight            float64                           `json:"deepwaterNodeWeight"`
+	RegionalMinCentrality          float64                           `json:"regionalMinCentrality"`
+	DistrictMinCentrality          float64                           `json:"districtMinCentrality"`
+	LocalMinCentrality             float64                           `json:"localMinCentrality"`
+	StopoverSelection              MaritimeStopoverSelectionSettings `json:"stopoverSelection"`
+}
+
+type MaritimeStopoverSelectionSettings struct {
+	MinStopoverValue        float64 `json:"minStopoverValue"`
+	MinPortSuitability      float64 `json:"minPortSuitability"`
+	ScoreFloor              float64 `json:"scoreFloor"`
+	StopoverValueWeight     float64 `json:"stopoverValueWeight"`
+	PortSuitabilityWeight   float64 `json:"portSuitabilityWeight"`
+	OceanExposureWeight     float64 `json:"oceanExposureWeight"`
+	LandScarcityWeight      float64 `json:"landScarcityWeight"`
+	FullComponentAreaEq     float64 `json:"fullComponentAreaEq"`
+	MinComponentScoreFactor float64 `json:"minComponentScoreFactor"`
+	ComponentTaperPower     float64 `json:"componentTaperPower"`
 }
 
 func DefaultMaritimePortSettings() MaritimePortSettings {
@@ -103,6 +117,22 @@ func DefaultMaritimePortSettings() MaritimePortSettings {
 		RegionalMinCentrality:          0.00,
 		DistrictMinCentrality:          0.04,
 		LocalMinCentrality:             0.18,
+		StopoverSelection:              DefaultMaritimeStopoverSelectionSettings(),
+	}
+}
+
+func DefaultMaritimeStopoverSelectionSettings() MaritimeStopoverSelectionSettings {
+	return MaritimeStopoverSelectionSettings{
+		MinStopoverValue:        0.26,
+		MinPortSuitability:      0.22,
+		ScoreFloor:              0.28,
+		StopoverValueWeight:     0.52,
+		PortSuitabilityWeight:   0.22,
+		OceanExposureWeight:     0.16,
+		LandScarcityWeight:      0.10,
+		FullComponentAreaEq:     8.00,
+		MinComponentScoreFactor: 0.48,
+		ComponentTaperPower:     0.70,
 	}
 }
 
@@ -179,6 +209,43 @@ func (s MaritimePortSettings) Validate() error {
 	}
 	if s.RegionalMinCentrality < 0 || s.DistrictMinCentrality < 0 || s.LocalMinCentrality < 0 {
 		return fmt.Errorf("centrality floors cannot be negative")
+	}
+	if err := s.StopoverSelection.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s MaritimeStopoverSelectionSettings) Validate() error {
+	values := map[string]float64{
+		"stopoverSelection.minStopoverValue":        s.MinStopoverValue,
+		"stopoverSelection.minPortSuitability":      s.MinPortSuitability,
+		"stopoverSelection.scoreFloor":              s.ScoreFloor,
+		"stopoverSelection.stopoverValueWeight":     s.StopoverValueWeight,
+		"stopoverSelection.portSuitabilityWeight":   s.PortSuitabilityWeight,
+		"stopoverSelection.oceanExposureWeight":     s.OceanExposureWeight,
+		"stopoverSelection.landScarcityWeight":      s.LandScarcityWeight,
+		"stopoverSelection.fullComponentAreaEq":     s.FullComponentAreaEq,
+		"stopoverSelection.minComponentScoreFactor": s.MinComponentScoreFactor,
+		"stopoverSelection.componentTaperPower":     s.ComponentTaperPower,
+	}
+	for name, value := range values {
+		if value < 0 {
+			return fmt.Errorf("%s cannot be negative", name)
+		}
+	}
+	if s.FullComponentAreaEq <= 0 {
+		return fmt.Errorf("stopoverSelection.fullComponentAreaEq must be positive")
+	}
+	if s.MinComponentScoreFactor > 1 {
+		return fmt.Errorf("stopoverSelection.minComponentScoreFactor cannot exceed 1")
+	}
+	if s.ComponentTaperPower <= 0 {
+		return fmt.Errorf("stopoverSelection.componentTaperPower must be positive")
+	}
+	totalWeight := s.StopoverValueWeight + s.PortSuitabilityWeight + s.OceanExposureWeight + s.LandScarcityWeight
+	if totalWeight <= 0 {
+		return fmt.Errorf("stopoverSelection score weights must have positive total")
 	}
 	return nil
 }

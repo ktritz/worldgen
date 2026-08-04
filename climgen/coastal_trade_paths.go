@@ -56,27 +56,66 @@ func shortestMaritimeCellPath(
 	maxCost float64,
 	allowOpenWater bool,
 ) coastalCellPath {
-	if start < 0 || goal < 0 || start >= len(cells) || goal >= len(cells) {
-		return coastalCellPath{}
-	}
 	adj := BuildFlatAdjacency(cells)
 	var coastDist []int
 	if allowOpenWater {
-		coastDist = coastalWaterDistanceFromLand(adj, elevation, seaLevel, openWaterHopAllowance(mode))
+		openWaterAllowance := meshResolutionAdjustedSteps(openWaterHopAllowance(mode), len(cells))
+		coastDist = coastalWaterDistanceFromLand(adj, elevation, seaLevel, openWaterAllowance)
 	}
-	dist := make([]float64, len(cells))
-	prev := make([]int, len(cells))
-	for i := range dist {
-		dist[i] = math.Inf(1)
-		prev[i] = -1
+	return shortestMaritimeCellPathWithAdj(sites, cells, adj, coastDist, climate, elevation, seaLevel, start, goal, mode, maxCost, allowOpenWater)
+}
+
+func shortestMaritimeCellPathWithAdj(
+	sites []Vector3D,
+	cells []VoronoiCell,
+	adj *FlatAdjacency,
+	coastDist []int,
+	climate *SeasonalClimateResult,
+	elevation []float64,
+	seaLevel float64,
+	start, goal int,
+	mode MaritimeVesselSettings,
+	maxCost float64,
+	allowOpenWater bool,
+) coastalCellPath {
+	return shortestMaritimeCellPathWithWorkspace(sites, cells, adj, coastDist, climate, elevation, seaLevel, start, goal, mode, maxCost, allowOpenWater, newMaritimeCellPathWorkspace(len(cells)))
+}
+
+func shortestMaritimeCellPathWithWorkspace(
+	sites []Vector3D,
+	cells []VoronoiCell,
+	adj *FlatAdjacency,
+	coastDist []int,
+	climate *SeasonalClimateResult,
+	elevation []float64,
+	seaLevel float64,
+	start, goal int,
+	mode MaritimeVesselSettings,
+	maxCost float64,
+	allowOpenWater bool,
+	workspace *maritimeCellPathWorkspace,
+) coastalCellPath {
+	if start < 0 || goal < 0 || start >= len(cells) || goal >= len(cells) {
+		return coastalCellPath{}
 	}
-	dist[start] = 0
+	if adj == nil {
+		adj = BuildFlatAdjacency(cells)
+	}
+	if allowOpenWater && coastDist == nil {
+		openWaterAllowance := meshResolutionAdjustedSteps(openWaterHopAllowance(mode), len(cells))
+		coastDist = coastalWaterDistanceFromLand(adj, elevation, seaLevel, openWaterAllowance)
+	}
+	if workspace == nil {
+		workspace = newMaritimeCellPathWorkspace(len(cells))
+	}
+	workspace.begin(len(cells))
+	workspace.setDist(start, 0, -1)
 	stepScale := meshPathCostResolutionScale(len(cells))
 	pq := &coastalCellHeap{{cell: start, cost: 0}}
 	heap.Init(pq)
 	for pq.Len() > 0 {
 		cur := heap.Pop(pq).(coastalCellState)
-		if cur.cost > dist[cur.cell] || cur.cost > maxCost {
+		if cur.cost > workspace.getDist(cur.cell) || cur.cost > maxCost {
 			continue
 		}
 		if cur.cell == goal {
@@ -92,18 +131,18 @@ func shortestMaritimeCellPath(
 				continue
 			}
 			nextCost := cur.cost + stepCost*stepScale
-			if nextCost < dist[neighbor] && nextCost <= maxCost {
-				dist[neighbor] = nextCost
-				prev[neighbor] = cur.cell
+			if nextCost < workspace.getDist(neighbor) && nextCost <= maxCost {
+				workspace.setDist(neighbor, nextCost, cur.cell)
 				heap.Push(pq, coastalCellState{cell: neighbor, cost: nextCost})
 			}
 		}
 	}
-	if math.IsInf(dist[goal], 1) {
+	goalCost := workspace.getDist(goal)
+	if math.IsInf(goalCost, 1) {
 		return coastalCellPath{}
 	}
 	path := make([]int, 0)
-	for cur := goal; cur >= 0; cur = prev[cur] {
+	for cur := goal; cur >= 0; cur = workspace.prevCell(cur) {
 		path = append(path, cur)
 		if cur == start {
 			break
@@ -115,7 +154,7 @@ func shortestMaritimeCellPath(
 	meanExposure, meanAssist := summarizeCoastalPath(sites, climate, elevation, seaLevel, adj, path)
 	return coastalCellPath{
 		ok:           true,
-		cost:         dist[goal],
+		cost:         goalCost,
 		cells:        path,
 		meanExposure: meanExposure,
 		meanAssist:   meanAssist,
@@ -170,7 +209,7 @@ func coastalTradeTraversableCell(i int, elevation []float64, seaLevel float64, a
 		if isCoastalOcean(i, elevation, seaLevel, adj) {
 			return true
 		}
-		if allowOpenWater && mode.OpenOceanCapability > 0 && mode.MaxOpenWaterLeg > 0 && i < len(coastDist) && coastDist[i] >= 0 && coastDist[i] <= openWaterHopAllowance(mode) {
+		if allowOpenWater && mode.OpenOceanCapability > 0 && mode.MaxOpenWaterLeg > 0 && i < len(coastDist) && coastDist[i] >= 0 {
 			return true
 		}
 		return false
@@ -309,16 +348,28 @@ func summarizeCoastalPath(sites []Vector3D, climate *SeasonalClimateResult, elev
 	return sumExposure / count, sumAssist / count
 }
 
-func buildCoastalTradeCorridor(fromNode, toNode, fromCiv, toCiv int, flow float64, path coastalEndpointPath) CoastalTradeCorridor {
+func buildCoastalTradeCorridor(id, fromNode, toNode, fromCiv, toCiv int, flow float64, path coastalEndpointPath, sites []Vector3D, ports *CoastalPortResult) CoastalTradeCorridor {
+	pathDegrees := coastalRoutePathDegrees(sites, path.cells)
+	costPerDegree := 0.0
+	if pathDegrees > 0 {
+		costPerDegree = path.cost / pathDegrees
+	}
+	fromPortScore := coastalTerminalQualityForNode(fromNode, ports)
+	toPortScore := coastalTerminalQualityForNode(toNode, ports)
 	corridor := CoastalTradeCorridor{
+		ID:                id,
 		FromNode:          fromNode,
 		ToNode:            toNode,
 		FromCivilization:  fromCiv,
 		ToCivilization:    toCiv,
 		TravelCost:        path.cost,
+		PathDegrees:       pathDegrees,
+		CostPerDegree:     costPerDegree,
 		Flow:              flow,
 		MeanExposure:      path.meanExposure,
 		MeanCurrentAssist: path.meanAssist,
+		FromPortScore:     fromPortScore,
+		ToPortScore:       toPortScore,
 		CellPath:          append([]int(nil), path.cells...),
 		InterCivilization: fromCiv >= 0 && toCiv >= 0 && fromCiv != toCiv,
 	}
@@ -330,4 +381,20 @@ func buildCoastalTradeCorridor(fromNode, toNode, fromCiv, toCiv int, flow float6
 		corridor.ToStopover = -1
 	}
 	return corridor
+}
+
+func coastalRoutePathDegrees(sites []Vector3D, path []int) float64 {
+	if len(path) < 2 || len(sites) == 0 {
+		return 0
+	}
+	total := 0.0
+	for i := 0; i+1 < len(path); i++ {
+		from := path[i]
+		to := path[i+1]
+		if from < 0 || to < 0 || from >= len(sites) || to >= len(sites) {
+			continue
+		}
+		total += greatCircleDistanceDeg(sites[from], sites[to])
+	}
+	return total
 }

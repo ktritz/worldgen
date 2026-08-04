@@ -130,6 +130,106 @@ func TestBuildCoastalPortsNodeScoreUsesNearbyCoastalCatchment(t *testing.T) {
 	}
 }
 
+func TestPopulateBaseCoastalNodeScoresScalesCatchmentByMeshResolution(t *testing.T) {
+	cellCount := 40962
+	cells := make([]VoronoiCell, cellCount)
+	elevation := make([]float64, cellCount)
+	for i := range cells {
+		cells[i].SiteIndex = int32(i)
+		elevation[i] = -10
+	}
+	for i := 0; i <= 4; i++ {
+		elevation[i] = 10
+	}
+	cells[0].NeighborSiteIndices = []int32{1}
+	cells[1].NeighborSiteIndices = []int32{0, 2}
+	cells[2].NeighborSiteIndices = []int32{1, 3}
+	cells[3].NeighborSiteIndices = []int32{2, 4}
+	cells[4].NeighborSiteIndices = []int32{3, 5}
+	cells[5].NeighborSiteIndices = []int32{4}
+
+	network := &SettlementNetworkResult{
+		Nodes: []SettlementNode{{ID: 0, CellIndex: 0, Kind: SettlementNodeVillage, Score: 0.5}},
+	}
+	diag := &CoastalPortDiagnostics{
+		PortSuitability:       make([]float64, cellCount),
+		DeepwaterSuitability:  make([]float64, cellCount),
+		NodePortScore:         make([]float64, len(network.Nodes)),
+		NodeDeepwaterScore:    make([]float64, len(network.Nodes)),
+		NodeTerminalCell:      []int{-1},
+		NodeDeepwaterTermCell: []int{-1},
+	}
+	diag.PortSuitability[4] = 0.8
+
+	settings := DefaultMaritimePortSettings()
+	settings.NodeCatchmentHops = 2
+	settings.NodeCatchmentDecay = 1
+	settings.NodeFeatureWeight = 0
+
+	populateBaseCoastalNodeScores(cells, network, elevation, 0, diag, settings)
+	if diag.NodeTerminalCell[0] != 4 {
+		t.Fatalf("expected scaled node catchment to reach coastal terminal cell 4, got %d", diag.NodeTerminalCell[0])
+	}
+	if diag.NodePortScore[0] <= 0 {
+		t.Fatalf("expected scaled node catchment to assign a positive node port score")
+	}
+}
+
+func TestMajorPortEligibilityUsesPhysicalAnchorTier(t *testing.T) {
+	settings := DefaultMaritimePortSettings()
+	settings.DistrictMinCentrality = 0.10
+	weakRegional := SettlementNode{Kind: SettlementNodeTown, PhysicalSupportArea: 0.25}
+	fullRegional := SettlementNode{Kind: SettlementNodeTown, PhysicalSupportArea: 1.0}
+
+	if eligibleMajorCoastalPort(weakRegional, 0.05, 0, settings) {
+		t.Fatalf("expected physically weak regional anchor to use district centrality gate")
+	}
+	if !eligibleMajorCoastalPort(fullRegional, 0.05, 0, settings) {
+		t.Fatalf("expected physically supported regional anchor to use regional centrality gate")
+	}
+}
+
+func TestCoastalNeighborStatsScalesSamplingByMeshResolution(t *testing.T) {
+	cellCount := 40962
+	cells := make([]VoronoiCell, cellCount)
+	elevation := make([]float64, cellCount)
+	for i := range cells {
+		cells[i].SiteIndex = int32(i)
+		elevation[i] = 10
+	}
+	cells[0].NeighborSiteIndices = []int32{1}
+	cells[1].NeighborSiteIndices = []int32{0, 2}
+	cells[2].NeighborSiteIndices = []int32{1}
+	elevation[1] = -10
+
+	adj := BuildFlatAdjacency(cells)
+	oceanFrac, _, _, landFrac := coastalNeighborStats(0, adj, elevation, 0, nil, nil)
+	if oceanFrac != 0.5 || landFrac != 0.5 {
+		t.Fatalf("expected scaled coastal stats to include second-hop land, got ocean=%.2f land=%.2f", oceanFrac, landFrac)
+	}
+}
+
+func TestDeepwaterAccessScalesSamplingByMeshResolution(t *testing.T) {
+	cellCount := 40962
+	cells := make([]VoronoiCell, cellCount)
+	elevation := make([]float64, cellCount)
+	for i := range cells {
+		cells[i].SiteIndex = int32(i)
+		elevation[i] = 10
+	}
+	cells[0].NeighborSiteIndices = []int32{1}
+	cells[1].NeighborSiteIndices = []int32{0, 2}
+	cells[2].NeighborSiteIndices = []int32{1}
+	elevation[1] = -260
+	elevation[2] = -2600
+
+	adj := BuildFlatAdjacency(cells)
+	deepwater := deriveDeepwaterAccess(0, adj, elevation, 0, 1)
+	if deepwater < 0.65 {
+		t.Fatalf("expected refined deepwater access to include physically nearby second-hop deep water, got %.2f", deepwater)
+	}
+}
+
 func TestPortSuitabilitySeparatesDeepDraftAndBeachableCraft(t *testing.T) {
 	settings := DefaultMaritimePortSettings()
 	deepDraft := MaritimeVesselSettings{

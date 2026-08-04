@@ -3,6 +3,7 @@ package climgen
 import (
 	"container/heap"
 	"math"
+	"sort"
 )
 
 type coastalTradeEndpoint struct {
@@ -54,14 +55,15 @@ func buildCoastalTradeEndpointGraph(
 	network *SettlementNetworkResult,
 	proto *ProtoCivilizationResult,
 	ports *CoastalPortResult,
+	candidatePorts []int,
 	stopovers []MaritimeStopoverNode,
 	elevation []float64,
 	seaLevel float64,
 	settings CoastalTradeSettings,
 	civByNode []int,
-) ([]coastalTradeEndpoint, [][]coastalEndpointEdge) {
+) ([]coastalTradeEndpoint, [][]coastalEndpointEdge, int) {
 	endpoints := make([]coastalTradeEndpoint, 0, len(ports.MajorPorts)+len(stopovers)+8)
-	for _, nodeIdx := range candidateCoastalPorts(network, ports, settings) {
+	for _, nodeIdx := range candidatePorts {
 		cellIdx := network.Nodes[nodeIdx].CellIndex
 		if ports.Diagnostics != nil && nodeIdx >= 0 && nodeIdx < len(ports.Diagnostics.NodeTerminalCell) && ports.Diagnostics.NodeTerminalCell[nodeIdx] >= 0 {
 			cellIdx = ports.Diagnostics.NodeTerminalCell[nodeIdx]
@@ -93,9 +95,29 @@ func buildCoastalTradeEndpointGraph(
 		})
 	}
 	adj := make([][]coastalEndpointEdge, len(endpoints))
+	cellAdj := BuildFlatAdjacency(cells)
+	var coastDist []int
+	if ports.Mode.OpenOceanCapability > 0 && ports.Mode.MaxOpenWaterLeg > 0 {
+		openWaterAllowance := meshResolutionAdjustedSteps(openWaterHopAllowance(ports.Mode), len(cells))
+		coastDist = coastalWaterDistanceFromLand(cellAdj, elevation, seaLevel, openWaterAllowance)
+	}
+	maxLegBudget := coastalLegBudget(ports.Mode, settings)
+	if ports.Mode.OpenOceanCapability > 0 && ports.Mode.MaxOpenWaterLeg > 0 {
+		maxLegBudget = math.Max(maxLegBudget, openWaterLegBudget(ports.Mode, settings))
+	}
+	meanNeighborDeg := maritimeMeanNeighborDegrees(sites, cells)
+	distancePrunedPairs := 0
+	workspace := newMaritimeCellPathWorkspace(len(cells))
 	for i := 0; i < len(endpoints); i++ {
 		for j := i + 1; j < len(endpoints); j++ {
-			path := shortestCoastalEndpointEdgePath(sites, cells, climate, elevation, seaLevel, endpoints[i].Cell, endpoints[j].Cell, ports.Mode, settings)
+			if endpoints[i].Cell == endpoints[j].Cell {
+				continue
+			}
+			if !maritimeEndpointPairWithinBudgetLowerBound(sites, cells, endpoints[i].Cell, endpoints[j].Cell, maxLegBudget, 0.18, meanNeighborDeg) {
+				distancePrunedPairs++
+				continue
+			}
+			path := shortestCoastalEndpointEdgePathWithWorkspace(sites, cells, cellAdj, coastDist, climate, elevation, seaLevel, endpoints[i].Cell, endpoints[j].Cell, ports.Mode, settings, workspace)
 			if !path.ok {
 				continue
 			}
@@ -103,7 +125,7 @@ func buildCoastalTradeEndpointGraph(
 			adj[j] = append(adj[j], coastalEndpointEdge{neighbor: i, path: path})
 		}
 	}
-	return endpoints, adj
+	return endpoints, adj, distancePrunedPairs
 }
 
 func shortestCoastalEndpointEdgePath(
@@ -116,12 +138,54 @@ func shortestCoastalEndpointEdgePath(
 	mode MaritimeVesselSettings,
 	settings CoastalTradeSettings,
 ) coastalCellPath {
+	adj := BuildFlatAdjacency(cells)
+	var coastDist []int
+	if mode.OpenOceanCapability > 0 && mode.MaxOpenWaterLeg > 0 {
+		openWaterAllowance := meshResolutionAdjustedSteps(openWaterHopAllowance(mode), len(cells))
+		coastDist = coastalWaterDistanceFromLand(adj, elevation, seaLevel, openWaterAllowance)
+	}
+	return shortestCoastalEndpointEdgePathWithAdj(sites, cells, adj, coastDist, climate, elevation, seaLevel, start, goal, mode, settings)
+}
+
+func shortestCoastalEndpointEdgePathWithAdj(
+	sites []Vector3D,
+	cells []VoronoiCell,
+	adj *FlatAdjacency,
+	coastDist []int,
+	climate *SeasonalClimateResult,
+	elevation []float64,
+	seaLevel float64,
+	start, goal int,
+	mode MaritimeVesselSettings,
+	settings CoastalTradeSettings,
+) coastalCellPath {
 	legBudget := coastalLegBudget(mode, settings)
-	path := shortestCoastalCellPath(sites, cells, climate, elevation, seaLevel, start, goal, mode, legBudget)
+	path := shortestMaritimeCellPathWithWorkspace(sites, cells, adj, nil, climate, elevation, seaLevel, start, goal, mode, legBudget, false, newMaritimeCellPathWorkspace(len(cells)))
 	if path.ok || mode.OpenOceanCapability <= 0 || mode.MaxOpenWaterLeg <= 0 {
 		return path
 	}
-	return shortestMaritimeCellPath(sites, cells, climate, elevation, seaLevel, start, goal, mode, openWaterLegBudget(mode, settings), true)
+	return shortestMaritimeCellPathWithWorkspace(sites, cells, adj, coastDist, climate, elevation, seaLevel, start, goal, mode, openWaterLegBudget(mode, settings), true, newMaritimeCellPathWorkspace(len(cells)))
+}
+
+func shortestCoastalEndpointEdgePathWithWorkspace(
+	sites []Vector3D,
+	cells []VoronoiCell,
+	adj *FlatAdjacency,
+	coastDist []int,
+	climate *SeasonalClimateResult,
+	elevation []float64,
+	seaLevel float64,
+	start, goal int,
+	mode MaritimeVesselSettings,
+	settings CoastalTradeSettings,
+	workspace *maritimeCellPathWorkspace,
+) coastalCellPath {
+	legBudget := coastalLegBudget(mode, settings)
+	path := shortestMaritimeCellPathWithWorkspace(sites, cells, adj, nil, climate, elevation, seaLevel, start, goal, mode, legBudget, false, workspace)
+	if path.ok || mode.OpenOceanCapability <= 0 || mode.MaxOpenWaterLeg <= 0 {
+		return path
+	}
+	return shortestMaritimeCellPathWithWorkspace(sites, cells, adj, coastDist, climate, elevation, seaLevel, start, goal, mode, openWaterLegBudget(mode, settings), true, workspace)
 }
 
 func shortestCoastalEndpointPath(endpoints []coastalTradeEndpoint, adj [][]coastalEndpointEdge, start, goal int, maxCost float64) coastalEndpointPath {
@@ -207,11 +271,13 @@ func shortestCoastalEndpointPath(endpoints []coastalTradeEndpoint, adj [][]coast
 	}
 }
 
-func analyzeCoastalEndpointGraph(endpoints []coastalTradeEndpoint, adj [][]coastalEndpointEdge) CoastalTradeEndpointDiagnostics {
+func analyzeCoastalEndpointGraph(endpoints []coastalTradeEndpoint, adj [][]coastalEndpointEdge, distancePrunedPairs int) CoastalTradeEndpointDiagnostics {
 	out := CoastalTradeEndpointDiagnostics{
-		EndpointCount:     len(endpoints),
-		PortEndpointCount: 0,
-		StopoverCount:     0,
+		EndpointCount:       len(endpoints),
+		PortEndpointCount:   0,
+		StopoverCount:       0,
+		PairCount:           len(endpoints) * (len(endpoints) - 1) / 2,
+		DistancePrunedPairs: distancePrunedPairs,
 	}
 	for _, endpoint := range endpoints {
 		if endpoint.IsPort {
@@ -222,8 +288,41 @@ func analyzeCoastalEndpointGraph(endpoints []coastalTradeEndpoint, adj [][]coast
 	}
 	for i := range adj {
 		out.EdgeCount += len(adj[i])
+		if len(adj[i]) > out.MaxDegree {
+			out.MaxDegree = len(adj[i])
+		}
+		for _, edge := range adj[i] {
+			if edge.path.cost > 0 {
+				out.MeanEdgeCost += edge.path.cost
+			}
+		}
 	}
 	out.EdgeCount /= 2
+	if len(adj) > 0 {
+		out.MeanDegree = float64(out.EdgeCount*2) / float64(len(adj))
+	}
+	if out.EdgeCount > 0 {
+		out.MeanEdgeCost /= float64(out.EdgeCount * 2)
+		edgeCosts := make([]float64, 0, out.EdgeCount)
+		for i := range adj {
+			for _, edge := range adj[i] {
+				if i < edge.neighbor {
+					edgeCosts = append(edgeCosts, edge.path.cost)
+				}
+			}
+		}
+		sort.Float64s(edgeCosts)
+		if len(edgeCosts) > 0 {
+			idx := int(math.Ceil(0.90*float64(len(edgeCosts)))) - 1
+			if idx < 0 {
+				idx = 0
+			}
+			if idx >= len(edgeCosts) {
+				idx = len(edgeCosts) - 1
+			}
+			out.P90EdgeCost = edgeCosts[idx]
+		}
+	}
 
 	seen := make([]bool, len(endpoints))
 	for i := range endpoints {
@@ -233,6 +332,8 @@ func analyzeCoastalEndpointGraph(endpoints []coastalTradeEndpoint, adj [][]coast
 		out.Components++
 		size := 0
 		portCount := 0
+		portNodes := make([]int, 0)
+		civilizations := make([]int, 0)
 		queue := []int{i}
 		seen[i] = true
 		for len(queue) > 0 {
@@ -241,6 +342,12 @@ func analyzeCoastalEndpointGraph(endpoints []coastalTradeEndpoint, adj [][]coast
 			size++
 			if endpoints[cur].IsPort {
 				portCount++
+				if endpoints[cur].Node >= 0 {
+					portNodes = append(portNodes, endpoints[cur].Node)
+				}
+				if endpoints[cur].Civ >= 0 {
+					civilizations = append(civilizations, endpoints[cur].Civ)
+				}
 			}
 			for _, edge := range adj[cur] {
 				if edge.neighbor < 0 || edge.neighbor >= len(endpoints) || seen[edge.neighbor] {
@@ -254,9 +361,44 @@ func analyzeCoastalEndpointGraph(endpoints []coastalTradeEndpoint, adj [][]coast
 			out.LargestComponent = size
 		}
 		if portCount > out.LargestPortComponent {
+			out.SecondPortComponent = out.LargestPortComponent
 			out.LargestPortComponent = portCount
+		} else if portCount > out.SecondPortComponent {
+			out.SecondPortComponent = portCount
+		}
+		if portCount > 0 {
+			out.PortComponents++
+			out.MeanPortComponent += float64(portCount)
+			sort.Ints(portNodes)
+			sort.Ints(civilizations)
+			out.PortComponentsDetail = append(out.PortComponentsDetail, CoastalTradePortComponentDiagnostics{
+				Endpoints:     size,
+				Ports:         portCount,
+				PortNodes:     uniqueSortedInts(portNodes),
+				Civilizations: uniqueSortedInts(civilizations),
+			})
+			if portCount > 1 {
+				out.MultiPortComponents++
+			}
 		}
 	}
+	if out.PortComponents > 0 {
+		out.MeanPortComponent /= float64(out.PortComponents)
+	}
+	sort.Slice(out.PortComponentsDetail, func(i, j int) bool {
+		left := out.PortComponentsDetail[i]
+		right := out.PortComponentsDetail[j]
+		if left.Ports != right.Ports {
+			return left.Ports > right.Ports
+		}
+		if left.Endpoints != right.Endpoints {
+			return left.Endpoints > right.Endpoints
+		}
+		if len(left.PortNodes) == 0 || len(right.PortNodes) == 0 {
+			return len(left.PortNodes) > len(right.PortNodes)
+		}
+		return left.PortNodes[0] < right.PortNodes[0]
+	})
 	for i, endpoint := range endpoints {
 		if !endpoint.IsPort || len(adj[i]) > 0 {
 			continue
@@ -264,4 +406,20 @@ func analyzeCoastalEndpointGraph(endpoints []coastalTradeEndpoint, adj [][]coast
 		out.IsolatedPorts++
 	}
 	return out
+}
+
+func uniqueSortedInts(values []int) []int {
+	if len(values) == 0 {
+		return nil
+	}
+	out := values[:0]
+	last := 0
+	for i, value := range values {
+		if i > 0 && value == last {
+			continue
+		}
+		out = append(out, value)
+		last = value
+	}
+	return append([]int(nil), out...)
 }
