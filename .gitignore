@@ -72,3 +72,8 @@ mesh_cache/
 evaluation_output/
 output_from_server/
 diff_images
+
+# Stray compiled binaries built into the repo root
+/review_planets
+/generate_planet
+/main
