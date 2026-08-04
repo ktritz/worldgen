@@ -105,24 +105,40 @@ func TestApplySeasonalPrecipitationPatternFlipsSubtropicalOnshoreWetSeason(t *te
 	}
 }
 
+// The fixture must be at least L6 (40962 cells) so meshPathCostResolutionScale is
+// below 1; a two-cell fixture clamps to scale 1.0 and only tests the L5 no-op path.
 func TestCoastalOnshoreScoreUsesPhysicalCoastalBand(t *testing.T) {
-	vertices := []Vector3D{
-		seasonalLatLonVertex(20, 0),
-		seasonalLatLonVertex(20, -4),
+	const cellCount = 40962
+	if scale := precipitationPhysicalStepScale(cellCount); scale >= 1 {
+		t.Fatalf("fixture must sit in the scaled regime, got stepScale=%.3f", scale)
 	}
-	elevation := []float64{100, -100}
-	adj := &FlatAdjacency{
-		Neighbors: []int{1, 0},
-		Offsets:   []int{0, 1, 2},
-	}
-	wind := []Vector3D{
-		Normalize(Sub(vertices[0], vertices[1])),
-		Vector3D{},
+	if radius := resolutionAdjustedPrecipSteps(1, cellCount); radius < 2 {
+		t.Fatalf("expected a widened physical coastal band at L6, got radius=%d", radius)
 	}
 
-	coastalBand := coastalOnshoreScore(0, vertices, elevation, 0, adj, wind)
+	// Cell 0 is ocean, cells 1..n-1 march east along the 20N parallel, so cell 2
+	// sits two hops inland: outside the L5 band, inside the physical band at L6.
+	vertices := make([]Vector3D, cellCount)
+	elevation := make([]float64, cellCount)
+	for i := range vertices {
+		vertices[i] = seasonalLatLonVertex(20, -4+2*float64(i))
+		elevation[i] = 100
+	}
+	elevation[0] = -100
+	adj := pathFlatAdjacency(cellCount)
+
+	wind := make([]Vector3D, cellCount)
+	onshore := Normalize(Sub(vertices[2], vertices[0]))
+	for i := range wind {
+		wind[i] = onshore
+	}
+
+	coastalBand := coastalOnshoreScore(2, vertices, elevation, 0, adj, wind)
 	if coastalBand <= 0 {
 		t.Fatalf("expected inland cell within physical coastal band to receive onshore support")
+	}
+	if inland := coastalOnshoreScore(6, vertices, elevation, 0, adj, wind); inland != 0 {
+		t.Fatalf("expected no onshore support well beyond the physical coastal band, got %.3f", inland)
 	}
 }
 

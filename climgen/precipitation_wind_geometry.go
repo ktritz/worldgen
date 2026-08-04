@@ -61,7 +61,13 @@ func computeOrographicLiftDiagnostic(
 	localWeightSum := 0.0
 	localBarrierWeight := 0.0
 	localPositiveWeight := 0.0
-	localRiseScale := math.Sqrt(precipitationPhysicalStepScale(len(vertices)))
+	// The local rise is a single-hop elevation difference, so it shrinks linearly
+	// with cell size: dividing by the linear step scale (not its square root)
+	// restores the baseline-equivalent rise. Compare computeLocalRelief in soil.go.
+	localRiseScale := precipitationPhysicalStepScale(len(vertices))
+	if localRiseScale <= 0 {
+		localRiseScale = 1
+	}
 	for _, k := range adj.GetNeighbors(i) {
 		if k < 0 || k >= len(vertices) {
 			continue
@@ -105,7 +111,9 @@ func computeOrographicLiftDiagnostic(
 	footprintWeight := 0.0
 	footprintBarrierWeight := 0.0
 	footprintPositiveWeight := 0.0
-	riseScale := math.Sqrt(precipitationPhysicalStepScale(len(vertices)))
+	// The footprint spans a resolution-adjusted hop budget, i.e. a fixed physical
+	// distance regardless of mesh level, so its elevation differences are already
+	// resolution-invariant and must not be rescaled.
 	for fidx, donor32 := range footprintCells {
 		donor := int(donor32)
 		weight := footprintWeights[fidx]
@@ -117,7 +125,6 @@ func computeOrographicLiftDiagnostic(
 		if rise <= 0 {
 			continue
 		}
-		rise /= riseScale
 		footprintRise += weight * rise
 		footprintWeight += weight
 		footprintPositiveWeight += weight
