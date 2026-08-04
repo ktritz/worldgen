@@ -7,126 +7,92 @@ import (
 	"math"
 	"math/rand"
 	"sort"
+
+	"worldgen/icosphere"
 )
 
 const (
-	plateLayoutSearchAttempts      = 12
-	plateLayoutSearchExtraAttempts = 28
+	plateLayoutSearchAttempts       = 12
+	plateLayoutSearchExtraAttempts  = 28
+	plateLayoutReferenceSubdivision = 6
 )
 
 type plateLayout struct {
-	plateR        []int
-	rPlate        []int
-	plateSizes    map[int]int
-	sortedPlates  []PlateSize
+	plateR         []int
+	plateCenters   []Vector3D
+	plateWeights   []float64
+	rPlate         []int
+	plateSizes     map[int]int
+	sortedPlates   []PlateSize
 	plateNeighbors map[int]map[int]bool
-	attempt       int
+	plateIsOcean   map[int]bool
+	attempt        int
+}
+
+type plateBlueprint struct {
+	centers     []Vector3D
+	weights     []float64
+	continental []bool
+	attempt     int
 }
 
 // GeneratePlates creates plates using weighted BFS for power law size distribution
 // Returns: plateR (list of plate center region indices), rPlate (region -> plate center mapping)
 func GeneratePlates(sites []Vector3D, cells []VoronoiCell, numPlates int, rng *rand.Rand) ([]int, []int) {
-	numRegions := len(sites)
+	plateR, plateCenters, plateWeights := generatePlateSeeds(sites, numPlates, rng)
+	plateWeight := make(map[int]float64, len(plateR))
+	for i, centerR := range plateR {
+		plateWeight[centerR] = plateWeights[i]
+	}
 
-	// Pick well-spaced regions as plate centers to avoid superplates caused by clustered seeds.
-	plateR := pickSpacedRegions(sites, numPlates, rng)
+	return plateR, assignPlateRegionsByWeightedDistance(sites, plateR, plateCenters, plateWeight)
+}
+
+func generatePlateSeeds(sites []Vector3D, numPlates int, rng *rand.Rand) ([]int, []Vector3D, []float64) {
+	// Pick well-spaced physical points first, then map them to mesh regions.
+	// Sampling region indices directly makes the same seed choose different
+	// geography at different mesh levels.
+	plateR, plateCenters := pickSpacedPlateCenters(sites, numPlates, rng)
 
 	// Assign power law growth weights to each plate
 	// Higher weight = grows faster = ends up larger.
 	// Use a bounded skew so we still get a few large plates without a single plate
 	// swallowing most of the sphere.
-	plateWeight := make(map[int]float64)
-	for _, centerR := range plateR {
+	plateWeights := make([]float64, len(plateR))
+	for i := range plateR {
 		u := rng.Float64()
-		plateWeight[centerR] = 0.8 + 3.2*math.Pow(u, 3.0)
+		plateWeights[i] = 0.8 + 3.2*math.Pow(u, 3.0)
 	}
 
-	// Initialize r_plate: maps each region to its plate's center region
-	rPlate := make([]int, numRegions)
-	for i := range rPlate {
-		rPlate[i] = -1
-	}
-
-	// Initialize queue with plate centers
-	type queueItem struct {
-		region int
-		weight float64
-	}
-	var queue []queueItem
-	for _, r := range plateR {
-		rPlate[r] = r
-		queue = append(queue, queueItem{r, plateWeight[r]})
-	}
-
-	// Weighted BFS - higher weight plates expand more often
-	for len(queue) > 0 {
-		// Weighted random selection
-		totalWeight := 0.0
-		for _, item := range queue {
-			totalWeight += item.weight
-		}
-
-		target := rng.Float64() * totalWeight
-		cumulative := 0.0
-		selectedIdx := 0
-		for i, item := range queue {
-			cumulative += item.weight
-			if cumulative >= target {
-				selectedIdx = i
-				break
-			}
-		}
-
-		// Remove selected item
-		selected := queue[selectedIdx]
-		queue[selectedIdx] = queue[len(queue)-1]
-		queue = queue[:len(queue)-1]
-
-		// Expand to unassigned neighbors
-		plateCenter := rPlate[selected.region]
-		weight := plateWeight[plateCenter]
-		for _, neighborIdx := range cells[selected.region].NeighborSiteIndices {
-			neighborR := int(neighborIdx)
-			if neighborR < numRegions && rPlate[neighborR] == -1 {
-				rPlate[neighborR] = plateCenter
-				queue = append(queue, queueItem{neighborR, weight})
-			}
-		}
-	}
-
-	return plateR, rPlate
+	return plateR, plateCenters, plateWeights
 }
 
-func pickSpacedRegions(sites []Vector3D, n int, rng *rand.Rand) []int {
+func pickSpacedPlateCenters(sites []Vector3D, n int, rng *rand.Rand) ([]int, []Vector3D) {
 	numRegions := len(sites)
 	if n <= 0 || numRegions == 0 {
-		return nil
+		return nil, nil
 	}
 
 	chosen := make(map[int]bool, n)
-	result := make([]int, 0, n)
-	first := rng.Intn(numRegions)
+	plateRegions := make([]int, 0, n)
+	plateCenters := make([]Vector3D, 0, n)
+	firstTarget := randomUnitVector(rng)
+	first := nearestRegionToVector(sites, firstTarget, chosen)
 	chosen[first] = true
-	result = append(result, first)
+	plateRegions = append(plateRegions, first)
+	plateCenters = append(plateCenters, firstTarget)
 
 	sampleCount := 64
-	if numRegions < sampleCount {
-		sampleCount = numRegions
-	}
 
-	for len(result) < n && len(result) < numRegions {
-		bestIdx := -1
+	for len(plateRegions) < n && len(plateRegions) < numRegions {
+		bestTarget := Vector3D{}
 		bestDistance := -1.0
 
 		for sample := 0; sample < sampleCount; sample++ {
-			candidate := rng.Intn(numRegions)
-			if chosen[candidate] {
-				continue
-			}
-
+			candidate := randomUnitVector(rng)
 			minDistance := math.Inf(1)
-			for _, existing := range result {
-				distance := angularDistance(sites[candidate], sites[existing])
+			for _, existing := range plateCenters {
+				distance := angularDistance(candidate, existing)
 				if distance < minDistance {
 					minDistance = distance
 				}
@@ -134,28 +100,71 @@ func pickSpacedRegions(sites []Vector3D, n int, rng *rand.Rand) []int {
 
 			if minDistance > bestDistance {
 				bestDistance = minDistance
-				bestIdx = candidate
+				bestTarget = candidate
 			}
 		}
 
-		if bestIdx == -1 {
-			for candidate := 0; candidate < numRegions; candidate++ {
-				if !chosen[candidate] {
-					bestIdx = candidate
-					break
-				}
-			}
-		}
-
+		bestIdx := nearestRegionToVector(sites, bestTarget, chosen)
 		if bestIdx == -1 {
 			break
 		}
 
 		chosen[bestIdx] = true
-		result = append(result, bestIdx)
+		plateRegions = append(plateRegions, bestIdx)
+		plateCenters = append(plateCenters, bestTarget)
 	}
 
-	return result
+	return plateRegions, plateCenters
+}
+
+func nearestRegionToVector(sites []Vector3D, target Vector3D, excluded map[int]bool) int {
+	bestIdx := -1
+	bestDot := math.Inf(-1)
+	target = target.Normalize()
+	for i, site := range sites {
+		if excluded != nil && excluded[i] {
+			continue
+		}
+		dot := site.Normalize().Dot(target)
+		if dot > bestDot {
+			bestDot = dot
+			bestIdx = i
+		}
+	}
+	return bestIdx
+}
+
+func assignPlateRegionsByWeightedDistance(
+	sites []Vector3D,
+	plateR []int,
+	plateCenters []Vector3D,
+	plateWeight map[int]float64,
+) []int {
+	rPlate := make([]int, len(sites))
+	if len(plateR) == 0 {
+		for i := range rPlate {
+			rPlate[i] = -1
+		}
+		return rPlate
+	}
+	for i, site := range sites {
+		bestPlate := plateR[0]
+		bestScore := math.Inf(1)
+		for p, center := range plateR {
+			target := plateCenters[p]
+			weight := plateWeight[center]
+			if weight <= 0 {
+				weight = 1
+			}
+			score := angularDistance(site, target) / weight
+			if score < bestScore {
+				bestScore = score
+				bestPlate = center
+			}
+		}
+		rPlate[i] = bestPlate
+	}
+	return rPlate
 }
 
 // SmoothPlateBoundaries eliminates single-cell plate protrusions
@@ -255,7 +264,12 @@ func generatePlateLayout(
 	rng *rand.Rand,
 	attempt int,
 ) plateLayout {
-	plateR, rPlate := GeneratePlates(sites, cells, numPlates, rng)
+	plateR, plateCenters, plateWeights := generatePlateSeeds(sites, numPlates, rng)
+	plateWeight := make(map[int]float64, len(plateR))
+	for i, centerR := range plateR {
+		plateWeight[centerR] = plateWeights[i]
+	}
+	rPlate := assignPlateRegionsByWeightedDistance(sites, plateR, plateCenters, plateWeight)
 	SmoothPlateBoundaries(cells, rPlate, 3)
 
 	plateSizes := make(map[int]int)
@@ -264,9 +278,13 @@ func generatePlateLayout(
 	}
 
 	activePlateR := make([]int, 0, len(plateR))
-	for _, center := range plateR {
+	activePlateCenters := make([]Vector3D, 0, len(plateR))
+	activePlateWeights := make([]float64, 0, len(plateR))
+	for i, center := range plateR {
 		if plateSizes[center] > 0 {
 			activePlateR = append(activePlateR, center)
+			activePlateCenters = append(activePlateCenters, plateCenters[i])
+			activePlateWeights = append(activePlateWeights, plateWeights[i])
 		}
 	}
 
@@ -281,6 +299,8 @@ func generatePlateLayout(
 
 	return plateLayout{
 		plateR:         activePlateR,
+		plateCenters:   activePlateCenters,
+		plateWeights:   activePlateWeights,
 		rPlate:         rPlate,
 		plateSizes:     plateSizes,
 		sortedPlates:   sortedPlates,
@@ -296,6 +316,33 @@ func GenerateOptimizedPlateLayout(
 	seed int64,
 	targetLandFraction float64,
 ) plateLayout {
+	if blueprint, ok := buildPlateBlueprint(numPlates, seed, targetLandFraction); ok {
+		return buildPlateLayoutFromBlueprint(sites, cells, blueprint)
+	}
+
+	// Fallback preserves deterministic terrain generation if reference blueprint
+	// creation ever fails.
+	rng := rand.New(rand.NewSource(seed))
+	return generatePlateLayout(sites, cells, numPlates, rng, 0)
+}
+
+func buildPlateBlueprint(
+	numPlates int,
+	seed int64,
+	targetLandFraction float64,
+) (plateBlueprint, bool) {
+	refSites, refFaces := icosphere.CreateIcosphere(plateLayoutReferenceSubdivision)
+	_, refCells := icosphere.GenerateSphericalVoronoi(refSites, refFaces)
+	return buildPlateBlueprintFromReference(refSites, refCells, numPlates, seed, targetLandFraction)
+}
+
+func buildPlateBlueprintFromReference(
+	refSites []Vector3D,
+	refCells []VoronoiCell,
+	numPlates int,
+	seed int64,
+	targetLandFraction float64,
+) (plateBlueprint, bool) {
 	bestScore := math.Inf(1)
 	var bestLayout plateLayout
 	var bestCandidate plateAssignmentCandidate
@@ -304,12 +351,12 @@ func GenerateOptimizedPlateLayout(
 	maxAttempts := plateLayoutSearchAttempts + plateLayoutSearchExtraAttempts
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		rng := rand.New(rand.NewSource(seed + int64(attempt)*7919))
-		layout := generatePlateLayout(sites, cells, numPlates, rng, attempt)
+		layout := generatePlateLayout(refSites, refCells, numPlates, rng, attempt)
 		candidate, ok := findBestPlateTypeAssignmentCandidate(
 			layout.sortedPlates,
 			layout.plateSizes,
 			layout.plateNeighbors,
-			len(sites),
+			len(refSites),
 			targetLandFraction,
 		)
 		if !ok {
@@ -333,12 +380,121 @@ func GenerateOptimizedPlateLayout(
 	}
 
 	if found {
-		return bestLayout
+		return blueprintFromLayoutCandidate(bestLayout, bestCandidate), true
 	}
 
 	// Fallback to the first deterministic layout if scoring failed.
 	rng := rand.New(rand.NewSource(seed))
-	return generatePlateLayout(sites, cells, numPlates, rng, 0)
+	layout := generatePlateLayout(refSites, refCells, numPlates, rng, 0)
+	plateIsOcean := AssignPlateTypes(
+		layout.sortedPlates,
+		layout.plateSizes,
+		layout.plateNeighbors,
+		len(refSites),
+		targetLandFraction,
+	)
+	candidate := plateAssignmentCandidate{mask: assignmentMaskForPlateTypes(layout.sortedPlates, plateIsOcean)}
+	return blueprintFromLayoutCandidate(layout, candidate), true
+}
+
+func blueprintFromLayoutCandidate(layout plateLayout, candidate plateAssignmentCandidate) plateBlueprint {
+	continentalByCenter := make(map[int]bool, len(layout.sortedPlates))
+	for i, ps := range layout.sortedPlates {
+		continentalByCenter[ps.Center] = (candidate.mask & (uint64(1) << i)) != 0
+	}
+
+	blueprint := plateBlueprint{
+		centers:     make([]Vector3D, 0, len(layout.plateR)),
+		weights:     make([]float64, 0, len(layout.plateR)),
+		continental: make([]bool, 0, len(layout.plateR)),
+		attempt:     layout.attempt,
+	}
+	for i, center := range layout.plateR {
+		blueprint.centers = append(blueprint.centers, layout.plateCenters[i])
+		blueprint.weights = append(blueprint.weights, layout.plateWeights[i])
+		blueprint.continental = append(blueprint.continental, continentalByCenter[center])
+	}
+	return blueprint
+}
+
+func assignmentMaskForPlateTypes(sortedPlates []PlateSize, plateIsOcean map[int]bool) uint64 {
+	var mask uint64
+	for i, ps := range sortedPlates {
+		if !plateIsOcean[ps.Center] {
+			mask |= uint64(1) << i
+		}
+	}
+	return mask
+}
+
+func buildPlateLayoutFromBlueprint(
+	sites []Vector3D,
+	cells []VoronoiCell,
+	blueprint plateBlueprint,
+) plateLayout {
+	plateR := make([]int, 0, len(blueprint.centers))
+	plateCenters := make([]Vector3D, 0, len(blueprint.centers))
+	plateWeights := make([]float64, 0, len(blueprint.centers))
+	plateContinental := make([]bool, 0, len(blueprint.centers))
+	chosen := make(map[int]bool, len(blueprint.centers))
+	for i, center := range blueprint.centers {
+		centerR := nearestRegionToVector(sites, center, chosen)
+		if centerR == -1 {
+			continue
+		}
+		chosen[centerR] = true
+		plateR = append(plateR, centerR)
+		plateCenters = append(plateCenters, center)
+		plateWeights = append(plateWeights, blueprint.weights[i])
+		plateContinental = append(plateContinental, blueprint.continental[i])
+	}
+
+	plateWeight := make(map[int]float64, len(plateR))
+	for i, centerR := range plateR {
+		plateWeight[centerR] = plateWeights[i]
+	}
+	rPlate := assignPlateRegionsByWeightedDistance(sites, plateR, plateCenters, plateWeight)
+	SmoothPlateBoundaries(cells, rPlate, 3)
+
+	plateSizes := make(map[int]int)
+	for _, plate := range rPlate {
+		plateSizes[plate]++
+	}
+
+	activePlateR := make([]int, 0, len(plateR))
+	activePlateCenters := make([]Vector3D, 0, len(plateR))
+	activePlateWeights := make([]float64, 0, len(plateR))
+	activePlateIsOcean := make(map[int]bool, len(plateR))
+	for i, center := range plateR {
+		if plateSizes[center] == 0 {
+			continue
+		}
+		activePlateR = append(activePlateR, center)
+		activePlateCenters = append(activePlateCenters, plateCenters[i])
+		activePlateWeights = append(activePlateWeights, plateWeights[i])
+		activePlateIsOcean[center] = !plateContinental[i]
+	}
+
+	sortedPlates := make([]PlateSize, 0, len(activePlateR))
+	for _, centerR := range activePlateR {
+		sortedPlates = append(sortedPlates, PlateSize{
+			Center: centerR,
+			Size:   plateSizes[centerR],
+		})
+	}
+	sortPlateSizes(sortedPlates)
+
+	return plateLayout{
+		plateR:         activePlateR,
+		plateCenters:   activePlateCenters,
+		plateWeights:   activePlateWeights,
+		rPlate:         rPlate,
+		plateSizes:     plateSizes,
+		sortedPlates:   sortedPlates,
+		plateNeighbors: FindPlateNeighbors(cells, rPlate, activePlateR),
+		plateIsOcean:   activePlateIsOcean,
+		attempt:        blueprint.attempt,
+	}
 }
 
 // PlateSize holds plate center and size for sorting
@@ -745,19 +901,27 @@ func pickRandomRegions(numRegions, n int, rng *rand.Rand) []int {
 // - Continental plates have some bias toward each other (creates mountain ranges)
 // - Rotation around Euler poles creates curved velocity fields and realistic hotspot tracks
 func AssignPlateRotations(
-	sites []Vector3D,
-	cells []VoronoiCell,
-	plateR []int,
+	layout plateLayout,
 	plateIsOcean map[int]bool,
 	plateNeighbors map[int]map[int]bool,
-	rng *rand.Rand,
+	seed int64,
 ) map[int]PlateRotation {
 	plateRot := make(map[int]PlateRotation)
+	centerPosByPlate := make(map[int]Vector3D, len(layout.plateR))
+	for i, centerR := range layout.plateR {
+		if i < len(layout.plateCenters) {
+			centerPosByPlate[centerR] = layout.plateCenters[i].Normalize()
+		}
+	}
 
-	for _, centerR := range plateR {
+	for plateOrdinal, centerR := range layout.plateR {
+		centerPos := centerPosByPlate[centerR]
+		if centerPos.LengthSq() == 0 {
+			continue
+		}
+		rng := terrainFeatureRNG(seed, 10, int64(plateOrdinal), terrainVectorSeedPart(centerPos))
 		isOcean := plateIsOcean[centerR]
 		neighbors := plateNeighbors[centerR]
-		centerPos := sites[centerR]
 
 		var targetDir Vector3D
 		hasTarget := false
@@ -766,7 +930,10 @@ func AssignPlateRotations(
 			// Oceanic plate: find continental neighbors and move toward them
 			for neighborPlate := range neighbors {
 				if !plateIsOcean[neighborPlate] {
-					neighborPos := sites[neighborPlate]
+					neighborPos := centerPosByPlate[neighborPlate]
+					if neighborPos.LengthSq() == 0 {
+						continue
+					}
 					targetDir.X += neighborPos.X - centerPos.X
 					targetDir.Y += neighborPos.Y - centerPos.Y
 					targetDir.Z += neighborPos.Z - centerPos.Z
@@ -778,7 +945,10 @@ func AssignPlateRotations(
 			if rng.Float64() < 0.5 {
 				for neighborPlate := range neighbors {
 					if !plateIsOcean[neighborPlate] {
-						neighborPos := sites[neighborPlate]
+						neighborPos := centerPosByPlate[neighborPlate]
+						if neighborPos.LengthSq() == 0 {
+							continue
+						}
 						targetDir.X += neighborPos.X - centerPos.X
 						targetDir.Y += neighborPos.Y - centerPos.Y
 						targetDir.Z += neighborPos.Z - centerPos.Z
