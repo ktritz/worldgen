@@ -51,6 +51,13 @@ func computePrecipitationBudget(
 		return result
 	}
 
+	// The upwind footprint operator is linear, so every consumer below runs it
+	// batched over all cells (see precipitation_upwind_batch.go). The transition
+	// depends only on (mesh, wind, minAlignment), so it is built once here and
+	// shared by every call site and every iteration.
+	upwindCache := newUpwindTransitionCache(vertices, adj, wind)
+	landMask := landMaskAtOrAbove(elevation, seaLevel, n)
+
 	avgCellSizeKm := estimateClimateCellSizeKm(n)
 	maxIterations := scaledPrecipIterations(avgCellSizeKm)
 	rainfallFractionPerCell := settings.RainfallFraction * avgCellSizeKm
@@ -84,6 +91,7 @@ func computePrecipitationBudget(
 	coastalOnshore := make([]float64, n)
 	landTravel := make([]float64, n)
 	upwindParent, upwindStrength := computeStrongestUpwindGraph(vertices, adj, wind)
+	footprintOceanSupport := computeUpwindOceanFootprintSupportField(vertices, elevation, seaLevel, footprintSteps, upwindCache)
 	upwindLandSteps := computeUpwindLandStepCounts(upwindParent, upwindStrength, elevation, seaLevel, transportSteps)
 	for i := range vertices {
 		if i < len(oceanAtmosphere) {
@@ -108,15 +116,7 @@ func computePrecipitationBudget(
 		result.Debug.Convergence[i] = convergence[i]
 		result.Debug.OceanFetch[i] = oceanFetch[i]
 		result.Debug.CoastalOnshore[i] = coastalOnshore[i]
-		result.Debug.FootprintOceanSupport[i] = computeUpwindOceanFootprintSupport(
-			i,
-			vertices,
-			elevation,
-			seaLevel,
-			adj,
-			wind,
-			footprintSteps,
-		)
+		result.Debug.FootprintOceanSupport[i] = footprintOceanSupport[i]
 		result.Debug.NeighborOceanFraction[i] = computeNeighborOceanFraction(i, elevation, seaLevel, adj)
 		result.Debug.OceanDownwindLand[i] = computeDownwindLandExposure(i, vertices, elevation, seaLevel, adj, wind)
 		result.Debug.UpwindParent[i] = float64(parent)
@@ -168,6 +168,7 @@ func computePrecipitationBudget(
 		coastalOnshore,
 		landTravel,
 		landInterior,
+		footprintOceanSupport,
 	)
 	for i := range vertices {
 		neighborOceanFraction := result.Debug.NeighborOceanFraction[i]
@@ -197,6 +198,12 @@ func computePrecipitationBudget(
 		result.Debug.MarineRootRetention[i] = marineDiag.RootRetention[i]
 		result.Debug.MarineRootPathSteps[i] = marineDiag.RootSteps[i]
 	}
+	// marineTransported is fixed for the rest of the pass, so its frontal and
+	// tropical upwind reductions are computed once instead of once per cell per
+	// iteration.
+	marineFrontalUpwind := computeFrontalUpwindBatch(marineTransported, vertices, landMask, upwindCache)
+	marineTropicalUpwind := computeTropicalMarineUpwind(marineTransported, vertices, upwindCache)
+
 	landTransported := make([]float64, n)
 	frontalTransported := make([]float64, n)
 
@@ -204,10 +211,12 @@ func computePrecipitationBudget(
 		nextLand := make([]float64, n)
 		nextFrontal := make([]float64, n)
 		maxChange := 0.0
+		advectedLand := advectedSpecificHumidityField(vertices, adj, wind, landTransported, upwindCache)
+		advectedFrontal := advectedSpecificHumidityField(vertices, adj, wind, frontalTransported, upwindCache)
 		for i := range vertices {
 			incomingMarine := marineTransported[i]
-			incomingLand := advectedSpecificHumidity(i, vertices, adj, wind, landTransported)
-			incomingFrontal := advectedSpecificHumidity(i, vertices, adj, wind, frontalTransported)
+			incomingLand := advectedLand[i]
+			incomingFrontal := advectedFrontal[i]
 			marineQ := incomingMarine
 			landQ := incomingLand
 			frontalQ := incomingFrontal
@@ -222,14 +231,11 @@ func computePrecipitationBudget(
 				), n)
 				marineQ -= marineToFrontal
 				frontalQ += marineToFrontal
-				frontalQ += computeFrontalStormSource(
+				frontalQ += marineFrontalUpwind.stormSource(
 					i,
 					marineTransported,
-					vertices,
 					elevation,
 					seaLevel,
-					adj,
-					wind,
 					effectiveFetch,
 					landTravel,
 					landInterior,
@@ -239,14 +245,11 @@ func computePrecipitationBudget(
 				marineToLand := marineQ * precipitationPerStepFraction(marineToLandMixFraction(effectiveFetch[i], effectiveOnshore[i], landTravel[i], landInterior[i]), n)
 				marineQ -= marineToLand
 				landQ += marineToLand
-				landQ += computeTropicalMarineSource(
+				landQ += marineTropicalUpwind.source(
 					i,
 					marineTransported,
-					vertices,
 					elevation,
 					seaLevel,
-					adj,
-					wind,
 					effectiveFetch,
 					effectiveOnshore,
 					landTravel,
@@ -366,6 +369,7 @@ func computePrecipitationBudget(
 			settings.FrontalSourceLocalScale,
 			settings.FrontalRetentionLocalScale,
 			settings.FrontalTransportLocalScale,
+			upwindCache,
 		)
 		for i := range nextFrontal {
 			frontalChange := math.Abs(nextFrontal[i] - frontalTransported[i])
@@ -386,13 +390,15 @@ func computePrecipitationBudget(
 	for i := range result.Moisture {
 		result.Moisture[i] = marineTransported[i] + landTransported[i] + frontalTransported[i]
 	}
+	finalAdvectedLand := advectedSpecificHumidityField(vertices, adj, wind, landTransported, upwindCache)
+	finalAdvectedFrontal := advectedSpecificHumidityField(vertices, adj, wind, frontalTransported, upwindCache)
 	for i := range vertices {
 		if isOcean[i] {
 			continue
 		}
 		incomingMarine := marineTransported[i]
-		incomingLand := advectedSpecificHumidity(i, vertices, adj, wind, landTransported)
-		incomingFrontal := advectedSpecificHumidity(i, vertices, adj, wind, frontalTransported)
+		incomingLand := finalAdvectedLand[i]
+		incomingFrontal := finalAdvectedFrontal[i]
 		frontalSourceScale := localOptionalPrecipitationScale(settings.FrontalSourceLocalScale, i)
 		result.Debug.FrontalSourceScale[i] = frontalSourceScale
 		result.Debug.FrontalRetentionScale[i] = localOptionalPrecipitationScale(settings.FrontalRetentionLocalScale, i)
@@ -408,14 +414,11 @@ func computePrecipitationBudget(
 		), n)
 		incomingMarine -= marineToFrontal
 		incomingFrontal += marineToFrontal
-		incomingFrontal += computeFrontalStormSource(
+		incomingFrontal += marineFrontalUpwind.stormSource(
 			i,
 			marineTransported,
-			vertices,
 			elevation,
 			seaLevel,
-			adj,
-			wind,
 			effectiveFetch,
 			landTravel,
 			landInterior,
@@ -426,14 +429,11 @@ func computePrecipitationBudget(
 		marineToLand := incomingMarine * precipitationPerStepFraction(marineToLandMixFraction(effectiveFetch[i], effectiveOnshore[i], landTravel[i], landInterior[i]), n)
 		incomingMarine -= marineToLand
 		incomingLand += marineToLand
-		tropicalSource := computeTropicalMarineSource(
+		tropicalSource := marineTropicalUpwind.source(
 			i,
 			marineTransported,
-			vertices,
 			elevation,
 			seaLevel,
-			adj,
-			wind,
 			effectiveFetch,
 			effectiveOnshore,
 			landTravel,
@@ -550,12 +550,40 @@ func advectedSpecificHumidity(
 		precipUpwindFootprintMinAlignment,
 		nil,
 	)
+	return blendAdvectedSpecificHumidity(i, vertices, direct, mean, ok)
+}
+
+// blendAdvectedSpecificHumidity is the weight-independent tail of
+// advectedSpecificHumidity, shared with the batched path.
+func blendAdvectedSpecificHumidity(i int, vertices []Vector3D, direct, mean float64, ok bool) float64 {
 	if !ok {
 		return direct
 	}
 	absLat := math.Abs(getLatitudeDeg(vertices[i]))
 	footprintWeight := smoothRamp(18.0, 34.0, absLat)
 	return direct*(1.0-footprintWeight) + mean*footprintWeight
+}
+
+// advectedSpecificHumidityField is the batched all-cells form of
+// advectedSpecificHumidity. The footprint mean is the expensive part and it is
+// linear, so it is evaluated with one operator application per depth for the
+// whole mesh; the one-hop pullMoistureFromUpwind term stays per-cell.
+func advectedSpecificHumidityField(
+	vertices []Vector3D,
+	adj *FlatAdjacency,
+	wind []Vector3D,
+	specificHumidity []float64,
+	cache *upwindTransitionCache,
+) []float64 {
+	p := cache.get(precipUpwindFootprintMinAlignment)
+	coeffs := upwindFootprintCoeffs(resolutionAdjustedPrecipSteps(3, len(vertices)), len(vertices))
+	mean, ok := batchUpwindFootprintMean(p, coeffs, specificHumidity, nil)
+	out := make([]float64, len(vertices))
+	for i := range vertices {
+		direct := pullMoistureFromUpwind(i, vertices, adj, wind, specificHumidity)
+		out[i] = blendAdvectedSpecificHumidity(i, vertices, direct, mean[i], ok[i])
+	}
+	return out
 }
 
 func computeOceanCondensation(q, capacity, rainfallFractionPerCell float64) float64 {
