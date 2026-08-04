@@ -1,0 +1,467 @@
+{
+ "schemaVersion": "crops-fantasy/v2-draft",
+ "_comment": "DRAFT - not wired into any loader. Migration of config/drafts/crops_fantasy_v1.json to the v2 schema of config/drafts/crops_earthlike_v2.json. Every entry sets 'analog' to a v2 real-crop id (or, for ember_pepper, a named EcoCrop record deliberately excluded from the real catalogue) and inherits that record's RE-DERIVED 2023 envelope shifted along EXACTLY ONE axis, per the 'one twist deep' rule in docs/FUTURE_WORK_SCOPING.md SS G1b. The axis is named in envelope_ref and in notes. envelope_source is 'estimated' for all of them because the shift is authored. The v1 single frost_kills_at_c field is replaced by the frost_kills_at_c / winter_hardy_to_c pair, shifted by the same delta as the temperature axis; where FAO recorded 'no input' the fantasy crop inherits null rather than inventing a number. sphere_tags and affinities are carried unchanged. | 2026-08-02: removed ember_pepper, silverleaf, skywheat as reskins (no mechanical distinction from real crops). Per-world reskins are world-customization content, not default catalog entries.",
+ "crops": [
+  {
+   "id": "frostwheat",
+   "name": "frostwheat",
+   "origin": "fantasy",
+   "analog": "wheat_bread",
+   "analog_name": "bread wheat (Triticum aestivum)",
+   "package_tags": [
+    "temperate",
+    "highland"
+   ],
+   "value_class": "staple",
+   "slot": "frostwheat",
+   "envelope_source": "estimated",
+   "envelope_ref": "wheat_bread / wheat, bread wheat (Triticum aestivum), EcoCrop 2114, shifted -12 C on the temperature axis only",
+   "ecocrop_code": "2114",
+   "climate_zone": [
+    "Aw",
+    "Ar",
+    "Bw",
+    "Bs",
+    "Cf",
+    "Cs",
+    "Cw",
+    "Do",
+    "Dc",
+    "Df",
+    "Dw"
+   ],
+   "temp_c": {
+    "abs_min": -7.0,
+    "opt_min": 3.0,
+    "opt_max": 11.0,
+    "abs_max": 15.0
+   },
+   "precip_mm_yr": {
+    "abs_min": 300.0,
+    "opt_min": 750.0,
+    "opt_max": 900.0,
+    "abs_max": 1600.0
+   },
+   "cycle_days": {
+    "min": 90.0,
+    "max": 250.0
+   },
+   "soil_ph": {
+    "min": 5.5,
+    "max": 8.5
+   },
+   "soil": {
+    "fertility_min": 0.4,
+    "fertility_sensitivity": 0.8,
+    "drainage": [
+     "well"
+    ],
+    "texture": [
+     "loam",
+     "silt_loam",
+     "clay_loam",
+     "clay"
+    ],
+    "depth_tolerance": "shallow"
+   },
+   "seasonality": {
+    "sow_seasons": [
+     "autumn",
+     "spring"
+    ],
+    "perennial": false,
+    "ratoon_cycles": 0,
+    "frost_kills_at_c": -12.0,
+    "winter_hardy_to_c": -32.0
+   },
+   "killing_temp_note": null,
+   "photoperiod": "long_day",
+   "photoperiod_source": "estimated",
+   "light_min": 0.8,
+   "biome_whitelist": null,
+   "water": {
+    "irrigation_response": 0.55,
+    "floodplain_affinity": 0.4
+   },
+   "products": [
+    {
+     "part": "grain",
+     "good": "grain",
+     "yield_t_ha": 0.9,
+     "process": null,
+     "edible": "cooked"
+    },
+    {
+     "part": "straw",
+     "good": "fodder",
+     "yield_t_ha": 2.0,
+     "process": "none",
+     "edible": "none",
+     "byproduct": true
+    }
+   ],
+   "processing_gate": null,
+   "labor_days_ha": 68,
+   "storage": {
+    "shelf_life_days": 1095,
+    "form": "dry_bulk"
+   },
+   "sphere_tags": [
+    "frost"
+   ],
+   "affinities": {
+    "Dwarf": 1.1,
+    "Human": 1.05,
+    "Highland Hold": 1.18
+   },
+   "notes_excerpt": null,
+   "notes": "Twist axis: TEMPERATURE, -12 C. Re-derived on the v2 split: v1 carried a single KTMP -28 that conflated two things. It now reads frost_kills -12 (a growing plant dies at -12) and winter_hardy -32 (a hardened dormant plant survives to -32), both the bread-wheat values shifted by the same 12 C. Precip, cycle, pH and soil are wheat's EcoCrop record verbatim - the v0 draft's lower water need was a second twist and stays dropped. Yield 0.9 t/ha against wheat's 1.2 is the price."
+  },
+  {
+   "id": "cave_fungus",
+   "name": "cave fungus",
+   "origin": "fantasy",
+   "analog": "potato",
+   "analog_name": "potato (Solanum tuberosum)",
+   "package_tags": [
+    "highland"
+   ],
+   "value_class": "staple",
+   "slot": "cave_fungus",
+   "envelope_source": "estimated",
+   "envelope_ref": "potato / potato (Solanum tuberosum), EcoCrop 1971, with the light axis alone collapsed to zero",
+   "ecocrop_code": "1971",
+   "climate_zone": [
+    "Aw",
+    "Ar",
+    "Bs",
+    "Cf",
+    "Cs",
+    "Cw",
+    "Do",
+    "Dc",
+    "Df",
+    "Dw"
+   ],
+   "temp_c": {
+    "abs_min": 7.0,
+    "opt_min": 15.0,
+    "opt_max": 25.0,
+    "abs_max": 30.0
+   },
+   "precip_mm_yr": {
+    "abs_min": 250.0,
+    "opt_min": 500.0,
+    "opt_max": 800.0,
+    "abs_max": 2000.0
+   },
+   "cycle_days": {
+    "min": 90.0,
+    "max": 160.0
+   },
+   "soil_ph": {
+    "min": 4.2,
+    "max": 8.5
+   },
+   "soil": {
+    "fertility_min": 0.22,
+    "fertility_sensitivity": 0.5,
+    "drainage": [
+     "well",
+     "excessive"
+    ],
+    "texture": [
+     "sand",
+     "sandy_loam",
+     "loam",
+     "silt_loam",
+     "clay_loam",
+     "clay"
+    ],
+    "depth_tolerance": "shallow"
+   },
+   "seasonality": {
+    "sow_seasons": [
+     "spring",
+     "summer",
+     "autumn",
+     "winter"
+    ],
+    "perennial": false,
+    "ratoon_cycles": 0,
+    "frost_kills_at_c": 0.0,
+    "winter_hardy_to_c": null
+   },
+   "killing_temp_note": null,
+   "photoperiod": "day_neutral",
+   "photoperiod_source": "derived",
+   "light_min": 0.0,
+   "biome_whitelist": [
+    "subterranean",
+    "cave",
+    "deep_forest_floor"
+   ],
+   "water": {
+    "irrigation_response": 0.1,
+    "floodplain_affinity": 0.0
+   },
+   "products": [
+    {
+     "part": "body",
+     "good": "fungus",
+     "yield_t_ha": 7.0,
+     "process": null,
+     "edible": "cooked"
+    },
+    {
+     "part": "body",
+     "good": "preserved_food",
+     "yield_t_ha": 1.0,
+     "process": "dry",
+     "edible": "cooked",
+     "value_mult": 2.0
+    }
+   ],
+   "processing_gate": null,
+   "labor_days_ha": 45,
+   "storage": {
+    "shelf_life_days": 30,
+    "form": "perishable_bulk"
+   },
+   "sphere_tags": [
+    "deep-earth"
+   ],
+   "affinities": {
+    "Dwarf": 1.3,
+    "Goblin": 1.25,
+    "Gnome": 1.1,
+    "Highland Hold": 1.15
+   },
+   "notes_excerpt": null,
+   "notes": "Twist axis: LIGHT (light_min -> 0.0). v1 pointed at 'highland-tuber', an id that no longer exists: v2 splits that into potato (S. tuberosum) and bitter_potato (S. x juzepczukii), and the correct analog is the lowland potato, whose temp/precip/pH/cycle envelope is inherited unchanged. winter_hardy_to_c is null because the potato has no overwintering field phase - and a cave has no winter. biome_whitelist stays non-null per the schema's Anno-style fantasy-only gate. NOTE: its 'fungus' good is not in the trade-good catalogue or in the v2 proposedGoods list; it needs one before this crop can be wired up."
+  },
+  {
+   "id": "duskvine",
+   "name": "duskvine",
+   "origin": "fantasy",
+   "analog": "grape",
+   "analog_name": "grape (Vitis vinifera)",
+   "package_tags": [
+    "temperate",
+    "mediterranean"
+   ],
+   "value_class": "luxury",
+   "slot": "duskvine",
+   "envelope_source": "estimated",
+   "envelope_ref": "grape / grape, raisin (Vitis vinifera), EcoCrop 2160, with the light axis alone lowered to deep shade",
+   "ecocrop_code": "2160",
+   "climate_zone": [
+    "Aw",
+    "Bs",
+    "Cs",
+    "Do",
+    "Dc"
+   ],
+   "temp_c": {
+    "abs_min": 10.0,
+    "opt_min": 18.0,
+    "opt_max": 30.0,
+    "abs_max": 38.0
+   },
+   "precip_mm_yr": {
+    "abs_min": 400.0,
+    "opt_min": 700.0,
+    "opt_max": 850.0,
+    "abs_max": 1200.0
+   },
+   "cycle_days": {
+    "min": 160.0,
+    "max": 270.0
+   },
+   "soil_ph": {
+    "min": 4.5,
+    "max": 8.5
+   },
+   "soil": {
+    "fertility_min": 0.22,
+    "fertility_sensitivity": 0.5,
+    "drainage": [
+     "well"
+    ],
+    "texture": [
+     "sand",
+     "sandy_loam",
+     "loam",
+     "silt_loam",
+     "clay_loam",
+     "clay"
+    ],
+    "depth_tolerance": "shallow"
+   },
+   "seasonality": {
+    "sow_seasons": [
+     "spring"
+    ],
+    "perennial": true,
+    "ratoon_cycles": 30,
+    "frost_kills_at_c": -3.0,
+    "winter_hardy_to_c": -20.0
+   },
+   "killing_temp_note": null,
+   "photoperiod": "day_neutral",
+   "photoperiod_source": "derived",
+   "light_min": 0.08,
+   "biome_whitelist": null,
+   "water": {
+    "irrigation_response": 0.25,
+    "floodplain_affinity": 0.1
+   },
+   "products": [
+    {
+     "part": "fruit",
+     "good": "wine",
+     "yield_t_ha": 3.0,
+     "process": "ferment",
+     "edible": "raw",
+     "value_mult": 9.0
+    },
+    {
+     "part": "fruit",
+     "good": "fresh_fruit",
+     "yield_t_ha": 5.0,
+     "process": null,
+     "edible": "raw"
+    }
+   ],
+   "processing_gate": null,
+   "labor_days_ha": 185,
+   "storage": {
+    "shelf_life_days": 14,
+    "form": "perishable_bulk"
+   },
+   "sphere_tags": [
+    "shadow",
+    "twilight"
+   ],
+   "affinities": {
+    "Elf": 1.2,
+    "Forest Enclave": 1.15,
+    "Merchant League": 1.1
+   },
+   "notes_excerpt": null,
+   "notes": "Twist axis: LIGHT (grape 0.5 -> 0.08). Ripens under closed canopy and on north faces, the one piece of ground a vine never gets. Re-derived envelope now carries the grape's real split - frost_kills -3, winter_hardy -20 - so a duskvine survives a continental winter and still loses its crop to a May frost, exactly like a real vine. Cost paid in labour (185 d/ha vs 160) per the G1b rule that fantasy pays in a real currency."
+  },
+  {
+   "id": "mireroot",
+   "name": "mireroot",
+   "origin": "fantasy",
+   "analog": "taro",
+   "analog_name": "taro (Colocasia esculenta)",
+   "package_tags": [
+    "monsoon"
+   ],
+   "value_class": "staple",
+   "slot": "mireroot",
+   "envelope_source": "estimated",
+   "envelope_ref": "taro / taro, eddo (Colocasia esculenta), EcoCrop 758, shifted +60% on the water axis only (precip x1.6, drainage narrowed to permanently saturated)",
+   "ecocrop_code": "758",
+   "climate_zone": [
+    "Aw",
+    "Ar",
+    "Cf"
+   ],
+   "temp_c": {
+    "abs_min": 10.0,
+    "opt_min": 21.0,
+    "opt_max": 28.0,
+    "abs_max": 35.0
+   },
+   "precip_mm_yr": {
+    "abs_min": 1600,
+    "opt_min": 2880,
+    "opt_max": 4320,
+    "abs_max": 6560
+   },
+   "cycle_days": {
+    "min": 180.0,
+    "max": 300.0
+   },
+   "soil_ph": {
+    "min": 4.3,
+    "max": 8.2
+   },
+   "soil": {
+    "fertility_min": 0.4,
+    "fertility_sensitivity": 0.8,
+    "drainage": [
+     "poor"
+    ],
+    "texture": [
+     "clay_loam",
+     "clay",
+     "peat"
+    ],
+    "depth_tolerance": "medium"
+   },
+   "seasonality": {
+    "sow_seasons": [
+     "spring",
+     "summer"
+    ],
+    "perennial": false,
+    "ratoon_cycles": 0,
+    "frost_kills_at_c": null,
+    "winter_hardy_to_c": null
+   },
+   "killing_temp_note": null,
+   "photoperiod": "day_neutral",
+   "photoperiod_source": "estimated",
+   "light_min": 0.35,
+   "biome_whitelist": null,
+   "water": {
+    "irrigation_response": 0.3,
+    "floodplain_affinity": 0.95
+   },
+   "products": [
+    {
+     "part": "tuber",
+     "good": "root_crop",
+     "yield_t_ha": 11.0,
+     "process": null,
+     "edible": "cooked"
+    },
+    {
+     "part": "tuber",
+     "good": "preserved_food",
+     "yield_t_ha": 1.4,
+     "process": "dry",
+     "edible": "cooked"
+    },
+    {
+     "part": "leaf",
+     "good": "fodder",
+     "yield_t_ha": 2.0,
+     "process": "none",
+     "edible": "none",
+     "byproduct": true
+    }
+   ],
+   "processing_gate": null,
+   "labor_days_ha": 100,
+   "storage": {
+    "shelf_life_days": 60,
+    "form": "perishable_bulk"
+   },
+   "sphere_tags": [
+    "mire"
+   ],
+   "affinities": {
+    "Lizardfolk": 1.3,
+    "Goblin": 1.08,
+    "Marsh Clans": 1.22
+   },
+   "notes_excerpt": null,
+   "notes": "Twist axis: WATER. Temperature, pH and cycle are taro's v2 record verbatim. Both killing-temperature columns are 'no input' for taro, so mireroot inherits nulls; the Notes field's '180-210 frost-free days' is the real constraint and is a call-site check, not a number here. RMIN 1600 mm makes it the wettest crop in either catalogue apart from black pepper."
+  }
+ ]
+}

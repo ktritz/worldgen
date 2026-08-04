@@ -1,0 +1,3068 @@
+{
+  "schemaVersion": "domesticates/v2-draft",
+  "_comment": "DRAFT - not wired into any loader. Successor to config/drafts/domesticates_earthlike.json (v0, 12 entries, all 0-1 normalized). Brought up to the crops/v2-draft standard: ABSOLUTE UNITS for every envelope (temp_c in degC, precip_mm_yr as an annual-precipitation floor/optimum band, altitude_m in metres, water in litres/day and days-without, stocking in ha/head, work in kg/kgf/km-h/km-day, product yields in kg per head, hive, colony or hectare of host crop per year), one-to-many products[] mapping to trade goods exactly as crops v2 does, a unique `slot` per entry, `package_tags` from the shared crop vocabulary (temperate | mediterranean | monsoon | tropical | arid | steppe | highland | boreal | subterranean), and `envelope_source`/`envelope_ref`. envelope_source is 'estimated' everywhere: these numbers are authored from general husbandry knowledge, NOT scraped from a dataset the way EcoCrop backs crops v2, and no citation is claimed. Only genuinely dimensionless quantities stay 0-1: caravanCapability, warMountCapability, fodderNeed, herdability, feed_competition, disposition, and service magnitudes. Those four capability names keep their v0 camelCase because config/drafts/land_transport_earthlike.json is written against them; new fields use crops-v2 snake_case. The `domestication` block on every entry carries Diamond's Anna Karenina criteria (diet via forage.feed_competition, growth rate, captive breeding, disposition, panic response, social structure) so invented animals can be checked against the same bar as real ones - see the domestication_check block on the four subterranean entries (FUTURE_WORK G1e). Ordinal invariants asserted by this file: dromedary camel is the most arid-tolerant, reindeer then yak the most cold-tolerant, water buffalo the most water-dependent, riding horse the fastest sustained and highest war value, elephant the highest draught pull. See config/drafts/DOMESTICATES_V2_NOTES.md.",
+  "proposedGoods": [
+    {
+      "good": "dairy",
+      "category": "raw",
+      "rationale": "Milk, butter, cheese and curd. Eight entries emit it and the economy has no sweetener-free protein/fat good at all; cheese is also the storable form, which is what lets pastoral surplus travel."
+    },
+    {
+      "good": "eggs",
+      "category": "raw",
+      "rationale": "Continuous perishable protein from the four fowl slots. Distinct from 'livestock' because it is a flow, not a slaughter event, and near-untradeable at range."
+    },
+    {
+      "good": "honey",
+      "category": "processed",
+      "rationale": "The pre-sugar sweetener and the only fermentable that needs no field. Sole product of the hive slot alongside wax."
+    },
+    {
+      "good": "beeswax",
+      "category": "processed",
+      "rationale": "Candles, seals, wax tablets, lost-wax casting and waterproofing. Currently nothing in the economy supplies wax, which quietly breaks candles and casting."
+    },
+    {
+      "good": "tallow",
+      "category": "processed",
+      "rationale": "Rendered animal fat: lamp oil, soap input, candle stock, leather dressing and cooking fat. The existing 'soap' good has a plant-oil input from crops_v2 but no animal-fat input; more importantly it is the lighting supply for any polity without olives, and the STRUCTURAL requirement for subterranean settlement (G1e)."
+    },
+    {
+      "good": "draft_animals",
+      "category": "strategic",
+      "rationale": "Trained plough/cart beasts sold as stock. Distinct from 'livestock' (meat on the hoof) because the value is in the training and the pairing, and because land_transport payload scales with their availability."
+    },
+    {
+      "good": "warhorses",
+      "category": "strategic",
+      "rationale": "Trained mounts of war grade. The classic strategic import: a polity with the wrong grass buys these or fields no cavalry."
+    },
+    {
+      "good": "ivory",
+      "category": "luxury",
+      "rationale": "Carving stock - elephant tusk, and by extension antler and horn. Feeds Theme C/E provenance goods (great hunts, ivory trade) already named in FUTURE_WORK G2."
+    },
+    {
+      "good": "guano",
+      "category": "raw",
+      "rationale": "Nitrogen/phosphate fertiliser from roost colonies. Raises fungal-bed and field yields; the substrate-loop currency of G1d/G1e."
+    },
+    {
+      "good": "silk",
+      "category": "luxury",
+      "rationale": "Carried from crops_earthlike_v2.json proposedGoods; the silkworm entry here is the animal half of that chain and nothing supplied it before."
+    },
+    {
+      "good": "fuel_fiber",
+      "category": "raw",
+      "rationale": "Carried from crops_earthlike_v2.json; dried dung is the treeless-zone fuel supply (yak, camel, cattle) and is emitted here as a byproduct."
+    }
+  ],
+  "legacyAliases": {
+    "_comment": "v0 (domesticates_earthlike.json) entry name -> v2 id. Every animalRequirement in config/drafts/land_transport_earthlike.json resolves through this map. Note that the horse split is not one-to-one: 'horse' meant the riding animal, so horse-relay and any cavalry reference resolve to horse_war, while the horse-wagon transport should be re-pointed at horse_draft when land_transport is next revised (recorded in DOMESTICATES_V2_NOTES.md).",
+    "cattle": "cattle_taurine",
+    "sheep": "sheep",
+    "goat": "goat",
+    "pig": "pig",
+    "horse": "horse_war",
+    "donkey": "donkey",
+    "camel": "camel_dromedary",
+    "water-buffalo": "water_buffalo",
+    "mountain-yak": "yak",
+    "highland-llama": "llama",
+    "poultry": "chicken",
+    "bees": "honeybee"
+  },
+  "domesticates": [
+    {
+      "id": "cattle_taurine",
+      "name": "taurine cattle",
+      "origin": "real",
+      "analog": null,
+      "slot": "temperate_draft_bovine",
+      "package_tags": [
+        "temperate",
+        "mediterranean",
+        "steppe",
+        "boreal"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Bos taurus",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -30,
+        "opt_min": 5,
+        "opt_max": 20,
+        "abs_max": 30
+      },
+      "precip_mm_yr": {
+        "abs_min": 400,
+        "opt_min": 600,
+        "opt_max": 1500,
+        "abs_max": 2500
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 2000,
+        "max": 3000
+      },
+      "water": {
+        "drink_l_per_head_day": 40,
+        "days_without_water": 2,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "grass",
+          "hay",
+          "stover"
+        ],
+        "feed_competition": 0.25,
+        "stocking_ha_per_head": 1.5
+      },
+      "work": {
+        "pack_load_kg": 60,
+        "draft_pull_kgf": 500,
+        "sustained_speed_kmh": 3.2,
+        "daily_range_km": 20
+      },
+      "products": [
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 55.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "milk",
+          "good": "dairy",
+          "yield": 600.0,
+          "unit": "kg_per_head_yr",
+          "process": "milk"
+        },
+        {
+          "part": "hide",
+          "good": "leather",
+          "yield": 6.0,
+          "unit": "kg_per_head_yr",
+          "process": "tan"
+        },
+        {
+          "part": "fat",
+          "good": "tallow",
+          "yield": 12.0,
+          "unit": "kg_per_head_yr",
+          "process": "render"
+        },
+        {
+          "part": "dung",
+          "good": "fuel_fiber",
+          "yield": 800.0,
+          "unit": "kg_per_head_yr",
+          "process": null,
+          "byproduct": true
+        },
+        {
+          "part": "live_animal",
+          "good": "draft_animals",
+          "yield": 4.0,
+          "unit": "head_per_100_head_yr",
+          "process": "train"
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.3,
+      "warMountCapability": 0.05,
+      "fodderNeed": 0.55,
+      "herdability": 0.85,
+      "domestication": {
+        "months_to_maturity": 24,
+        "captive_breeding": true,
+        "disposition": 0.75,
+        "panic_response": "herd_mill",
+        "social_structure": "hierarchical_herd"
+      },
+      "notes": "Baseline plough bovine. The 'ox' of land_transport ox-cart is a castrated male of this species, a use-state rather than a separate slot; draft output is exposed via work.draft_pull_kgf and the draft_animals product."
+    },
+    {
+      "id": "cattle_zebu",
+      "name": "zebu cattle",
+      "origin": "real",
+      "analog": null,
+      "slot": "tropical_draft_bovine",
+      "package_tags": [
+        "tropical",
+        "monsoon",
+        "arid"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Bos indicus",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -5,
+        "opt_min": 18,
+        "opt_max": 32,
+        "abs_max": 42
+      },
+      "precip_mm_yr": {
+        "abs_min": 300,
+        "opt_min": 600,
+        "opt_max": 1800,
+        "abs_max": 3500
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 1500,
+        "max": 2500
+      },
+      "water": {
+        "drink_l_per_head_day": 35,
+        "days_without_water": 3,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "grass",
+          "browse",
+          "stover"
+        ],
+        "feed_competition": 0.2,
+        "stocking_ha_per_head": 3.0
+      },
+      "work": {
+        "pack_load_kg": 55,
+        "draft_pull_kgf": 480,
+        "sustained_speed_kmh": 3.0,
+        "daily_range_km": 18
+      },
+      "products": [
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 40.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "milk",
+          "good": "dairy",
+          "yield": 350.0,
+          "unit": "kg_per_head_yr",
+          "process": "milk"
+        },
+        {
+          "part": "hide",
+          "good": "leather",
+          "yield": 5.0,
+          "unit": "kg_per_head_yr",
+          "process": "tan"
+        },
+        {
+          "part": "fat",
+          "good": "tallow",
+          "yield": 8.0,
+          "unit": "kg_per_head_yr",
+          "process": "render"
+        },
+        {
+          "part": "dung",
+          "good": "fuel_fiber",
+          "yield": 700.0,
+          "unit": "kg_per_head_yr",
+          "process": null,
+          "byproduct": true
+        },
+        {
+          "part": "live_animal",
+          "good": "draft_animals",
+          "yield": 5.0,
+          "unit": "head_per_100_head_yr",
+          "process": "train"
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.35,
+      "warMountCapability": 0.05,
+      "fodderNeed": 0.4,
+      "herdability": 0.85,
+      "domestication": {
+        "months_to_maturity": 30,
+        "captive_breeding": true,
+        "disposition": 0.7,
+        "panic_response": "herd_mill",
+        "social_structure": "hierarchical_herd"
+      },
+      "notes": "Humped, heat- and parasite-tolerant bovine: the reason a monsoon or savanna polity has a plough team at all. Non-substitutable with taurine cattle above ~35 C."
+    },
+    {
+      "id": "water_buffalo",
+      "name": "water buffalo",
+      "origin": "real",
+      "analog": null,
+      "slot": "paddy_draft_bovine",
+      "package_tags": [
+        "monsoon",
+        "tropical"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Bubalus bubalis",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -5,
+        "opt_min": 18,
+        "opt_max": 30,
+        "abs_max": 38
+      },
+      "precip_mm_yr": {
+        "abs_min": 900,
+        "opt_min": 1200,
+        "opt_max": 3000,
+        "abs_max": 5000
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 800,
+        "max": 2000
+      },
+      "water": {
+        "drink_l_per_head_day": 70,
+        "days_without_water": 1,
+        "wallow_required": true
+      },
+      "forage": {
+        "diet": [
+          "grass",
+          "aquatic_weed",
+          "straw"
+        ],
+        "feed_competition": 0.2,
+        "stocking_ha_per_head": 1.2
+      },
+      "work": {
+        "pack_load_kg": 80,
+        "draft_pull_kgf": 550,
+        "sustained_speed_kmh": 2.8,
+        "daily_range_km": 15
+      },
+      "products": [
+        {
+          "part": "milk",
+          "good": "dairy",
+          "yield": 900.0,
+          "unit": "kg_per_head_yr",
+          "process": "milk"
+        },
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 35.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "hide",
+          "good": "leather",
+          "yield": 8.0,
+          "unit": "kg_per_head_yr",
+          "process": "tan"
+        },
+        {
+          "part": "fat",
+          "good": "tallow",
+          "yield": 6.0,
+          "unit": "kg_per_head_yr",
+          "process": "render"
+        },
+        {
+          "part": "dung",
+          "good": "fuel_fiber",
+          "yield": 1000.0,
+          "unit": "kg_per_head_yr",
+          "process": null,
+          "byproduct": true
+        },
+        {
+          "part": "live_animal",
+          "good": "draft_animals",
+          "yield": 4.0,
+          "unit": "head_per_100_head_yr",
+          "process": "train"
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.1,
+      "warMountCapability": 0.05,
+      "fodderNeed": 0.5,
+      "herdability": 0.8,
+      "domestication": {
+        "months_to_maturity": 30,
+        "captive_breeding": true,
+        "disposition": 0.7,
+        "panic_response": "herd_mill",
+        "social_structure": "hierarchical_herd"
+      },
+      "notes": "The most water-dependent domesticate in the catalogue: highest precipitation floor (900 mm), one day without water, and an obligate wallow above 30 C. Paddy tillage is its niche and nothing else fills it."
+    },
+    {
+      "id": "yak",
+      "name": "yak",
+      "origin": "real",
+      "analog": null,
+      "slot": "high_altitude_bovid",
+      "package_tags": [
+        "highland",
+        "boreal"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Bos grunniens",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -50,
+        "opt_min": -10,
+        "opt_max": 12,
+        "abs_max": 22
+      },
+      "precip_mm_yr": {
+        "abs_min": 300,
+        "opt_min": 400,
+        "opt_max": 900,
+        "abs_max": 1600
+      },
+      "altitude_m": {
+        "min": 2000,
+        "opt_min": 3000,
+        "opt_max": 5000,
+        "max": 6000
+      },
+      "water": {
+        "drink_l_per_head_day": 25,
+        "days_without_water": 3,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "alpine_grass",
+          "sedge",
+          "lichen"
+        ],
+        "feed_competition": 0.05,
+        "stocking_ha_per_head": 4.0
+      },
+      "work": {
+        "pack_load_kg": 60,
+        "draft_pull_kgf": 350,
+        "sustained_speed_kmh": 3.5,
+        "daily_range_km": 20
+      },
+      "products": [
+        {
+          "part": "milk",
+          "good": "dairy",
+          "yield": 350.0,
+          "unit": "kg_per_head_yr",
+          "process": "milk"
+        },
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 30.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "down_fibre",
+          "good": "wool",
+          "yield": 1.2,
+          "unit": "kg_per_head_yr",
+          "process": "comb"
+        },
+        {
+          "part": "hide",
+          "good": "leather",
+          "yield": 5.0,
+          "unit": "kg_per_head_yr",
+          "process": "tan"
+        },
+        {
+          "part": "fat",
+          "good": "tallow",
+          "yield": 5.0,
+          "unit": "kg_per_head_yr",
+          "process": "render"
+        },
+        {
+          "part": "dung",
+          "good": "fuel_fiber",
+          "yield": 900.0,
+          "unit": "kg_per_head_yr",
+          "process": null,
+          "byproduct": true
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.75,
+      "warMountCapability": 0.1,
+      "fodderNeed": 0.2,
+      "herdability": 0.8,
+      "domestication": {
+        "months_to_maturity": 36,
+        "captive_breeding": true,
+        "disposition": 0.55,
+        "panic_response": "flight",
+        "social_structure": "hierarchical_herd"
+      },
+      "notes": "Has an altitude MINIMUM as well as a maximum: below ~2000 m it suffers heat stress and parasite load, which is why yak country and cattle country do not overlap. Dung is the treeless-plateau fuel supply, hence the high fuel_fiber yield."
+    },
+    {
+      "id": "sheep",
+      "name": "sheep",
+      "origin": "real",
+      "analog": null,
+      "slot": "fleece_ovine",
+      "package_tags": [
+        "temperate",
+        "mediterranean",
+        "steppe",
+        "highland"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Ovis aries",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -35,
+        "opt_min": 5,
+        "opt_max": 22,
+        "abs_max": 32
+      },
+      "precip_mm_yr": {
+        "abs_min": 250,
+        "opt_min": 400,
+        "opt_max": 900,
+        "abs_max": 1600
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 3000,
+        "max": 4500
+      },
+      "water": {
+        "drink_l_per_head_day": 5,
+        "days_without_water": 3,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "grass",
+          "forb",
+          "stubble"
+        ],
+        "feed_competition": 0.1,
+        "stocking_ha_per_head": 0.35
+      },
+      "work": {
+        "pack_load_kg": 25,
+        "draft_pull_kgf": 0,
+        "sustained_speed_kmh": 3.5,
+        "daily_range_km": 18
+      },
+      "products": [
+        {
+          "part": "fleece",
+          "good": "wool",
+          "yield": 2.5,
+          "unit": "kg_per_head_yr",
+          "process": "shear"
+        },
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 18.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "milk",
+          "good": "dairy",
+          "yield": 90.0,
+          "unit": "kg_per_head_yr",
+          "process": "milk"
+        },
+        {
+          "part": "hide",
+          "good": "leather",
+          "yield": 1.2,
+          "unit": "kg_per_head_yr",
+          "process": "tan"
+        },
+        {
+          "part": "fat",
+          "good": "tallow",
+          "yield": 3.0,
+          "unit": "kg_per_head_yr",
+          "process": "render"
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.05,
+      "warMountCapability": 0.0,
+      "fodderNeed": 0.25,
+      "herdability": 0.95,
+      "domestication": {
+        "months_to_maturity": 12,
+        "captive_breeding": true,
+        "disposition": 0.85,
+        "panic_response": "flight",
+        "social_structure": "hierarchical_herd"
+      },
+      "notes": "The wool/woolens chain begins here. Highest herdability in the catalogue: a single shepherd and a dog move hundreds."
+    },
+    {
+      "id": "goat",
+      "name": "goat",
+      "origin": "real",
+      "analog": null,
+      "slot": "browse_caprine",
+      "package_tags": [
+        "arid",
+        "mediterranean",
+        "highland",
+        "steppe",
+        "tropical"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Capra hircus",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -25,
+        "opt_min": 8,
+        "opt_max": 28,
+        "abs_max": 42
+      },
+      "precip_mm_yr": {
+        "abs_min": 150,
+        "opt_min": 300,
+        "opt_max": 800,
+        "abs_max": 2000
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 3500,
+        "max": 4500
+      },
+      "water": {
+        "drink_l_per_head_day": 5,
+        "days_without_water": 4,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "browse",
+          "shrub",
+          "grass"
+        ],
+        "feed_competition": 0.05,
+        "stocking_ha_per_head": 0.5
+      },
+      "work": {
+        "pack_load_kg": 20,
+        "draft_pull_kgf": 0,
+        "sustained_speed_kmh": 3.8,
+        "daily_range_km": 18
+      },
+      "products": [
+        {
+          "part": "milk",
+          "good": "dairy",
+          "yield": 120.0,
+          "unit": "kg_per_head_yr",
+          "process": "milk"
+        },
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 15.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "cashmere",
+          "good": "wool",
+          "yield": 0.4,
+          "unit": "kg_per_head_yr",
+          "process": "comb"
+        },
+        {
+          "part": "hide",
+          "good": "leather",
+          "yield": 1.0,
+          "unit": "kg_per_head_yr",
+          "process": "tan"
+        },
+        {
+          "part": "fat",
+          "good": "tallow",
+          "yield": 2.0,
+          "unit": "kg_per_head_yr",
+          "process": "render"
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.1,
+      "warMountCapability": 0.0,
+      "fodderNeed": 0.2,
+      "herdability": 0.85,
+      "domestication": {
+        "months_to_maturity": 10,
+        "captive_breeding": true,
+        "disposition": 0.6,
+        "panic_response": "flight",
+        "social_structure": "hierarchical_herd"
+      },
+      "notes": "Browser, not grazer: converts shrub no other stock will touch, which is also why goat country degrades. The marginal-land protein source."
+    },
+    {
+      "id": "pig",
+      "name": "pig",
+      "origin": "real",
+      "analog": null,
+      "slot": "forest_omnivore",
+      "package_tags": [
+        "temperate",
+        "monsoon",
+        "tropical"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Sus scrofa domesticus",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -20,
+        "opt_min": 10,
+        "opt_max": 24,
+        "abs_max": 30
+      },
+      "precip_mm_yr": {
+        "abs_min": 600,
+        "opt_min": 800,
+        "opt_max": 2000,
+        "abs_max": 3500
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 1500,
+        "max": 2500
+      },
+      "water": {
+        "drink_l_per_head_day": 15,
+        "days_without_water": 1,
+        "wallow_required": true
+      },
+      "forage": {
+        "diet": [
+          "mast",
+          "roots",
+          "scraps",
+          "bran"
+        ],
+        "feed_competition": 0.55,
+        "stocking_ha_per_head": 0.4
+      },
+      "work": null,
+      "products": [
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 90.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "fat",
+          "good": "tallow",
+          "yield": 15.0,
+          "unit": "kg_per_head_yr",
+          "process": "render"
+        },
+        {
+          "part": "hide",
+          "good": "leather",
+          "yield": 2.0,
+          "unit": "kg_per_head_yr",
+          "process": "tan"
+        },
+        {
+          "part": "salted_meat",
+          "good": "preserved_food",
+          "yield": 45.0,
+          "unit": "kg_per_head_yr",
+          "process": "salt",
+          "input_good": "livestock"
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.0,
+      "warMountCapability": 0.0,
+      "fodderNeed": 0.7,
+      "herdability": 0.35,
+      "domestication": {
+        "months_to_maturity": 8,
+        "captive_breeding": true,
+        "disposition": 0.5,
+        "panic_response": "freeze",
+        "social_structure": "hierarchical_herd"
+      },
+      "notes": "Fastest meat conversion of any large domesticate and the second-largest fat source after the detritus grazer, but it eats what people eat (feed_competition 0.55) and cannot be driven far, so it never becomes a caravan or frontier animal. Heat-limited: no sweat glands, hence the wallow requirement and the low 30 C ceiling."
+    },
+    {
+      "id": "rabbit",
+      "name": "rabbit",
+      "origin": "real",
+      "analog": null,
+      "slot": "hutch_lagomorph",
+      "package_tags": [
+        "temperate",
+        "mediterranean"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Oryctolagus cuniculus",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -15,
+        "opt_min": 10,
+        "opt_max": 22,
+        "abs_max": 30
+      },
+      "precip_mm_yr": {
+        "abs_min": 300,
+        "opt_min": 500,
+        "opt_max": 1200,
+        "abs_max": 2200
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 1500,
+        "max": 3000
+      },
+      "water": {
+        "drink_l_per_head_day": 0.5,
+        "days_without_water": 1,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "forb",
+          "greens",
+          "kitchen_waste"
+        ],
+        "feed_competition": 0.3,
+        "stocking_ha_per_head": 0.02
+      },
+      "work": null,
+      "products": [
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 20.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "angora",
+          "good": "wool",
+          "yield": 0.6,
+          "unit": "kg_per_head_yr",
+          "process": "shear"
+        },
+        {
+          "part": "pelt",
+          "good": "leather",
+          "yield": 1.5,
+          "unit": "kg_per_head_yr",
+          "process": "tan"
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.0,
+      "warMountCapability": 0.0,
+      "fodderNeed": 0.2,
+      "herdability": 0.4,
+      "domestication": {
+        "months_to_maturity": 5,
+        "captive_breeding": true,
+        "disposition": 0.65,
+        "panic_response": "freeze",
+        "social_structure": "warren_colony"
+      },
+      "notes": "The smallholder/urban protein slot: no pasture requirement at all, so it is the one meat animal a besieged or land-poor settlement can still keep. Very lean meat, negligible tallow."
+    },
+    {
+      "id": "horse_war",
+      "name": "riding horse",
+      "origin": "real",
+      "analog": null,
+      "slot": "war_riding_horse",
+      "package_tags": [
+        "temperate",
+        "steppe",
+        "mediterranean"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Equus caballus (riding type)",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -30,
+        "opt_min": 5,
+        "opt_max": 25,
+        "abs_max": 35
+      },
+      "precip_mm_yr": {
+        "abs_min": 350,
+        "opt_min": 500,
+        "opt_max": 1100,
+        "abs_max": 2000
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 2500,
+        "max": 3500
+      },
+      "water": {
+        "drink_l_per_head_day": 35,
+        "days_without_water": 2,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "grass",
+          "hay",
+          "grain"
+        ],
+        "feed_competition": 0.45,
+        "stocking_ha_per_head": 2.0
+      },
+      "work": {
+        "pack_load_kg": 90,
+        "draft_pull_kgf": 600,
+        "sustained_speed_kmh": 8.0,
+        "daily_range_km": 40
+      },
+      "products": [
+        {
+          "part": "live_animal",
+          "good": "warhorses",
+          "yield": 6.0,
+          "unit": "head_per_100_head_yr",
+          "process": "train"
+        },
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 15.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "milk",
+          "good": "dairy",
+          "yield": 200.0,
+          "unit": "kg_per_head_yr",
+          "process": "milk"
+        },
+        {
+          "part": "hide",
+          "good": "leather",
+          "yield": 3.0,
+          "unit": "kg_per_head_yr",
+          "process": "tan"
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.5,
+      "warMountCapability": 0.95,
+      "fodderNeed": 0.85,
+      "herdability": 0.55,
+      "domestication": {
+        "months_to_maturity": 36,
+        "captive_breeding": true,
+        "disposition": 0.55,
+        "panic_response": "flight",
+        "social_structure": "hierarchical_herd"
+      },
+      "notes": "Fastest sustained gait and highest war value in the catalogue. Grain-dependent at war weight (feed_competition 0.45, fodderNeed 0.85): cavalry is an agricultural surplus problem, not a breeding problem."
+    },
+    {
+      "id": "horse_draft",
+      "name": "draft horse",
+      "origin": "real",
+      "analog": null,
+      "slot": "heavy_draft_horse",
+      "package_tags": [
+        "temperate",
+        "boreal"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Equus caballus (heavy type)",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -25,
+        "opt_min": 0,
+        "opt_max": 20,
+        "abs_max": 30
+      },
+      "precip_mm_yr": {
+        "abs_min": 500,
+        "opt_min": 700,
+        "opt_max": 1400,
+        "abs_max": 2400
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 1200,
+        "max": 2000
+      },
+      "water": {
+        "drink_l_per_head_day": 45,
+        "days_without_water": 2,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "grass",
+          "hay",
+          "oats"
+        ],
+        "feed_competition": 0.5,
+        "stocking_ha_per_head": 2.5
+      },
+      "work": {
+        "pack_load_kg": 100,
+        "draft_pull_kgf": 800,
+        "sustained_speed_kmh": 5.0,
+        "daily_range_km": 30
+      },
+      "products": [
+        {
+          "part": "live_animal",
+          "good": "draft_animals",
+          "yield": 6.0,
+          "unit": "head_per_100_head_yr",
+          "process": "train"
+        },
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 20.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "hide",
+          "good": "leather",
+          "yield": 4.0,
+          "unit": "kg_per_head_yr",
+          "process": "tan"
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.25,
+      "warMountCapability": 0.15,
+      "fodderNeed": 0.95,
+      "herdability": 0.5,
+      "domestication": {
+        "months_to_maturity": 42,
+        "captive_breeding": true,
+        "disposition": 0.8,
+        "panic_response": "freeze",
+        "social_structure": "hierarchical_herd"
+      },
+      "notes": "Mechanically distinct from the riding horse: highest draught pull of any non-elephant, but slow, road-bound and the hungriest animal here. Only worth keeping where oat/hay yields are high, which is exactly the horse-wagon entry in land_transport."
+    },
+    {
+      "id": "pony_steppe",
+      "name": "steppe pony",
+      "origin": "real",
+      "analog": null,
+      "slot": "steppe_pony",
+      "package_tags": [
+        "steppe",
+        "highland",
+        "boreal"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Equus caballus (Mongolian type)",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -40,
+        "opt_min": -5,
+        "opt_max": 25,
+        "abs_max": 35
+      },
+      "precip_mm_yr": {
+        "abs_min": 200,
+        "opt_min": 300,
+        "opt_max": 700,
+        "abs_max": 1400
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 500,
+        "opt_max": 3000,
+        "max": 4000
+      },
+      "water": {
+        "drink_l_per_head_day": 25,
+        "days_without_water": 3,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "grass",
+          "winter_standing_hay"
+        ],
+        "feed_competition": 0.05,
+        "stocking_ha_per_head": 4.0
+      },
+      "work": {
+        "pack_load_kg": 70,
+        "draft_pull_kgf": 400,
+        "sustained_speed_kmh": 6.5,
+        "daily_range_km": 45
+      },
+      "products": [
+        {
+          "part": "milk",
+          "good": "dairy",
+          "yield": 300.0,
+          "unit": "kg_per_head_yr",
+          "process": "milk"
+        },
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 20.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "hide",
+          "good": "leather",
+          "yield": 3.0,
+          "unit": "kg_per_head_yr",
+          "process": "tan"
+        },
+        {
+          "part": "live_animal",
+          "good": "warhorses",
+          "yield": 5.0,
+          "unit": "head_per_100_head_yr",
+          "process": "train"
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.6,
+      "warMountCapability": 0.75,
+      "fodderNeed": 0.15,
+      "herdability": 0.75,
+      "domestication": {
+        "months_to_maturity": 36,
+        "captive_breeding": true,
+        "disposition": 0.45,
+        "panic_response": "flight",
+        "social_structure": "hierarchical_herd"
+      },
+      "notes": "Self-feeding on standing winter grass, so it needs no harvested fodder and no grain. That single fact is why steppe cavalry is cheap and settled cavalry is not; it trades top speed and mass for range and a fodderNeed of 0.15. Fermented mare's milk is a real calorie channel, not flavour."
+    },
+    {
+      "id": "donkey",
+      "name": "donkey",
+      "origin": "real",
+      "analog": null,
+      "slot": "arid_pack_equid",
+      "package_tags": [
+        "arid",
+        "mediterranean",
+        "temperate",
+        "highland"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Equus asinus",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -15,
+        "opt_min": 10,
+        "opt_max": 32,
+        "abs_max": 45
+      },
+      "precip_mm_yr": {
+        "abs_min": 100,
+        "opt_min": 200,
+        "opt_max": 600,
+        "abs_max": 1500
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 2500,
+        "max": 3500
+      },
+      "water": {
+        "drink_l_per_head_day": 15,
+        "days_without_water": 3,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "browse",
+          "coarse_grass",
+          "chaff"
+        ],
+        "feed_competition": 0.05,
+        "stocking_ha_per_head": 2.0
+      },
+      "work": {
+        "pack_load_kg": 65,
+        "draft_pull_kgf": 200,
+        "sustained_speed_kmh": 4.5,
+        "daily_range_km": 25
+      },
+      "products": [
+        {
+          "part": "live_animal",
+          "good": "draft_animals",
+          "yield": 5.0,
+          "unit": "head_per_100_head_yr",
+          "process": "train"
+        },
+        {
+          "part": "milk",
+          "good": "dairy",
+          "yield": 40.0,
+          "unit": "kg_per_head_yr",
+          "process": "milk"
+        },
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 6.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "hide",
+          "good": "leather",
+          "yield": 2.0,
+          "unit": "kg_per_head_yr",
+          "process": "tan"
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.8,
+      "warMountCapability": 0.05,
+      "fodderNeed": 0.3,
+      "herdability": 0.6,
+      "domestication": {
+        "months_to_maturity": 30,
+        "captive_breeding": true,
+        "disposition": 0.65,
+        "panic_response": "freeze",
+        "social_structure": "loose_band"
+      },
+      "notes": "The default pack animal of land_transport and the cheapest one: survives on chaff and browse that would not keep a horse alive."
+    },
+    {
+      "id": "mule",
+      "name": "mule",
+      "origin": "real",
+      "analog": null,
+      "slot": "mountain_pack_hybrid",
+      "package_tags": [
+        "mediterranean",
+        "highland",
+        "temperate",
+        "arid"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Equus asinus x Equus caballus",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -20,
+        "opt_min": 5,
+        "opt_max": 30,
+        "abs_max": 42
+      },
+      "precip_mm_yr": {
+        "abs_min": 150,
+        "opt_min": 300,
+        "opt_max": 900,
+        "abs_max": 2000
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 3000,
+        "max": 4500
+      },
+      "water": {
+        "drink_l_per_head_day": 25,
+        "days_without_water": 3,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "browse",
+          "coarse_grass",
+          "hay"
+        ],
+        "feed_competition": 0.2,
+        "stocking_ha_per_head": 2.0
+      },
+      "work": {
+        "pack_load_kg": 90,
+        "draft_pull_kgf": 300,
+        "sustained_speed_kmh": 5.0,
+        "daily_range_km": 30
+      },
+      "products": [
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 5.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "hide",
+          "good": "leather",
+          "yield": 2.0,
+          "unit": "kg_per_head_yr",
+          "process": "tan"
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.85,
+      "warMountCapability": 0.1,
+      "fodderNeed": 0.45,
+      "herdability": 0.55,
+      "domestication": {
+        "months_to_maturity": 36,
+        "captive_breeding": false,
+        "disposition": 0.6,
+        "panic_response": "freeze",
+        "social_structure": "loose_band"
+      },
+      "notes": "Sterile hybrid: cannot be bred, only manufactured, so a mule-using polity must maintain BOTH parent stocks (see requires_parent_stock). Best load-to-surefootedness ratio on mountain trails; the reason a pass route stays open when a cart road does not.",
+      "breeding": "hybrid_sterile",
+      "requires_parent_stock": [
+        "donkey",
+        "horse_draft"
+      ]
+    },
+    {
+      "id": "camel_dromedary",
+      "name": "dromedary camel",
+      "origin": "real",
+      "analog": null,
+      "slot": "hot_desert_camel",
+      "package_tags": [
+        "arid",
+        "steppe",
+        "tropical"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Camelus dromedarius",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -5,
+        "opt_min": 15,
+        "opt_max": 38,
+        "abs_max": 50
+      },
+      "precip_mm_yr": {
+        "abs_min": 25,
+        "opt_min": 100,
+        "opt_max": 400,
+        "abs_max": 1200
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 1500,
+        "max": 2500
+      },
+      "water": {
+        "drink_l_per_head_day": 40,
+        "days_without_water": 12,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "browse",
+          "halophyte",
+          "thorn_scrub"
+        ],
+        "feed_competition": 0.02,
+        "stocking_ha_per_head": 12.0
+      },
+      "work": {
+        "pack_load_kg": 180,
+        "draft_pull_kgf": 350,
+        "sustained_speed_kmh": 5.0,
+        "daily_range_km": 40
+      },
+      "products": [
+        {
+          "part": "milk",
+          "good": "dairy",
+          "yield": 900.0,
+          "unit": "kg_per_head_yr",
+          "process": "milk"
+        },
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 25.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "hair",
+          "good": "wool",
+          "yield": 2.0,
+          "unit": "kg_per_head_yr",
+          "process": "shear"
+        },
+        {
+          "part": "hide",
+          "good": "leather",
+          "yield": 4.0,
+          "unit": "kg_per_head_yr",
+          "process": "tan"
+        },
+        {
+          "part": "dung",
+          "good": "fuel_fiber",
+          "yield": 400.0,
+          "unit": "kg_per_head_yr",
+          "process": null,
+          "byproduct": true
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.98,
+      "warMountCapability": 0.55,
+      "fodderNeed": 0.12,
+      "herdability": 0.7,
+      "domestication": {
+        "months_to_maturity": 48,
+        "captive_breeding": true,
+        "disposition": 0.4,
+        "panic_response": "flight",
+        "social_structure": "hierarchical_herd"
+      },
+      "notes": "The most arid-tolerant entry in the catalogue by every measure: 25 mm/yr precipitation floor, twelve days without water, 50 C ceiling, and it browses salt-tolerant scrub nothing else eats. Sets the desert route class in land_transport."
+    },
+    {
+      "id": "camel_bactrian",
+      "name": "bactrian camel",
+      "origin": "real",
+      "analog": null,
+      "slot": "cold_desert_camel",
+      "package_tags": [
+        "arid",
+        "steppe",
+        "highland"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Camelus bactrianus",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -40,
+        "opt_min": 0,
+        "opt_max": 30,
+        "abs_max": 42
+      },
+      "precip_mm_yr": {
+        "abs_min": 50,
+        "opt_min": 120,
+        "opt_max": 450,
+        "abs_max": 1200
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 500,
+        "opt_max": 3000,
+        "max": 4000
+      },
+      "water": {
+        "drink_l_per_head_day": 35,
+        "days_without_water": 10,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "browse",
+          "halophyte",
+          "coarse_grass"
+        ],
+        "feed_competition": 0.02,
+        "stocking_ha_per_head": 14.0
+      },
+      "work": {
+        "pack_load_kg": 220,
+        "draft_pull_kgf": 400,
+        "sustained_speed_kmh": 4.0,
+        "daily_range_km": 30
+      },
+      "products": [
+        {
+          "part": "hair",
+          "good": "wool",
+          "yield": 4.5,
+          "unit": "kg_per_head_yr",
+          "process": "shear"
+        },
+        {
+          "part": "milk",
+          "good": "dairy",
+          "yield": 500.0,
+          "unit": "kg_per_head_yr",
+          "process": "milk"
+        },
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 30.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "hide",
+          "good": "leather",
+          "yield": 5.0,
+          "unit": "kg_per_head_yr",
+          "process": "tan"
+        },
+        {
+          "part": "dung",
+          "good": "fuel_fiber",
+          "yield": 400.0,
+          "unit": "kg_per_head_yr",
+          "process": null,
+          "byproduct": true
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.95,
+      "warMountCapability": 0.4,
+      "fodderNeed": 0.15,
+      "herdability": 0.7,
+      "domestication": {
+        "months_to_maturity": 48,
+        "captive_breeding": true,
+        "disposition": 0.45,
+        "panic_response": "flight",
+        "social_structure": "hierarchical_herd"
+      },
+      "notes": "Not a reskin of the dromedary: two humps, a heavier load, a thick winter coat worth four times the fibre, and a -40 C floor. It is the COLD desert / continental-interior caravan animal, and a route that crosses both deserts changes animals where the two envelopes cross."
+    },
+    {
+      "id": "llama",
+      "name": "llama",
+      "origin": "real",
+      "analog": null,
+      "slot": "andean_pack_camelid",
+      "package_tags": [
+        "highland",
+        "arid"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Lama glama",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -25,
+        "opt_min": 0,
+        "opt_max": 20,
+        "abs_max": 30
+      },
+      "precip_mm_yr": {
+        "abs_min": 200,
+        "opt_min": 300,
+        "opt_max": 800,
+        "abs_max": 1600
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 2500,
+        "opt_max": 4500,
+        "max": 5000
+      },
+      "water": {
+        "drink_l_per_head_day": 10,
+        "days_without_water": 4,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "bunchgrass",
+          "ichu",
+          "shrub"
+        ],
+        "feed_competition": 0.03,
+        "stocking_ha_per_head": 3.0
+      },
+      "work": {
+        "pack_load_kg": 35,
+        "draft_pull_kgf": 0,
+        "sustained_speed_kmh": 4.0,
+        "daily_range_km": 20
+      },
+      "products": [
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 12.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "fleece",
+          "good": "wool",
+          "yield": 2.0,
+          "unit": "kg_per_head_yr",
+          "process": "shear"
+        },
+        {
+          "part": "hide",
+          "good": "leather",
+          "yield": 2.0,
+          "unit": "kg_per_head_yr",
+          "process": "tan"
+        },
+        {
+          "part": "dung",
+          "good": "fuel_fiber",
+          "yield": 300.0,
+          "unit": "kg_per_head_yr",
+          "process": null,
+          "byproduct": true
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.65,
+      "warMountCapability": 0.0,
+      "fodderNeed": 0.2,
+      "herdability": 0.8,
+      "domestication": {
+        "months_to_maturity": 24,
+        "captive_breeding": true,
+        "disposition": 0.65,
+        "panic_response": "flight",
+        "social_structure": "hierarchical_herd"
+      },
+      "notes": "Pack camelid for terrain no wheeled vehicle reaches. Caps out around 35 kg, which is precisely why an Andean-analogue civilisation has roads but no carts."
+    },
+    {
+      "id": "alpaca",
+      "name": "alpaca",
+      "origin": "real",
+      "analog": null,
+      "slot": "andean_fiber_camelid",
+      "package_tags": [
+        "highland"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Vicugna pacos",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -25,
+        "opt_min": 0,
+        "opt_max": 18,
+        "abs_max": 26
+      },
+      "precip_mm_yr": {
+        "abs_min": 300,
+        "opt_min": 400,
+        "opt_max": 900,
+        "abs_max": 1800
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 3000,
+        "opt_max": 4500,
+        "max": 5000
+      },
+      "water": {
+        "drink_l_per_head_day": 8,
+        "days_without_water": 3,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "bunchgrass",
+          "wet_meadow"
+        ],
+        "feed_competition": 0.03,
+        "stocking_ha_per_head": 2.0
+      },
+      "work": null,
+      "products": [
+        {
+          "part": "fleece",
+          "good": "wool",
+          "yield": 3.5,
+          "unit": "kg_per_head_yr",
+          "process": "shear",
+          "value_mult": 3.0
+        },
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 8.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "hide",
+          "good": "leather",
+          "yield": 1.0,
+          "unit": "kg_per_head_yr",
+          "process": "tan"
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.05,
+      "warMountCapability": 0.0,
+      "fodderNeed": 0.25,
+      "herdability": 0.85,
+      "domestication": {
+        "months_to_maturity": 24,
+        "captive_breeding": true,
+        "disposition": 0.8,
+        "panic_response": "flight",
+        "social_structure": "hierarchical_herd"
+      },
+      "notes": "Fibre specialist, not a pack animal: it carries nothing, needs wetter high meadow than the llama, and its fleece is a luxury-grade good. Keeping llama and alpaca in one slot would erase an entire export economy."
+    },
+    {
+      "id": "reindeer",
+      "name": "reindeer",
+      "origin": "real",
+      "analog": null,
+      "slot": "boreal_herd_cervid",
+      "package_tags": [
+        "boreal",
+        "highland"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Rangifer tarandus",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -55,
+        "opt_min": -25,
+        "opt_max": 10,
+        "abs_max": 22
+      },
+      "precip_mm_yr": {
+        "abs_min": 200,
+        "opt_min": 300,
+        "opt_max": 700,
+        "abs_max": 1400
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 1200,
+        "max": 2500
+      },
+      "water": {
+        "drink_l_per_head_day": 10,
+        "days_without_water": 5,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "lichen",
+          "sedge",
+          "browse"
+        ],
+        "feed_competition": 0.0,
+        "stocking_ha_per_head": 40.0
+      },
+      "work": {
+        "pack_load_kg": 30,
+        "draft_pull_kgf": 250,
+        "sustained_speed_kmh": 6.0,
+        "daily_range_km": 40
+      },
+      "products": [
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 35.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "milk",
+          "good": "dairy",
+          "yield": 60.0,
+          "unit": "kg_per_head_yr",
+          "process": "milk"
+        },
+        {
+          "part": "hide",
+          "good": "leather",
+          "yield": 4.0,
+          "unit": "kg_per_head_yr",
+          "process": "tan"
+        },
+        {
+          "part": "fat",
+          "good": "tallow",
+          "yield": 4.0,
+          "unit": "kg_per_head_yr",
+          "process": "render"
+        },
+        {
+          "part": "antler",
+          "good": "ivory",
+          "yield": 1.5,
+          "unit": "kg_per_head_yr",
+          "process": "carve"
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.45,
+      "warMountCapability": 0.1,
+      "fodderNeed": 0.05,
+      "herdability": 0.7,
+      "domestication": {
+        "months_to_maturity": 30,
+        "captive_breeding": true,
+        "disposition": 0.35,
+        "panic_response": "flight",
+        "social_structure": "migratory_herd"
+      },
+      "notes": "The catalogue's only boreal/tundra domesticate, and the coldest: -55 C floor, heat-stressed above ~15 C. Eats lichen, which no other stock can digest and no crop competes for, so it needs zero harvested fodder - but at 40 ha/head it forces migratory herding rather than settled pasture. Draught is sled traction on snow, not ploughing. Antler is grouped with ivory as a carving stock."
+    },
+    {
+      "id": "elephant_asian",
+      "name": "asian elephant",
+      "origin": "real",
+      "analog": null,
+      "slot": "monsoon_heavy_beast",
+      "package_tags": [
+        "monsoon",
+        "tropical"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Elephas maximus",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": 0,
+        "opt_min": 20,
+        "opt_max": 32,
+        "abs_max": 40
+      },
+      "precip_mm_yr": {
+        "abs_min": 800,
+        "opt_min": 1200,
+        "opt_max": 3000,
+        "abs_max": 5000
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 1500,
+        "max": 3000
+      },
+      "water": {
+        "drink_l_per_head_day": 150,
+        "days_without_water": 2,
+        "wallow_required": true
+      },
+      "forage": {
+        "diet": [
+          "browse",
+          "grass",
+          "bamboo",
+          "banana_stem"
+        ],
+        "feed_competition": 0.15,
+        "stocking_ha_per_head": 20.0
+      },
+      "work": {
+        "pack_load_kg": 500,
+        "draft_pull_kgf": 1500,
+        "sustained_speed_kmh": 5.0,
+        "daily_range_km": 30
+      },
+      "products": [
+        {
+          "part": "live_animal",
+          "good": "draft_animals",
+          "yield": 2.0,
+          "unit": "head_per_100_head_yr",
+          "process": "train"
+        },
+        {
+          "part": "tusk",
+          "good": "ivory",
+          "yield": 1.5,
+          "unit": "kg_per_head_yr",
+          "process": "carve"
+        },
+        {
+          "part": "dung",
+          "good": "fuel_fiber",
+          "yield": 3000.0,
+          "unit": "kg_per_head_yr",
+          "process": null,
+          "byproduct": true
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.35,
+      "warMountCapability": 0.85,
+      "fodderNeed": 0.6,
+      "herdability": 0.3,
+      "domestication": {
+        "months_to_maturity": 180,
+        "captive_breeding": false,
+        "disposition": 0.6,
+        "panic_response": "freeze",
+        "social_structure": "matriarchal_herd"
+      },
+      "notes": "Fails Diamond's captive-breeding and growth-rate criteria and is therefore NOT a self-sustaining domesticate: each working elephant is captured and tamed from a wild population, so it is a renewable-resource dependency on forest, not a herd. Highest draught pull and second-highest war value; timber extraction and siege trains are its economic niche.",
+      "breeding": "capture_dependent",
+      "requires_wild_population": "tropical_forest_megafauna"
+    },
+    {
+      "id": "chicken",
+      "name": "chicken",
+      "origin": "real",
+      "analog": null,
+      "slot": "yard_fowl",
+      "package_tags": [
+        "temperate",
+        "mediterranean",
+        "monsoon",
+        "tropical",
+        "arid"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Gallus gallus domesticus",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -15,
+        "opt_min": 15,
+        "opt_max": 28,
+        "abs_max": 38
+      },
+      "precip_mm_yr": {
+        "abs_min": 200,
+        "opt_min": 400,
+        "opt_max": 1500,
+        "abs_max": 3000
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 2000,
+        "max": 3500
+      },
+      "water": {
+        "drink_l_per_head_day": 0.3,
+        "days_without_water": 1,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "seed",
+          "insect",
+          "scraps",
+          "bran"
+        ],
+        "feed_competition": 0.35,
+        "stocking_ha_per_head": 0.01
+      },
+      "work": null,
+      "products": [
+        {
+          "part": "eggs",
+          "good": "eggs",
+          "yield": 10.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 1.5,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "feathers",
+          "good": "fiber",
+          "yield": 0.1,
+          "unit": "kg_per_head_yr",
+          "process": null,
+          "byproduct": true
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.0,
+      "warMountCapability": 0.0,
+      "fodderNeed": 0.25,
+      "herdability": 0.3,
+      "domestication": {
+        "months_to_maturity": 5,
+        "captive_breeding": true,
+        "disposition": 0.6,
+        "panic_response": "flight",
+        "social_structure": "flock"
+      },
+      "notes": "Widest climate envelope in the catalogue and the only protein source that needs no land. Eggs are the point: a continuous, perishable, locally traded protein flow rather than a slaughter event."
+    },
+    {
+      "id": "duck",
+      "name": "duck",
+      "origin": "real",
+      "analog": null,
+      "slot": "paddy_waterfowl",
+      "package_tags": [
+        "monsoon",
+        "tropical",
+        "temperate"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Anas platyrhynchos domesticus",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -20,
+        "opt_min": 12,
+        "opt_max": 30,
+        "abs_max": 36
+      },
+      "precip_mm_yr": {
+        "abs_min": 700,
+        "opt_min": 1000,
+        "opt_max": 2500,
+        "abs_max": 4000
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 1200,
+        "max": 2500
+      },
+      "water": {
+        "drink_l_per_head_day": 0.8,
+        "days_without_water": 1,
+        "wallow_required": true
+      },
+      "forage": {
+        "diet": [
+          "aquatic_invertebrate",
+          "weed",
+          "fallen_grain",
+          "snail"
+        ],
+        "feed_competition": 0.15,
+        "stocking_ha_per_head": 0.02
+      },
+      "work": null,
+      "products": [
+        {
+          "part": "eggs",
+          "good": "eggs",
+          "yield": 8.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 2.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "down",
+          "good": "fiber",
+          "yield": 0.1,
+          "unit": "kg_per_head_yr",
+          "process": "pluck"
+        },
+        {
+          "part": "fat",
+          "good": "tallow",
+          "yield": 0.6,
+          "unit": "kg_per_head_yr",
+          "process": "render"
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.0,
+      "warMountCapability": 0.0,
+      "fodderNeed": 0.15,
+      "herdability": 0.45,
+      "domestication": {
+        "months_to_maturity": 6,
+        "captive_breeding": true,
+        "disposition": 0.55,
+        "panic_response": "flight",
+        "social_structure": "flock"
+      },
+      "notes": "Runs inside the rice paddy rather than beside it: eats the snails and weeds and manures the water, so it is a yield bonus to the paddy_cereal slot as much as a protein source. Requires standing water, which is why it does not substitute for chicken in dry country."
+    },
+    {
+      "id": "goose",
+      "name": "goose",
+      "origin": "real",
+      "analog": null,
+      "slot": "cold_grazing_waterfowl",
+      "package_tags": [
+        "temperate",
+        "boreal"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Anser anser domesticus",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -35,
+        "opt_min": 5,
+        "opt_max": 22,
+        "abs_max": 32
+      },
+      "precip_mm_yr": {
+        "abs_min": 400,
+        "opt_min": 600,
+        "opt_max": 1600,
+        "abs_max": 3000
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 1500,
+        "max": 2500
+      },
+      "water": {
+        "drink_l_per_head_day": 1.0,
+        "days_without_water": 1,
+        "wallow_required": true
+      },
+      "forage": {
+        "diet": [
+          "grass",
+          "stubble",
+          "aquatic_weed"
+        ],
+        "feed_competition": 0.1,
+        "stocking_ha_per_head": 0.05
+      },
+      "work": null,
+      "products": [
+        {
+          "part": "down",
+          "good": "fiber",
+          "yield": 0.15,
+          "unit": "kg_per_head_yr",
+          "process": "pluck",
+          "value_mult": 4.0
+        },
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 4.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "eggs",
+          "good": "eggs",
+          "yield": 3.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "fat",
+          "good": "tallow",
+          "yield": 0.8,
+          "unit": "kg_per_head_yr",
+          "process": "render"
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.0,
+      "warMountCapability": 0.0,
+      "fodderNeed": 0.2,
+      "herdability": 0.55,
+      "domestication": {
+        "months_to_maturity": 7,
+        "captive_breeding": true,
+        "disposition": 0.35,
+        "panic_response": "aggression",
+        "social_structure": "flock"
+      },
+      "notes": "The one fowl that is a grazer: it converts grass, so it needs no grain and can be walked to market in droves. Down is a genuine cold-climate luxury fibre and the birds guard a yard better than a dog. Boreal coverage for the poultry slot."
+    },
+    {
+      "id": "guinea_fowl",
+      "name": "guinea fowl",
+      "origin": "real",
+      "analog": null,
+      "slot": "dryland_fowl",
+      "package_tags": [
+        "arid",
+        "tropical",
+        "steppe"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Numida meleagris",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -5,
+        "opt_min": 18,
+        "opt_max": 34,
+        "abs_max": 42
+      },
+      "precip_mm_yr": {
+        "abs_min": 250,
+        "opt_min": 400,
+        "opt_max": 1200,
+        "abs_max": 2500
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 2000,
+        "max": 3000
+      },
+      "water": {
+        "drink_l_per_head_day": 0.3,
+        "days_without_water": 2,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "insect",
+          "seed",
+          "tick"
+        ],
+        "feed_competition": 0.1,
+        "stocking_ha_per_head": 0.03
+      },
+      "work": null,
+      "products": [
+        {
+          "part": "eggs",
+          "good": "eggs",
+          "yield": 3.5,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 1.2,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "feathers",
+          "good": "fiber",
+          "yield": 0.05,
+          "unit": "kg_per_head_yr",
+          "process": null,
+          "byproduct": true
+        }
+      ],
+      "services": [
+        {
+          "service": "pest_control",
+          "target": "livestock_parasites",
+          "magnitude": 0.15
+        },
+        {
+          "service": "alarm",
+          "target": "settlement",
+          "magnitude": 0.1
+        }
+      ],
+      "caravanCapability": 0.0,
+      "warMountCapability": 0.0,
+      "fodderNeed": 0.1,
+      "herdability": 0.35,
+      "domestication": {
+        "months_to_maturity": 8,
+        "captive_breeding": true,
+        "disposition": 0.3,
+        "panic_response": "flight",
+        "social_structure": "flock"
+      },
+      "notes": "Semi-feral dryland fowl: forages entirely on insects and seed with almost no supplementation, eats the ticks off the cattle, and alarms at intruders. Poor egg yield, low tameness - it is the arid/savanna answer where chickens need too much water and shade."
+    },
+    {
+      "id": "honeybee",
+      "name": "honeybee",
+      "origin": "real",
+      "analog": null,
+      "slot": "hive_pollinator",
+      "package_tags": [
+        "temperate",
+        "mediterranean",
+        "monsoon",
+        "steppe"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Apis mellifera",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -30,
+        "opt_min": 12,
+        "opt_max": 30,
+        "abs_max": 42
+      },
+      "precip_mm_yr": {
+        "abs_min": 300,
+        "opt_min": 500,
+        "opt_max": 1500,
+        "abs_max": 2500
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 2500,
+        "max": 4000
+      },
+      "water": {
+        "drink_l_per_head_day": 0.05,
+        "days_without_water": 3,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "nectar",
+          "pollen"
+        ],
+        "feed_competition": 0.0,
+        "stocking_ha_per_head": 0.5
+      },
+      "work": null,
+      "products": [
+        {
+          "part": "honey",
+          "good": "honey",
+          "yield": 20.0,
+          "unit": "kg_per_hive_yr",
+          "process": "extract"
+        },
+        {
+          "part": "wax",
+          "good": "beeswax",
+          "yield": 1.0,
+          "unit": "kg_per_hive_yr",
+          "process": "render",
+          "value_mult": 2.5
+        }
+      ],
+      "services": [
+        {
+          "service": "pollination",
+          "target": "orchard_and_pulse_crops",
+          "magnitude": 0.12
+        }
+      ],
+      "caravanCapability": 0.0,
+      "warMountCapability": 0.0,
+      "fodderNeed": 0.0,
+      "herdability": 0.9,
+      "domestication": {
+        "months_to_maturity": 2,
+        "captive_breeding": true,
+        "disposition": 0.3,
+        "panic_response": "swarm",
+        "social_structure": "eusocial_colony"
+      },
+      "notes": "Managed as a colony, not a herd, which is the precedent the subterranean guano colony reuses. The pre-sugar sweetener AND the wax supply for candles, seals, casting and waterproofing; a polity with no bees has neither. Pollination raises orchard and pulse yields nearby.",
+      "stocking_note": "0.5 ha of flowering forage per hive; hives per settlement, not per head"
+    },
+    {
+      "id": "silkworm",
+      "name": "silkworm",
+      "origin": "real",
+      "analog": null,
+      "slot": "sericulture_insect",
+      "package_tags": [
+        "monsoon",
+        "temperate",
+        "mediterranean"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Bombyx mori",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": 10,
+        "opt_min": 22,
+        "opt_max": 28,
+        "abs_max": 35
+      },
+      "precip_mm_yr": {
+        "abs_min": 300,
+        "opt_min": 700,
+        "opt_max": 2500,
+        "abs_max": 5100
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 1500,
+        "max": 2500
+      },
+      "water": {
+        "drink_l_per_head_day": 0.0,
+        "days_without_water": 0,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "mulberry_leaf"
+        ],
+        "feed_competition": 0.0,
+        "stocking_ha_per_head": 0.0
+      },
+      "work": null,
+      "products": [
+        {
+          "part": "raw_silk",
+          "good": "silk",
+          "yield": 45.0,
+          "unit": "kg_per_ha_host_yr",
+          "process": "reel",
+          "value_mult": 50.0
+        },
+        {
+          "part": "pupae",
+          "good": "preserved_food",
+          "yield": 180.0,
+          "unit": "kg_per_ha_host_yr",
+          "process": "dry",
+          "byproduct": true
+        },
+        {
+          "part": "floss",
+          "good": "fiber",
+          "yield": 8.0,
+          "unit": "kg_per_ha_host_yr",
+          "process": "card",
+          "byproduct": true
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.0,
+      "warMountCapability": 0.0,
+      "fodderNeed": 0.0,
+      "herdability": 0.95,
+      "domestication": {
+        "months_to_maturity": 1.5,
+        "captive_breeding": true,
+        "disposition": 0.95,
+        "panic_response": "none",
+        "social_structure": "solitary_larva"
+      },
+      "notes": "REQUIRED to close the chain: crops_earthlike_v2 mulberry already emits the 'silk' good through a 'sericulture' processing gate whose facility is a silkworm_shed, but no animal existed to occupy it. Envelope is the REARING SHED, not the outdoors - the insect is climate-controlled and the real geographic constraint is the mulberry's envelope, so requires_host_crop is the binding field. Fully domesticated: flightless, cannot survive without human handling.",
+      "requires_host_crop": "mulberry",
+      "host_slot": "silk_leaf",
+      "requires_facility": "silkworm_shed"
+    },
+    {
+      "id": "dog",
+      "name": "dog",
+      "origin": "real",
+      "analog": null,
+      "slot": "herding_canine",
+      "package_tags": [
+        "temperate",
+        "boreal",
+        "steppe",
+        "arid",
+        "highland",
+        "mediterranean",
+        "monsoon",
+        "tropical"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Canis lupus familiaris",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -45,
+        "opt_min": -5,
+        "opt_max": 25,
+        "abs_max": 35
+      },
+      "precip_mm_yr": {
+        "abs_min": 40,
+        "opt_min": 200,
+        "opt_max": 2000,
+        "abs_max": 4000
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 3500,
+        "max": 5000
+      },
+      "water": {
+        "drink_l_per_head_day": 2,
+        "days_without_water": 2,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "meat",
+          "offal",
+          "scraps",
+          "bone"
+        ],
+        "feed_competition": 0.6,
+        "stocking_ha_per_head": 0.0
+      },
+      "work": {
+        "pack_load_kg": 8,
+        "draft_pull_kgf": 60,
+        "sustained_speed_kmh": 7.0,
+        "daily_range_km": 50
+      },
+      "products": [
+        {
+          "part": "pelt",
+          "good": "leather",
+          "yield": 0.5,
+          "unit": "kg_per_head_yr",
+          "process": "tan",
+          "byproduct": true
+        },
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 2.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        }
+      ],
+      "services": [
+        {
+          "service": "herding",
+          "target": "ruminant_herdability",
+          "magnitude": 0.25
+        },
+        {
+          "service": "guard",
+          "target": "settlement",
+          "magnitude": 0.15
+        },
+        {
+          "service": "sled_traction",
+          "target": "snow_routes",
+          "magnitude": 0.6
+        },
+        {
+          "service": "hunting_aid",
+          "target": "game_yield",
+          "magnitude": 0.2
+        }
+      ],
+      "caravanCapability": 0.2,
+      "warMountCapability": 0.1,
+      "fodderNeed": 0.35,
+      "herdability": 0.6,
+      "domestication": {
+        "months_to_maturity": 12,
+        "captive_breeding": true,
+        "disposition": 0.95,
+        "panic_response": "pack_rally",
+        "social_structure": "pack"
+      },
+      "notes": "Kept for services, not products: it multiplies the herdability of every ruminant here, guards stores and, on snow, is a draught animal in its own right (sled teams, where no hoofed animal works). The cost is carnivory - feed_competition 0.60, the highest in the catalogue, since it eats protein people could eat."
+    },
+    {
+      "id": "cat",
+      "name": "cat",
+      "origin": "real",
+      "analog": null,
+      "slot": "granary_mouser",
+      "package_tags": [
+        "mediterranean",
+        "temperate",
+        "arid",
+        "monsoon",
+        "tropical"
+      ],
+      "envelope_source": "estimated",
+      "envelope_ref": "Felis catus",
+      "habitat": "surface",
+      "temp_c": {
+        "abs_min": -25,
+        "opt_min": 5,
+        "opt_max": 30,
+        "abs_max": 40
+      },
+      "precip_mm_yr": {
+        "abs_min": 60,
+        "opt_min": 200,
+        "opt_max": 2000,
+        "abs_max": 4000
+      },
+      "altitude_m": {
+        "min": 0,
+        "opt_min": 0,
+        "opt_max": 3000,
+        "max": 4000
+      },
+      "water": {
+        "drink_l_per_head_day": 0.3,
+        "days_without_water": 2,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "rodent",
+          "scraps",
+          "fish_offal"
+        ],
+        "feed_competition": 0.15,
+        "stocking_ha_per_head": 0.0
+      },
+      "work": null,
+      "products": [
+        {
+          "part": "pelt",
+          "good": "leather",
+          "yield": 0.1,
+          "unit": "kg_per_head_yr",
+          "process": "tan",
+          "byproduct": true
+        }
+      ],
+      "services": [
+        {
+          "service": "pest_control",
+          "target": "stored_grain_loss",
+          "magnitude": 0.2
+        },
+        {
+          "service": "pest_control",
+          "target": "granary_disease",
+          "magnitude": 0.1
+        }
+      ],
+      "caravanCapability": 0.0,
+      "warMountCapability": 0.0,
+      "fodderNeed": 0.05,
+      "herdability": 0.1,
+      "domestication": {
+        "months_to_maturity": 10,
+        "captive_breeding": true,
+        "disposition": 0.4,
+        "panic_response": "flight",
+        "social_structure": "solitary_commensal"
+      },
+      "notes": "Produces essentially nothing and is in the catalogue for one mechanic: stored-grain loss. A granary without mousers loses a noticeable fraction of the harvest to rodents, so the cat is a multiplier on storage shelf life and therefore on urban carrying capacity and on any long trade path that depends on provisioned depots. Self-domesticated; disposition is low and it does not herd."
+    },
+    {
+      "id": "detritus_grazer",
+      "name": "detritus grazer",
+      "origin": "fantasy",
+      "analog": "cattle",
+      "slot": "subterranean_detritus_grazer",
+      "package_tags": [
+        "subterranean"
+      ],
+      "envelope_source": "invented (G1e slot 1); envelope authored, no real referent",
+      "envelope_ref": "deep rothe (DF/D&D naming referent only)",
+      "habitat": "subterranean",
+      "temp_c": {
+        "abs_min": -5,
+        "opt_min": 4,
+        "opt_max": 18,
+        "abs_max": 30
+      },
+      "precip_mm_yr": null,
+      "altitude_m": null,
+      "water": {
+        "drink_l_per_head_day": 30,
+        "days_without_water": 3,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "fungal_waste",
+          "cave_moss",
+          "detritus"
+        ],
+        "feed_competition": 0.05,
+        "stocking_ha_per_head": 2.5
+      },
+      "work": {
+        "pack_load_kg": 70,
+        "draft_pull_kgf": 450,
+        "sustained_speed_kmh": 2.8,
+        "daily_range_km": 14
+      },
+      "products": [
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 45.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "milk",
+          "good": "dairy",
+          "yield": 400.0,
+          "unit": "kg_per_head_yr",
+          "process": "milk"
+        },
+        {
+          "part": "hide",
+          "good": "leather",
+          "yield": 6.0,
+          "unit": "kg_per_head_yr",
+          "process": "tan"
+        },
+        {
+          "part": "fat",
+          "good": "tallow",
+          "yield": 25.0,
+          "unit": "kg_per_head_yr",
+          "process": "render",
+          "value_mult": 1.5
+        },
+        {
+          "part": "dung",
+          "good": "fuel_fiber",
+          "yield": 600.0,
+          "unit": "kg_per_head_yr",
+          "process": null,
+          "byproduct": true
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.1,
+      "warMountCapability": 0.05,
+      "fodderNeed": 0.45,
+      "herdability": 0.85,
+      "domestication": {
+        "months_to_maturity": 26,
+        "captive_breeding": true,
+        "disposition": 0.7,
+        "panic_response": "herd_mill",
+        "social_structure": "hierarchical_herd"
+      },
+      "notes": "G1e slot 1, cattle analog. The load-bearing product is TALLOW, not meat: an underground civilisation cannot see without rendered fat, so lamp oil is a structural requirement and this animal is its only bulk source. Highest tallow yield in the catalogue by a factor of two. Eats the fungal-bed waste stream, so it does not compete with the staple.",
+      "depth_m": {
+        "min": 50,
+        "opt_min": 200,
+        "opt_max": 1200,
+        "max": 2000
+      },
+      "light_min": 0.0,
+      "envelope_note": "precip/altitude are null: cave interior is decoupled from surface precipitation and elevation; depth_m and substrate supply replace them",
+      "domestication_check": {
+        "diet": "PASS - detritivore on fungal waste and cave moss, explicitly not the staple",
+        "growth_rate": "PASS - 26 months, cattle-comparable",
+        "captive_breeding": "PASS - breeds in enclosed galleries; no migration or display need",
+        "disposition": "PASS - 0.70, bred docile like cattle",
+        "panic_response": "PASS - mills rather than stampedes, which is survivable in tunnels",
+        "social_hierarchy": "PASS - hierarchical herd, follows a lead animal, so one drover moves many"
+      }
+    },
+    {
+      "id": "tunnel_pack_beast",
+      "name": "tunnel pack beast",
+      "origin": "fantasy",
+      "analog": "donkey",
+      "slot": "subterranean_pack_beast",
+      "package_tags": [
+        "subterranean"
+      ],
+      "envelope_source": "invented (G1e slot 2); envelope authored, no real referent",
+      "envelope_ref": "pack-donkey (mechanical referent)",
+      "habitat": "subterranean",
+      "temp_c": {
+        "abs_min": -5,
+        "opt_min": 4,
+        "opt_max": 20,
+        "abs_max": 32
+      },
+      "precip_mm_yr": null,
+      "altitude_m": null,
+      "water": {
+        "drink_l_per_head_day": 18,
+        "days_without_water": 4,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "fungal_waste",
+          "cave_moss",
+          "lichen"
+        ],
+        "feed_competition": 0.05,
+        "stocking_ha_per_head": 2.0
+      },
+      "work": {
+        "pack_load_kg": 120,
+        "draft_pull_kgf": 300,
+        "sustained_speed_kmh": 4.0,
+        "daily_range_km": 22
+      },
+      "products": [
+        {
+          "part": "carcass",
+          "good": "livestock",
+          "yield": 20.0,
+          "unit": "kg_per_head_yr",
+          "process": null
+        },
+        {
+          "part": "hide",
+          "good": "leather",
+          "yield": 4.0,
+          "unit": "kg_per_head_yr",
+          "process": "tan"
+        },
+        {
+          "part": "fat",
+          "good": "tallow",
+          "yield": 8.0,
+          "unit": "kg_per_head_yr",
+          "process": "render"
+        },
+        {
+          "part": "live_animal",
+          "good": "draft_animals",
+          "yield": 5.0,
+          "unit": "head_per_100_head_yr",
+          "process": "train"
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.7,
+      "warMountCapability": 0.05,
+      "fodderNeed": 0.35,
+      "herdability": 0.65,
+      "domestication": {
+        "months_to_maturity": 24,
+        "captive_breeding": true,
+        "disposition": 0.65,
+        "panic_response": "freeze",
+        "social_structure": "loose_band"
+      },
+      "notes": "G1e slot 2, donkey analog. The differentiator is TUNNEL GEOMETRY, not terrain: clearance_m 1.3 means it works galleries an ox team cannot enter, which is what makes deep ore workings pay. Slots into the land_transport ladder as a pack-string with a clearance constraint.",
+      "depth_m": {
+        "min": 50,
+        "opt_min": 200,
+        "opt_max": 1500,
+        "max": 2500
+      },
+      "light_min": 0.0,
+      "clearance_m": 1.3,
+      "envelope_note": "precip/altitude null; clearance_m is the binding constraint",
+      "domestication_check": {
+        "diet": "PASS - detritivore, shares the grazer's waste stream",
+        "growth_rate": "PASS - 24 months",
+        "captive_breeding": "PASS - breeds in gallery pens",
+        "disposition": "PASS - 0.65, donkey-grade stubborn but tractable",
+        "panic_response": "PASS - freezes rather than bolts, essential in a confined gallery",
+        "social_hierarchy": "PARTIAL - loose band like a donkey; drivable but not driven in large strings, hence herdability 0.65"
+      }
+    },
+    {
+      "id": "shaftspinner",
+      "name": "shaftspinner moth",
+      "origin": "fantasy",
+      "analog": "silkworm",
+      "slot": "subterranean_fiber_producer",
+      "package_tags": [
+        "subterranean"
+      ],
+      "envelope_source": "invented (G1e slot 3); envelope authored, no real referent",
+      "envelope_ref": "Bombyx mori (mechanical referent); cave spider rejected on diet",
+      "habitat": "subterranean",
+      "temp_c": {
+        "abs_min": 8,
+        "opt_min": 16,
+        "opt_max": 24,
+        "abs_max": 32
+      },
+      "precip_mm_yr": null,
+      "altitude_m": null,
+      "water": {
+        "drink_l_per_head_day": 0.0,
+        "days_without_water": 0,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "fungal_mycelium",
+          "detritus"
+        ],
+        "feed_competition": 0.05,
+        "stocking_ha_per_head": 0.0
+      },
+      "work": null,
+      "products": [
+        {
+          "part": "raw_thread",
+          "good": "silk",
+          "yield": 30.0,
+          "unit": "kg_per_ha_bed_yr",
+          "process": "reel",
+          "value_mult": 35.0
+        },
+        {
+          "part": "coarse_thread",
+          "good": "cordage",
+          "yield": 40.0,
+          "unit": "kg_per_ha_bed_yr",
+          "process": "spin"
+        },
+        {
+          "part": "pupae",
+          "good": "preserved_food",
+          "yield": 120.0,
+          "unit": "kg_per_ha_bed_yr",
+          "process": "dry",
+          "byproduct": true
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.0,
+      "warMountCapability": 0.0,
+      "fodderNeed": 0.0,
+      "herdability": 0.95,
+      "domestication": {
+        "months_to_maturity": 2,
+        "captive_breeding": true,
+        "disposition": 0.95,
+        "panic_response": "none",
+        "social_structure": "solitary_larva"
+      },
+      "notes": "G1e slot 3: the only underground fibre, since flax, cotton and wool-bearing pasture all need sun. Feeds the existing cordage/cloth/ships chains. DESIGN NOTE: the obvious skin is a cave spider, and the Anna Karenina diet criterion kills it - a predator needs ~10x its own yield in prey biomass and would compete with people for protein. Re-specified as a detritivorous moth larva grazing spent fungal beds, which is both cheaper and consistent with the 'must not eat the staple' rule.",
+      "depth_m": {
+        "min": 50,
+        "opt_min": 100,
+        "opt_max": 1000,
+        "max": 2000
+      },
+      "light_min": 0.0,
+      "requires_facility": "spinning_gallery",
+      "requires_host_substrate": "spent_fungal_bed",
+      "envelope_note": "reared in galleries; yield is per hectare of fungal bed, not per head",
+      "domestication_check": {
+        "diet": "PASS after redesign - detritivore; the carnivorous version FAILED",
+        "growth_rate": "PASS - 2 months to cocoon",
+        "captive_breeding": "PASS - fully managed lifecycle, flightless adults",
+        "disposition": "N/A - handled, not herded",
+        "panic_response": "N/A - larvae do not flee",
+        "social_hierarchy": "N/A - reared at density like silkworms, tolerates crowding"
+      }
+    },
+    {
+      "id": "guano_colony",
+      "name": "guano colony",
+      "origin": "fantasy",
+      "analog": "bats (managed like an apiary)",
+      "slot": "subterranean_guano_colony",
+      "package_tags": [
+        "subterranean"
+      ],
+      "envelope_source": "invented (G1e slot 4); envelope authored, no real referent",
+      "envelope_ref": "Apis mellifera (management pattern); Chiroptera (biological referent)",
+      "habitat": "subterranean",
+      "temp_c": {
+        "abs_min": -10,
+        "opt_min": 8,
+        "opt_max": 26,
+        "abs_max": 36
+      },
+      "precip_mm_yr": null,
+      "altitude_m": null,
+      "water": {
+        "drink_l_per_head_day": 0.2,
+        "days_without_water": 3,
+        "wallow_required": false
+      },
+      "forage": {
+        "diet": [
+          "surface_insects",
+          "surface_fruit",
+          "nectar"
+        ],
+        "feed_competition": 0.0,
+        "stocking_ha_per_head": 0.0
+      },
+      "work": null,
+      "products": [
+        {
+          "part": "guano",
+          "good": "guano",
+          "yield": 2500.0,
+          "unit": "kg_per_colony_yr",
+          "process": "dry"
+        },
+        {
+          "part": "carcass",
+          "good": "preserved_food",
+          "yield": 40.0,
+          "unit": "kg_per_colony_yr",
+          "process": "dry",
+          "byproduct": true
+        }
+      ],
+      "services": [],
+      "caravanCapability": 0.0,
+      "warMountCapability": 0.0,
+      "fodderNeed": 0.0,
+      "herdability": 0.75,
+      "domestication": {
+        "months_to_maturity": 12,
+        "captive_breeding": true,
+        "disposition": 0.2,
+        "panic_response": "swarm",
+        "social_structure": "eusocial_roost"
+      },
+      "notes": "G1e slot 4 and the elegant one: it forages on the SURFACE and returns underground, importing outside energy into the hold and closing part of the substrate loop that G1d otherwise fills by import. Guano fertilises the fungal beds, so a hold with colonies is measurably more autarkic than one without - a geographic advantage worth siting for, and a trade dependency when absent. Requires surface access within foraging range: a fully sealed deep hold cannot keep them.",
+      "depth_m": {
+        "min": 20,
+        "opt_min": 50,
+        "opt_max": 400,
+        "max": 800
+      },
+      "light_min": 0.0,
+      "requires_surface_access_km": 30,
+      "envelope_note": "temp_c is the ROOST envelope; the forage envelope is the surface cell's",
+      "domestication_check": {
+        "diet": "PASS - forages surface biomass humans do not eat; zero feed competition",
+        "growth_rate": "PASS - 12 months, but low fecundity caps colony growth",
+        "captive_breeding": "PARTIAL - not bred, retained by roost fidelity; semi-domesticated, like a bee skep rather than a herd",
+        "disposition": "FAIL as a herd animal (0.20) - never handled individually",
+        "panic_response": "FAIL for herding - swarms; managed by roost design, not by drovers",
+        "social_hierarchy": "PASS via the colony route - the honeybee precedent is what makes this legitimate: colonies are managed as installations, not herds, so the Anna Karenina herd criteria simply do not bind"
+      }
+    }
+  ]
+}

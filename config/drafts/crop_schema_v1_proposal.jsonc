@@ -1,0 +1,76 @@
+// PROPOSAL — not loaded by anything. Successor schema to crops_earthlike.json / crops_fantasy.json (v0-draft).
+//
+// Three sources, three contributions:
+//   - FAO EcoCrop  -> climate envelope numbers in ABSOLUTE units (field names noted per line).
+//   - Dwarf Fortress plant raws -> the one-to-many product fan-out. DF puts several
+//     USE_MATERIAL_TEMPLATE sub-materials in one [PLANT:] block and points at them with
+//     LOCAL_PLANT_MAT:<mat>; the DRINK/MILL/THREAD/EXTRACT token family is generalized here to a
+//     single `process` enum so adding a workshop does not require a new token.
+//   - RimWorld -> the two scalars that proved sufficient: fertility sensitivity and light minimum.
+//   - Anno 1800 -> `biome_whitelist` as a hard placement gate (its island-fertility boolean),
+//     reserved for fantasy crops that have no real climate envelope.
+//
+// DECISION RECORDED: this schema uses ABSOLUTE units (degC, mm/yr, days), deliberately breaking the
+// 0-1 house convention used by the vessel catalog. Rationale: EcoCrop and our own climate output are
+// both absolute, so normalizing would mean two lossy conversions. Suitability call sites normalize.
+//
+// `processing_gate` is the one field no surveyed game models, and it is what lets maize
+// (nixtamalization), cassava (cyanide detox), acorns (leaching), and chuno (freeze-drying) share one
+// representation: the crop is holdable without the gate but cannot support a civilization.
+{
+  "schemaVersion": "crops/v1-proposal",
+  "crops": [
+    {
+      "id": "sweet_pod",
+      "name": "sweet pod",
+      "origin": "fantasy",           // real | fantasy
+      "analog": "sugarcane",         // real crop this derives from; EcoCrop record to inherit from
+
+      // --- climate envelope (EcoCrop field names in comments) ---
+      "temp_c":       { "abs_min": 15, "opt_min": 22, "opt_max": 32, "abs_max": 38 },      // TMIN/TOPMN/TOPMX/TMAX
+      "precip_mm_yr": { "abs_min": 900, "opt_min": 1200, "opt_max": 2000, "abs_max": 3000 }, // RMIN/ROPMN/ROPMX/RMAX
+      "cycle_days":   { "min": 270, "max": 365 },   // GMIN/GMAX — compare against our growing-season length
+      "soil_ph":      { "min": 5.0, "max": 8.0 },   // PHMIN/PHMAX — DF and RimWorld both omit soil pH; we have soils
+      "soil": {
+        "fertility_min": 0.35,
+        "fertility_sensitivity": 0.6,               // RimWorld dial: 0 ignores soil, 1 scales fully with it
+        "drainage": ["good", "moderate"],
+        "texture": ["loam", "sandy_loam"]
+      },
+      "seasonality": {
+        "sow_seasons": ["spring"],
+        "perennial": true,
+        "ratoon_cycles": 3,                         // multi-year commitment; DF has no concept of this
+        "frost_kills_at_c": 0
+      },
+      "photoperiod": "day_neutral",                 // day_neutral | short_day | long_day — cheap latitude gate
+      "light_min": 0.5,                             // 0 for subterranean crops, so cave crops share this schema
+      "biome_whitelist": null,                      // null = derive placement from envelope (preferred).
+                                                    // non-null = Anno-style hard gate, fantasy crops only
+
+      // --- products: one-to-many, each mapping to a trade good ---
+      "products": [
+        { "part": "cane",     "good": "sugar_cane",  "yield_t_ha": 60.0, "process": null,  "edible": "none" },
+        { "part": "cane",     "good": "raw_sugar",   "yield_t_ha":  6.5, "process": "mill",
+          "edible": "cooked", "value_mult": 10.0 },  // value lives downstream, not in the plant
+        { "part": "cane",     "good": "molasses",    "yield_t_ha":  1.8, "process": "press" },
+        { "part": "molasses", "good": "rum",         "yield_t_ha":  0.9, "process": "still",
+          "input_good": "molasses" },                // second-order: consumes a product, not the plant
+        { "part": "bagasse",  "good": "fuel_fiber",  "yield_t_ha": 15.0, "process": "none", "byproduct": true }
+      ],
+
+      // --- processing gate: crop is not a staple until tech + facility exist ---
+      "processing_gate": {
+        "required_for": "staple",                   // staple | any | luxury; null = no gate
+        "process": "mill",
+        "facility": "animal_powered_mill",
+        "tech": "geared_milling",
+        "without_gate": { "edible": "raw", "calorie_mult": 0.15 }
+      },
+
+      "labor_days_ha": 120,                         // the cost currency; fantasy crops pay here or in tech/skill
+      "storage": { "shelf_life_days": 20, "form": "perishable_bulk" }
+                                                    // gates whether it can enter the trade-path network at all
+    }
+  ]
+}

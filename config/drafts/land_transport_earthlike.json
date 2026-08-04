@@ -1,0 +1,91 @@
+{
+  "schemaVersion": "land-transport/v0-draft",
+  "_comment": "DRAFT PROPOSAL — not wired into any loader. Land transport ladder per docs/FUTURE_WORK_SCOPING.md Theme G4, mirroring the config/maritime_vessels_earthlike.json capability-envelope pattern (defaultVessel -> defaultTransport, routeClass -> land route classes). techLevel reuses the vessel enum: early | classical | medieval | high-medieval | early-blue-water. routeClass enum: trail | caravan | road | courier. roadDependence is the response to route quality (high = payload/range collapse off maintained roads, analogous to harborDependence). Terrain capabilities are per-terrain throughput multiplier hooks for the existing land route cost fields. animalRequirement references an entry name in config/drafts/domesticates_earthlike.json or null. fodderNeed is an addition mirroring stopoverNeed: dependence on forage/supply along the route (low for camels, high for relay horses).",
+  "defaultTransport": "pack-donkey",
+  "transports": [
+    {
+      "name": "porter",
+      "techLevel": "early",
+      "routeClass": "trail",
+      "payloadCapacity": 0.06,
+      "dailyRange": 0.30,
+      "roadDependence": 0.05,
+      "roughTerrainCapability": 0.90,
+      "desertCapability": 0.25,
+      "mountainCapability": 0.85,
+      "forestCapability": 0.90,
+      "animalRequirement": null,
+      "fodderNeed": 0.15
+    },
+    {
+      "name": "pack-donkey",
+      "techLevel": "early",
+      "routeClass": "trail",
+      "payloadCapacity": 0.16,
+      "dailyRange": 0.38,
+      "roadDependence": 0.15,
+      "roughTerrainCapability": 0.75,
+      "desertCapability": 0.45,
+      "mountainCapability": 0.70,
+      "forestCapability": 0.60,
+      "animalRequirement": "donkey",
+      "fodderNeed": 0.35
+    },
+    {
+      "name": "pack-camel-string",
+      "techLevel": "classical",
+      "routeClass": "caravan",
+      "payloadCapacity": 0.34,
+      "dailyRange": 0.55,
+      "roadDependence": 0.08,
+      "roughTerrainCapability": 0.35,
+      "desertCapability": 0.98,
+      "mountainCapability": 0.20,
+      "forestCapability": 0.15,
+      "animalRequirement": "camel",
+      "fodderNeed": 0.12
+    },
+    {
+      "name": "ox-cart",
+      "techLevel": "classical",
+      "routeClass": "road",
+      "payloadCapacity": 0.50,
+      "dailyRange": 0.22,
+      "roadDependence": 0.70,
+      "roughTerrainCapability": 0.20,
+      "desertCapability": 0.15,
+      "mountainCapability": 0.10,
+      "forestCapability": 0.25,
+      "animalRequirement": "cattle",
+      "fodderNeed": 0.45
+    },
+    {
+      "name": "horse-wagon",
+      "techLevel": "medieval",
+      "routeClass": "road",
+      "payloadCapacity": 0.62,
+      "dailyRange": 0.45,
+      "roadDependence": 0.85,
+      "roughTerrainCapability": 0.12,
+      "desertCapability": 0.10,
+      "mountainCapability": 0.08,
+      "forestCapability": 0.18,
+      "animalRequirement": "horse",
+      "fodderNeed": 0.65
+    },
+    {
+      "name": "horse-relay",
+      "techLevel": "classical",
+      "routeClass": "courier",
+      "payloadCapacity": 0.04,
+      "dailyRange": 0.98,
+      "roadDependence": 0.90,
+      "roughTerrainCapability": 0.15,
+      "desertCapability": 0.15,
+      "mountainCapability": 0.12,
+      "forestCapability": 0.20,
+      "animalRequirement": "horse",
+      "fodderNeed": 0.90
+    }
+  ]
+}

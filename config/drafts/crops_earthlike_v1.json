@@ -1,0 +1,2031 @@
+{
+  "schemaVersion": "crops/v1",
+  "_comment": "DRAFT PROPOSAL - not wired into any loader. Migration of config/drafts/crops_earthlike.json (crops/v0-draft) to the v1 schema of config/drafts/crop_schema_v1_proposal.jsonc. Units are ABSOLUTE (degC, mm/yr, days, pH) per the decision recorded in docs/FUTURE_WORK_SCOPING.md SS G1b. Climate envelopes carrying envelope_source 'ecocrop' were extracted programmatically from the FAO EcoCrop parameter table distributed with the R Recocrop package (inst/parameters/ecocrop.rds); TMIN/TOPMN/TOPMX/TMAX -> temp_c, RMIN/ROPMN/ROPMX/RMAX -> precip_mm_yr, GMIN/GMAX -> cycle_days, PHMIN/PHMAX -> soil_ph, KTMP -> seasonality.frost_kills_at_c, TEXTR/DRAR/DEPR/FER/FERR -> soil, LIGR -> light_min, PP -> photoperiod. envelope_source 'estimated' means no EcoCrop record exists and the numbers are conventional agronomy - do not cite them as EcoCrop. Yields, labor_days_ha, storage, products and processing_gate are authored, never EcoCrop. Fields added beyond the v1 proposal: package_tags / value_class / water{} (carried from v0 so nothing is lost), envelope_source, envelope_ref, photoperiod_source, soil.depth_tolerance (EcoCrop DEPR), notes. See config/drafts/CROPS_V1_NOTES.md.",
+  "proposedGoods": [
+    {
+      "good": "wine",
+      "category": "luxury",
+      "rationale": "Fermented grape must; the export half of Mediterranean polyculture and the single highest-value thing a hillside can produce. No existing good covers it."
+    },
+    {
+      "good": "olive_oil",
+      "category": "processed",
+      "rationale": "The other half of Mediterranean polyculture, and the input the existing 'soap' good currently has no source for. Also lighting fuel and a ration fat."
+    },
+    {
+      "good": "plant_oil",
+      "category": "processed",
+      "rationale": "Generic pressed seed oil (linseed, hemp, cottonseed). Keeps three fibre crops from having a dead second product and gives temperate regions a fat source."
+    },
+    {
+      "good": "fresh_fruit",
+      "category": "raw",
+      "rationale": "Perishable orchard/vine output. Deliberately near-untradeable (shelf life days) so it creates local surplus and hinterland demand rather than trade paths."
+    },
+    {
+      "good": "dried_fruit",
+      "category": "processed",
+      "rationale": "Raisins, dried figs, dates. The storable, caravan-legal form of fruit - this is the good that actually moves, and it is how the arid package exports calories."
+    },
+    {
+      "good": "cider",
+      "category": "processed",
+      "rationale": "Northern-temperate analogue of wine; gives the apple a value good where the grape envelope fails. Distinct demand profile from wine (common, not luxury)."
+    },
+    {
+      "good": "root_crop",
+      "category": "raw",
+      "rationale": "Non-cereal perishable staple (tubers). Closes the FUTURE_WORK item that collapses every tuber into 'grain' and makes the chuno gate mean something."
+    },
+    {
+      "good": "fodder",
+      "category": "raw",
+      "rationale": "Straw, stalks, pomace, oilcake. Every cereal already produces it for free; it is the missing link between the crop catalogue and the domesticate catalogue."
+    },
+    {
+      "good": "cordage",
+      "category": "processed",
+      "rationale": "Rope and rigging from hemp/palm fibre. Gives the existing 'ships' strategic good an agricultural input and makes hemp non-substitutable with flax."
+    },
+    {
+      "good": "dyestuff",
+      "category": "processed",
+      "rationale": "Concentrated dye cake (indigo, madder lake) as distinct from raw 'dye_plants'. Indigo loses 50x its mass in processing - the value is entirely in the vat."
+    }
+  ],
+  "crops": [
+    {
+      "id": "wheat",
+      "name": "wheat",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "temperate",
+        "mediterranean"
+      ],
+      "value_class": "staple",
+      "envelope_source": "ecocrop",
+      "envelope_ref": "Wheat, common (Triticum aestivum L.)",
+      "temp_c": {
+        "abs_min": 5.0,
+        "opt_min": 15.0,
+        "opt_max": 23.0,
+        "abs_max": 27.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 300,
+        "opt_min": 750,
+        "opt_max": 900,
+        "abs_max": 1600
+      },
+      "cycle_days": {
+        "min": 90,
+        "max": 250
+      },
+      "soil_ph": {
+        "min": 5.5,
+        "max": 8.5
+      },
+      "soil": {
+        "fertility_min": 0.4,
+        "fertility_sensitivity": 0.8,
+        "drainage": [
+          "well"
+        ],
+        "texture": [
+          "loam",
+          "silt_loam",
+          "clay_loam",
+          "clay"
+        ],
+        "depth_tolerance": "shallow"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "autumn",
+          "spring"
+        ],
+        "perennial": false,
+        "ratoon_cycles": 0,
+        "frost_kills_at_c": 0.0
+      },
+      "photoperiod": "long_day",
+      "photoperiod_source": "ecocrop",
+      "light_min": 0.5,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.55,
+        "floodplain_affinity": 0.4
+      },
+      "products": [
+        {
+          "part": "grain",
+          "good": "grain",
+          "yield_t_ha": 1.2,
+          "process": null,
+          "edible": "cooked"
+        },
+        {
+          "part": "straw",
+          "good": "fodder",
+          "yield_t_ha": 2.5,
+          "process": "none",
+          "edible": "none",
+          "byproduct": true
+        }
+      ],
+      "processing_gate": null,
+      "labor_days_ha": 68,
+      "storage": {
+        "shelf_life_days": 1095,
+        "form": "dry_bulk"
+      },
+      "notes": "ACOUP IVb: 14.25-19.5 labour-days per iugerum -> ~57-78 days/ha; 68 taken as midpoint."
+    },
+    {
+      "id": "barley",
+      "name": "barley",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "temperate",
+        "steppe",
+        "arid"
+      ],
+      "value_class": "staple",
+      "envelope_source": "ecocrop",
+      "envelope_ref": "Barley (Hordeum vulgare L.)",
+      "temp_c": {
+        "abs_min": 2.0,
+        "opt_min": 15.0,
+        "opt_max": 20.0,
+        "abs_max": 40.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 200,
+        "opt_min": 500,
+        "opt_max": 1000,
+        "abs_max": 2000
+      },
+      "cycle_days": {
+        "min": 90,
+        "max": 240
+      },
+      "soil_ph": {
+        "min": 6.0,
+        "max": 8.0
+      },
+      "soil": {
+        "fertility_min": 0.22,
+        "fertility_sensitivity": 0.5,
+        "drainage": [
+          "well"
+        ],
+        "texture": [
+          "sand",
+          "sandy_loam",
+          "loam",
+          "silt_loam",
+          "clay_loam",
+          "clay"
+        ],
+        "depth_tolerance": "medium"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "autumn",
+          "spring"
+        ],
+        "perennial": false,
+        "ratoon_cycles": 0,
+        "frost_kills_at_c": -4.0
+      },
+      "photoperiod": "long_day",
+      "photoperiod_source": "ecocrop",
+      "light_min": 0.5,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.5,
+        "floodplain_affinity": 0.35
+      },
+      "products": [
+        {
+          "part": "grain",
+          "good": "grain",
+          "yield_t_ha": 1.5,
+          "process": null,
+          "edible": "cooked"
+        },
+        {
+          "part": "straw",
+          "good": "fodder",
+          "yield_t_ha": 3.0,
+          "process": "none",
+          "edible": "none",
+          "byproduct": true
+        }
+      ],
+      "processing_gate": null,
+      "labor_days_ha": 45,
+      "storage": {
+        "shelf_life_days": 1095,
+        "form": "dry_bulk"
+      },
+      "notes": "EcoCrop confirms the Garnsey ordering: barley RMIN 200 vs wheat 300, KTMP -4 vs 0."
+    },
+    {
+      "id": "rye",
+      "name": "rye",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "temperate"
+      ],
+      "value_class": "staple",
+      "envelope_source": "ecocrop",
+      "envelope_ref": "Rye (Secale cereale L.)",
+      "temp_c": {
+        "abs_min": 5.0,
+        "opt_min": 15.0,
+        "opt_max": 20.0,
+        "abs_max": 30.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 400,
+        "opt_min": 600,
+        "opt_max": 1000,
+        "abs_max": 2000
+      },
+      "cycle_days": {
+        "min": 110,
+        "max": 270
+      },
+      "soil_ph": {
+        "min": 4.5,
+        "max": 8.0
+      },
+      "soil": {
+        "fertility_min": 0.22,
+        "fertility_sensitivity": 0.5,
+        "drainage": [
+          "poor",
+          "moderate",
+          "well",
+          "excessive"
+        ],
+        "texture": [
+          "sand",
+          "sandy_loam",
+          "loam",
+          "silt_loam",
+          "clay_loam",
+          "clay"
+        ],
+        "depth_tolerance": "shallow"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "autumn"
+        ],
+        "perennial": false,
+        "ratoon_cycles": 0,
+        "frost_kills_at_c": 0.0
+      },
+      "photoperiod": "long_day",
+      "photoperiod_source": "corrected",
+      "light_min": 0.5,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.25,
+        "floodplain_affinity": 0.2
+      },
+      "products": [
+        {
+          "part": "grain",
+          "good": "grain",
+          "yield_t_ha": 1.1,
+          "process": null,
+          "edible": "cooked"
+        },
+        {
+          "part": "straw",
+          "good": "fodder",
+          "yield_t_ha": 3.5,
+          "process": "none",
+          "edible": "none",
+          "byproduct": true
+        }
+      ],
+      "processing_gate": null,
+      "labor_days_ha": 50,
+      "storage": {
+        "shelf_life_days": 1095,
+        "form": "dry_bulk"
+      },
+      "notes": "EcoCrop lists PP=S; rye is a long-day cereal, corrected. Widest drainage tolerance in the cereal set (DRAR 'I E' = poorly to excessively drained)."
+    },
+    {
+      "id": "oats",
+      "name": "oats",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "temperate"
+      ],
+      "value_class": "staple",
+      "envelope_source": "ecocrop",
+      "envelope_ref": "Oats (Avena sativa L.)",
+      "temp_c": {
+        "abs_min": 5.0,
+        "opt_min": 16.0,
+        "opt_max": 20.0,
+        "abs_max": 30.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 250,
+        "opt_min": 600,
+        "opt_max": 1000,
+        "abs_max": 1500
+      },
+      "cycle_days": {
+        "min": 110,
+        "max": 270
+      },
+      "soil_ph": {
+        "min": 4.5,
+        "max": 7.5
+      },
+      "soil": {
+        "fertility_min": 0.4,
+        "fertility_sensitivity": 0.8,
+        "drainage": [
+          "well"
+        ],
+        "texture": [
+          "sand",
+          "sandy_loam",
+          "loam",
+          "silt_loam",
+          "clay_loam",
+          "clay"
+        ],
+        "depth_tolerance": "shallow"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "spring"
+        ],
+        "perennial": false,
+        "ratoon_cycles": 0,
+        "frost_kills_at_c": -15.0
+      },
+      "photoperiod": "long_day",
+      "photoperiod_source": "ecocrop",
+      "light_min": 0.5,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.2,
+        "floodplain_affinity": 0.3
+      },
+      "products": [
+        {
+          "part": "grain",
+          "good": "grain",
+          "yield_t_ha": 1.2,
+          "process": null,
+          "edible": "cooked"
+        },
+        {
+          "part": "straw",
+          "good": "fodder",
+          "yield_t_ha": 3.0,
+          "process": "none",
+          "edible": "none",
+          "byproduct": true
+        }
+      ],
+      "processing_gate": null,
+      "labor_days_ha": 50,
+      "storage": {
+        "shelf_life_days": 1095,
+        "form": "dry_bulk"
+      }
+    },
+    {
+      "id": "rice",
+      "name": "rice",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "monsoon"
+      ],
+      "value_class": "staple",
+      "envelope_source": "ecocrop",
+      "envelope_ref": "Rice, paddy (Indica) (Oryza sativa L. s. indica)",
+      "temp_c": {
+        "abs_min": 16.0,
+        "opt_min": 25.0,
+        "opt_max": 35.0,
+        "abs_max": 38.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 1000,
+        "opt_min": 1500,
+        "opt_max": 2000,
+        "abs_max": 4000
+      },
+      "cycle_days": {
+        "min": 80,
+        "max": 200
+      },
+      "soil_ph": {
+        "min": 3.5,
+        "max": 9.0
+      },
+      "soil": {
+        "fertility_min": 0.22,
+        "fertility_sensitivity": 0.5,
+        "drainage": [
+          "poor"
+        ],
+        "texture": [
+          "sand",
+          "sandy_loam",
+          "loam",
+          "silt_loam",
+          "clay_loam",
+          "clay"
+        ],
+        "depth_tolerance": "shallow"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "spring",
+          "summer"
+        ],
+        "perennial": false,
+        "ratoon_cycles": 0,
+        "frost_kills_at_c": 0.0
+      },
+      "photoperiod": "short_day",
+      "photoperiod_source": "ecocrop",
+      "light_min": 0.5,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.95,
+        "floodplain_affinity": 0.95
+      },
+      "products": [
+        {
+          "part": "grain",
+          "good": "grain",
+          "yield_t_ha": 2.2,
+          "process": "hull",
+          "edible": "cooked"
+        },
+        {
+          "part": "straw",
+          "good": "fodder",
+          "yield_t_ha": 3.0,
+          "process": "none",
+          "edible": "none",
+          "byproduct": true
+        }
+      ],
+      "processing_gate": null,
+      "labor_days_ha": 180,
+      "storage": {
+        "shelf_life_days": 730,
+        "form": "dry_bulk"
+      },
+      "notes": "EcoCrop 'Rice, paddy (Indica)'. DRAR='I' (poorly drained only) is the paddy signature and is the only crop in the catalogue that requires impeded drainage."
+    },
+    {
+      "id": "millet",
+      "name": "millet",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "monsoon",
+        "steppe",
+        "arid"
+      ],
+      "value_class": "staple",
+      "envelope_source": "ecocrop",
+      "envelope_ref": "Pearl millet (Pennisetum glaucum (L)R.Br.)",
+      "temp_c": {
+        "abs_min": 12.0,
+        "opt_min": 25.0,
+        "opt_max": 35.0,
+        "abs_max": 40.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 200,
+        "opt_min": 400,
+        "opt_max": 900,
+        "abs_max": 1700
+      },
+      "cycle_days": {
+        "min": 60,
+        "max": 120
+      },
+      "soil_ph": {
+        "min": 4.5,
+        "max": 8.3
+      },
+      "soil": {
+        "fertility_min": 0.22,
+        "fertility_sensitivity": 0.5,
+        "drainage": [
+          "well",
+          "excessive"
+        ],
+        "texture": [
+          "sand",
+          "sandy_loam",
+          "loam",
+          "silt_loam"
+        ],
+        "depth_tolerance": "medium"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "summer"
+        ],
+        "perennial": false,
+        "ratoon_cycles": 0,
+        "frost_kills_at_c": 2.0
+      },
+      "photoperiod": "short_day",
+      "photoperiod_source": "ecocrop",
+      "light_min": 0.65,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.35,
+        "floodplain_affinity": 0.3
+      },
+      "products": [
+        {
+          "part": "grain",
+          "good": "grain",
+          "yield_t_ha": 0.8,
+          "process": null,
+          "edible": "cooked"
+        },
+        {
+          "part": "straw",
+          "good": "fodder",
+          "yield_t_ha": 2.0,
+          "process": "none",
+          "edible": "none",
+          "byproduct": true
+        }
+      ],
+      "processing_gate": null,
+      "labor_days_ha": 40,
+      "storage": {
+        "shelf_life_days": 1460,
+        "form": "dry_bulk"
+      },
+      "notes": "EcoCrop 'Pearl millet' (Pennisetum glaucum), the dryland African/Indian staple. RMIN 200 vs rice 1000 preserves the required rice>millet water ordering."
+    },
+    {
+      "id": "sorghum",
+      "name": "sorghum",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "arid",
+        "monsoon"
+      ],
+      "value_class": "staple",
+      "envelope_source": "ecocrop",
+      "envelope_ref": "Sorghum (low altitude) (Sorghum bicolor (L.) Moench)",
+      "temp_c": {
+        "abs_min": 8.0,
+        "opt_min": 27.0,
+        "opt_max": 35.0,
+        "abs_max": 40.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 300,
+        "opt_min": 500,
+        "opt_max": 1000,
+        "abs_max": 3000
+      },
+      "cycle_days": {
+        "min": 90,
+        "max": 300
+      },
+      "soil_ph": {
+        "min": 5.0,
+        "max": 8.5
+      },
+      "soil": {
+        "fertility_min": 0.22,
+        "fertility_sensitivity": 0.5,
+        "drainage": [
+          "poor",
+          "moderate",
+          "well",
+          "excessive"
+        ],
+        "texture": [
+          "sand",
+          "sandy_loam",
+          "loam",
+          "silt_loam",
+          "clay_loam",
+          "clay"
+        ],
+        "depth_tolerance": "medium"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "summer"
+        ],
+        "perennial": false,
+        "ratoon_cycles": 0,
+        "frost_kills_at_c": 0.0
+      },
+      "photoperiod": "short_day",
+      "photoperiod_source": "ecocrop",
+      "light_min": 0.65,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.45,
+        "floodplain_affinity": 0.35
+      },
+      "products": [
+        {
+          "part": "grain",
+          "good": "grain",
+          "yield_t_ha": 1.0,
+          "process": null,
+          "edible": "cooked"
+        },
+        {
+          "part": "stalk",
+          "good": "fodder",
+          "yield_t_ha": 4.0,
+          "process": "none",
+          "edible": "none",
+          "byproduct": true
+        }
+      ],
+      "processing_gate": null,
+      "labor_days_ha": 48,
+      "storage": {
+        "shelf_life_days": 1095,
+        "form": "dry_bulk"
+      },
+      "notes": "EcoCrop splits sorghum by altitude; the low-altitude record is used. Med/high-altitude records exist (TOPMN 24/22) if an altitude-banded variant is wanted later."
+    },
+    {
+      "id": "olive",
+      "name": "olive",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "mediterranean"
+      ],
+      "value_class": "common",
+      "envelope_source": "ecocrop",
+      "envelope_ref": "Olive, Europaen (Olea europaea L.)",
+      "temp_c": {
+        "abs_min": 5.0,
+        "opt_min": 20.0,
+        "opt_max": 34.0,
+        "abs_max": 40.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 200,
+        "opt_min": 400,
+        "opt_max": 700,
+        "abs_max": 1200
+      },
+      "cycle_days": {
+        "min": 210,
+        "max": 300
+      },
+      "soil_ph": {
+        "min": 5.3,
+        "max": 8.5
+      },
+      "soil": {
+        "fertility_min": 0.22,
+        "fertility_sensitivity": 0.5,
+        "drainage": [
+          "well",
+          "excessive"
+        ],
+        "texture": [
+          "sand",
+          "sandy_loam",
+          "loam",
+          "silt_loam",
+          "clay_loam",
+          "clay"
+        ],
+        "depth_tolerance": "shallow"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "spring"
+        ],
+        "perennial": true,
+        "ratoon_cycles": 40,
+        "frost_kills_at_c": 0.0
+      },
+      "photoperiod": "day_neutral",
+      "photoperiod_source": "ecocrop",
+      "light_min": 0.8,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.3,
+        "floodplain_affinity": 0.05
+      },
+      "products": [
+        {
+          "part": "fruit",
+          "good": "olive_oil",
+          "yield_t_ha": 0.55,
+          "process": "press",
+          "edible": "raw",
+          "value_mult": 6.0
+        },
+        {
+          "part": "fruit",
+          "good": "preserved_food",
+          "yield_t_ha": 1.4,
+          "process": "cure",
+          "edible": "cooked"
+        },
+        {
+          "part": "olive_oil",
+          "good": "soap",
+          "yield_t_ha": 0.2,
+          "process": "boil",
+          "edible": "none",
+          "input_good": "olive_oil"
+        },
+        {
+          "part": "prunings",
+          "good": "timber",
+          "yield_t_ha": 0.8,
+          "process": "none",
+          "edible": "none",
+          "byproduct": true
+        }
+      ],
+      "processing_gate": {
+        "required_for": "any",
+        "process": "press",
+        "facility": "olive_press",
+        "tech": "lever_press",
+        "without_gate": {
+          "edible": "none",
+          "calorie_mult": 0.0
+        }
+      },
+      "labor_days_ha": 90,
+      "storage": {
+        "shelf_life_days": 21,
+        "form": "perishable_bulk"
+      },
+      "notes": "Raw drupes are inedible (oleuropein); the gate is 'any', not 'staple'. Real limiting factor per G1a is catastrophic-frost return period, not mean temperature - EcoCrop's KTMP 0 understates that; a >10yr frost-return check belongs at the call site."
+    },
+    {
+      "id": "grape",
+      "name": "grape",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "mediterranean"
+      ],
+      "value_class": "luxury",
+      "envelope_source": "ecocrop",
+      "envelope_ref": "European wine grape (Vitis vinifera L.)",
+      "temp_c": {
+        "abs_min": 10.0,
+        "opt_min": 18.0,
+        "opt_max": 30.0,
+        "abs_max": 38.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 400,
+        "opt_min": 700,
+        "opt_max": 850,
+        "abs_max": 1200
+      },
+      "cycle_days": {
+        "min": 160,
+        "max": 270
+      },
+      "soil_ph": {
+        "min": 4.5,
+        "max": 8.5
+      },
+      "soil": {
+        "fertility_min": 0.22,
+        "fertility_sensitivity": 0.5,
+        "drainage": [
+          "well"
+        ],
+        "texture": [
+          "sand",
+          "sandy_loam",
+          "loam",
+          "silt_loam",
+          "clay_loam",
+          "clay"
+        ],
+        "depth_tolerance": "shallow"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "spring"
+        ],
+        "perennial": true,
+        "ratoon_cycles": 30,
+        "frost_kills_at_c": 0.0
+      },
+      "photoperiod": "day_neutral",
+      "photoperiod_source": "corrected",
+      "light_min": 0.65,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.4,
+        "floodplain_affinity": 0.1
+      },
+      "products": [
+        {
+          "part": "fruit",
+          "good": "fresh_fruit",
+          "yield_t_ha": 8.0,
+          "process": null,
+          "edible": "raw"
+        },
+        {
+          "part": "fruit",
+          "good": "wine",
+          "yield_t_ha": 4.0,
+          "process": "ferment",
+          "edible": "raw",
+          "value_mult": 4.0
+        },
+        {
+          "part": "fruit",
+          "good": "dried_fruit",
+          "yield_t_ha": 1.8,
+          "process": "dry",
+          "edible": "raw"
+        },
+        {
+          "part": "prunings",
+          "good": "fodder",
+          "yield_t_ha": 1.0,
+          "process": "none",
+          "edible": "none",
+          "byproduct": true
+        }
+      ],
+      "processing_gate": null,
+      "labor_days_ha": 160,
+      "storage": {
+        "shelf_life_days": 14,
+        "form": "perishable_bulk"
+      },
+      "notes": "EcoCrop lists PP=S; Vitis vinifera fruits reliably to ~51N (Mosel), so day_neutral. DEPR='S' is the 'thin-rocky' signal from the v0 draft."
+    },
+    {
+      "id": "fig",
+      "name": "fig",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "mediterranean",
+        "arid"
+      ],
+      "value_class": "common",
+      "envelope_source": "ecocrop",
+      "envelope_ref": "Common fig (Ficus carica L.)",
+      "temp_c": {
+        "abs_min": 4.0,
+        "opt_min": 16.0,
+        "opt_max": 26.0,
+        "abs_max": 38.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 300,
+        "opt_min": 700,
+        "opt_max": 1500,
+        "abs_max": 2700
+      },
+      "cycle_days": {
+        "min": 120,
+        "max": 300
+      },
+      "soil_ph": {
+        "min": 4.3,
+        "max": 8.6
+      },
+      "soil": {
+        "fertility_min": 0.22,
+        "fertility_sensitivity": 0.5,
+        "drainage": [
+          "well",
+          "excessive"
+        ],
+        "texture": [
+          "sand",
+          "sandy_loam",
+          "loam",
+          "silt_loam",
+          "clay_loam",
+          "clay"
+        ],
+        "depth_tolerance": "medium"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "spring"
+        ],
+        "perennial": true,
+        "ratoon_cycles": 30,
+        "frost_kills_at_c": -12.0
+      },
+      "photoperiod": "day_neutral",
+      "photoperiod_source": "ecocrop",
+      "light_min": 0.35,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.45,
+        "floodplain_affinity": 0.15
+      },
+      "products": [
+        {
+          "part": "fruit",
+          "good": "fresh_fruit",
+          "yield_t_ha": 6.0,
+          "process": null,
+          "edible": "raw"
+        },
+        {
+          "part": "fruit",
+          "good": "dried_fruit",
+          "yield_t_ha": 1.6,
+          "process": "dry",
+          "edible": "raw",
+          "value_mult": 2.0
+        }
+      ],
+      "processing_gate": null,
+      "labor_days_ha": 60,
+      "storage": {
+        "shelf_life_days": 10,
+        "form": "perishable_bulk"
+      },
+      "notes": "LIGR '1 4' - the most shade-tolerant Mediterranean tree in the set."
+    },
+    {
+      "id": "date_palm",
+      "name": "date palm",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "arid"
+      ],
+      "value_class": "staple",
+      "envelope_source": "ecocrop",
+      "envelope_ref": "Date palm (Phoenix dactylifera L.)",
+      "temp_c": {
+        "abs_min": 10.0,
+        "opt_min": 26.0,
+        "opt_max": 45.0,
+        "abs_max": 52.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 100,
+        "opt_min": 200,
+        "opt_max": 300,
+        "abs_max": 400
+      },
+      "cycle_days": {
+        "min": 365,
+        "max": 365
+      },
+      "soil_ph": {
+        "min": 6.0,
+        "max": 8.5
+      },
+      "soil": {
+        "fertility_min": 0.4,
+        "fertility_sensitivity": 0.8,
+        "drainage": [
+          "well",
+          "excessive"
+        ],
+        "texture": [
+          "sand",
+          "sandy_loam",
+          "loam",
+          "silt_loam",
+          "clay_loam",
+          "clay"
+        ],
+        "depth_tolerance": "shallow"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "spring"
+        ],
+        "perennial": true,
+        "ratoon_cycles": 60,
+        "frost_kills_at_c": -4.0
+      },
+      "photoperiod": "day_neutral",
+      "photoperiod_source": "corrected",
+      "light_min": 0.8,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.95,
+        "floodplain_affinity": 0.3
+      },
+      "products": [
+        {
+          "part": "fruit",
+          "good": "dried_fruit",
+          "yield_t_ha": 4.0,
+          "process": "dry",
+          "edible": "raw"
+        },
+        {
+          "part": "fruit",
+          "good": "fresh_fruit",
+          "yield_t_ha": 6.0,
+          "process": null,
+          "edible": "raw"
+        },
+        {
+          "part": "leaf",
+          "good": "fiber",
+          "yield_t_ha": 1.0,
+          "process": "ret",
+          "edible": "none",
+          "byproduct": true
+        },
+        {
+          "part": "pit",
+          "good": "fodder",
+          "yield_t_ha": 0.6,
+          "process": "none",
+          "edible": "none",
+          "byproduct": true
+        }
+      ],
+      "processing_gate": null,
+      "labor_days_ha": 110,
+      "storage": {
+        "shelf_life_days": 540,
+        "form": "dry_bulk"
+      },
+      "notes": "TMAX 52 C is the highest heat ceiling in the catalogue, as required. RMAX 400 mm with irrigation_response 0.95 encodes the oasis pattern: it wants heat and a water table, not rain. EcoCrop PP=S corrected to day_neutral (fruits fine at 25-35N)."
+    },
+    {
+      "id": "highland_tuber",
+      "name": "highland tuber",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "highland"
+      ],
+      "value_class": "staple",
+      "envelope_source": "ecocrop",
+      "envelope_ref": "Potato (Solanum tuberosum L.)",
+      "temp_c": {
+        "abs_min": 7.0,
+        "opt_min": 15.0,
+        "opt_max": 25.0,
+        "abs_max": 30.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 250,
+        "opt_min": 500,
+        "opt_max": 800,
+        "abs_max": 2000
+      },
+      "cycle_days": {
+        "min": 90,
+        "max": 160
+      },
+      "soil_ph": {
+        "min": 4.2,
+        "max": 8.5
+      },
+      "soil": {
+        "fertility_min": 0.22,
+        "fertility_sensitivity": 0.5,
+        "drainage": [
+          "well",
+          "excessive"
+        ],
+        "texture": [
+          "sand",
+          "sandy_loam",
+          "loam",
+          "silt_loam",
+          "clay_loam",
+          "clay"
+        ],
+        "depth_tolerance": "shallow"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "spring"
+        ],
+        "perennial": false,
+        "ratoon_cycles": 0,
+        "frost_kills_at_c": -1.0
+      },
+      "photoperiod": "day_neutral",
+      "photoperiod_source": "ecocrop",
+      "light_min": 0.5,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.3,
+        "floodplain_affinity": 0.1
+      },
+      "products": [
+        {
+          "part": "tuber",
+          "good": "root_crop",
+          "yield_t_ha": 8.0,
+          "process": null,
+          "edible": "cooked"
+        },
+        {
+          "part": "tuber",
+          "good": "preserved_food",
+          "yield_t_ha": 1.2,
+          "process": "freeze_dry",
+          "edible": "cooked",
+          "value_mult": 2.5
+        },
+        {
+          "part": "haulm",
+          "good": "fodder",
+          "yield_t_ha": 1.5,
+          "process": "none",
+          "edible": "none",
+          "byproduct": true
+        }
+      ],
+      "processing_gate": {
+        "required_for": "staple",
+        "process": "freeze_dry",
+        "facility": "chuno_terrace",
+        "tech": "freeze_drying",
+        "without_gate": {
+          "edible": "cooked",
+          "calorie_mult": 1.0,
+          "shelf_life_days": 90
+        }
+      },
+      "labor_days_ha": 95,
+      "storage": {
+        "shelf_life_days": 90,
+        "form": "perishable_bulk"
+      },
+      "notes": "EcoCrop 'Potato' (Solanum tuberosum). The gate is about storability, not toxicity: without freeze-drying the crop feeds a village but cannot be taxed, stored or marched. See notes doc - EcoCrop also carries 'Potato, Bitter' (Solanum x juzepczukii, TOPMN 6 / TOPMX 14 / KTMP -5), the actual chuno cultivar, if a truly alpine variant is wanted."
+    },
+    {
+      "id": "highland_goosefoot",
+      "name": "highland goosefoot",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "highland"
+      ],
+      "value_class": "staple",
+      "envelope_source": "ecocrop",
+      "envelope_ref": "Quinoa (Chenopodium quinoa Willden.)",
+      "temp_c": {
+        "abs_min": 2.0,
+        "opt_min": 14.0,
+        "opt_max": 18.0,
+        "abs_max": 35.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 250,
+        "opt_min": 500,
+        "opt_max": 1000,
+        "abs_max": 2600
+      },
+      "cycle_days": {
+        "min": 90,
+        "max": 240
+      },
+      "soil_ph": {
+        "min": 4.5,
+        "max": 9.5
+      },
+      "soil": {
+        "fertility_min": 0.22,
+        "fertility_sensitivity": 0.5,
+        "drainage": [
+          "well"
+        ],
+        "texture": [
+          "sand",
+          "sandy_loam",
+          "loam",
+          "silt_loam",
+          "clay_loam",
+          "clay"
+        ],
+        "depth_tolerance": "shallow"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "spring"
+        ],
+        "perennial": false,
+        "ratoon_cycles": 0,
+        "frost_kills_at_c": -8.0
+      },
+      "photoperiod": "day_neutral",
+      "photoperiod_source": "ecocrop",
+      "light_min": 0.5,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.25,
+        "floodplain_affinity": 0.1
+      },
+      "products": [
+        {
+          "part": "grain",
+          "good": "grain",
+          "yield_t_ha": 1.0,
+          "process": "wash",
+          "edible": "cooked"
+        },
+        {
+          "part": "straw",
+          "good": "fodder",
+          "yield_t_ha": 2.0,
+          "process": "none",
+          "edible": "none",
+          "byproduct": true
+        }
+      ],
+      "processing_gate": null,
+      "labor_days_ha": 60,
+      "storage": {
+        "shelf_life_days": 1460,
+        "form": "dry_bulk"
+      },
+      "notes": "EcoCrop 'Quinoa'. KTMP -8 and TOPMX 18 make it the cold-hardiest seed crop here. Saponin washing is modelled as a product process, not a gate: it needs water and labour but no tech or facility."
+    },
+    {
+      "id": "flax",
+      "name": "flax",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "temperate"
+      ],
+      "value_class": "common",
+      "envelope_source": "ecocrop",
+      "envelope_ref": "Linseed (Linum usitatissimum L.)",
+      "temp_c": {
+        "abs_min": 5.0,
+        "opt_min": 16.0,
+        "opt_max": 24.0,
+        "abs_max": 30.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 250,
+        "opt_min": 500,
+        "opt_max": 800,
+        "abs_max": 1300
+      },
+      "cycle_days": {
+        "min": 80,
+        "max": 180
+      },
+      "soil_ph": {
+        "min": 5.5,
+        "max": 7.0
+      },
+      "soil": {
+        "fertility_min": 0.55,
+        "fertility_sensitivity": 0.8,
+        "drainage": [
+          "well"
+        ],
+        "texture": [
+          "loam",
+          "silt_loam",
+          "clay_loam",
+          "clay"
+        ],
+        "depth_tolerance": "shallow"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "spring"
+        ],
+        "perennial": false,
+        "ratoon_cycles": 0,
+        "frost_kills_at_c": -6.0
+      },
+      "photoperiod": "long_day",
+      "photoperiod_source": "ecocrop",
+      "light_min": 0.5,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.35,
+        "floodplain_affinity": 0.3
+      },
+      "products": [
+        {
+          "part": "stem",
+          "good": "fiber",
+          "yield_t_ha": 0.8,
+          "process": "ret",
+          "edible": "none"
+        },
+        {
+          "part": "seed",
+          "good": "plant_oil",
+          "yield_t_ha": 0.35,
+          "process": "press",
+          "edible": "cooked"
+        },
+        {
+          "part": "fiber",
+          "good": "cloth",
+          "yield_t_ha": 0.5,
+          "process": "weave",
+          "edible": "none",
+          "input_good": "fiber",
+          "value_mult": 3.0
+        }
+      ],
+      "processing_gate": null,
+      "labor_days_ha": 100,
+      "storage": {
+        "shelf_life_days": 1825,
+        "form": "baled_fiber"
+      },
+      "notes": "EcoCrop 'Linseed' (Linum usitatissimum) - the same species; EcoCrop has no separate fibre-flax record. FER=H/FERR=H makes it the most fertility-demanding crop here, which matches its historical reputation for exhausting soil."
+    },
+    {
+      "id": "cotton",
+      "name": "cotton",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "monsoon",
+        "arid"
+      ],
+      "value_class": "common",
+      "envelope_source": "ecocrop",
+      "envelope_ref": "Levant cotton (Gossypium herbaceum L.)",
+      "temp_c": {
+        "abs_min": 18.0,
+        "opt_min": 26.0,
+        "opt_max": 36.0,
+        "abs_max": 38.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 200,
+        "opt_min": 750,
+        "opt_max": 1250,
+        "abs_max": 1500
+      },
+      "cycle_days": {
+        "min": 190,
+        "max": 210
+      },
+      "soil_ph": {
+        "min": 5.3,
+        "max": 8.5
+      },
+      "soil": {
+        "fertility_min": 0.4,
+        "fertility_sensitivity": 0.5,
+        "drainage": [
+          "well"
+        ],
+        "texture": [
+          "sand",
+          "sandy_loam",
+          "loam",
+          "silt_loam",
+          "clay_loam",
+          "clay"
+        ],
+        "depth_tolerance": "medium"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "spring",
+          "summer"
+        ],
+        "perennial": false,
+        "ratoon_cycles": 0,
+        "frost_kills_at_c": 0.0
+      },
+      "photoperiod": "short_day",
+      "photoperiod_source": "ecocrop",
+      "light_min": 0.65,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.85,
+        "floodplain_affinity": 0.4
+      },
+      "products": [
+        {
+          "part": "boll",
+          "good": "fiber",
+          "yield_t_ha": 0.5,
+          "process": "gin",
+          "edible": "none"
+        },
+        {
+          "part": "seed",
+          "good": "plant_oil",
+          "yield_t_ha": 0.25,
+          "process": "press",
+          "edible": "none"
+        },
+        {
+          "part": "fiber",
+          "good": "cloth",
+          "yield_t_ha": 0.35,
+          "process": "weave",
+          "edible": "none",
+          "input_good": "fiber",
+          "value_mult": 3.5
+        },
+        {
+          "part": "seedcake",
+          "good": "fodder",
+          "yield_t_ha": 0.5,
+          "process": "none",
+          "edible": "none",
+          "byproduct": true
+        }
+      ],
+      "processing_gate": null,
+      "labor_days_ha": 150,
+      "storage": {
+        "shelf_life_days": 1460,
+        "form": "baled_fiber"
+      },
+      "notes": "EcoCrop 'Levant cotton' (Gossypium herbaceum) - the Old World species, not American upland. TMIN 18 is the highest cold floor in the catalogue after nothing: cotton simply cannot start in a temperate spring."
+    },
+    {
+      "id": "hemp",
+      "name": "hemp",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "temperate",
+        "monsoon"
+      ],
+      "value_class": "common",
+      "envelope_source": "ecocrop",
+      "envelope_ref": "Hemp (Cannabis sativa L.)",
+      "temp_c": {
+        "abs_min": 6.0,
+        "opt_min": 15.0,
+        "opt_max": 28.0,
+        "abs_max": 32.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 350,
+        "opt_min": 600,
+        "opt_max": 1200,
+        "abs_max": 4000
+      },
+      "cycle_days": {
+        "min": 90,
+        "max": 170
+      },
+      "soil_ph": {
+        "min": 4.5,
+        "max": 8.2
+      },
+      "soil": {
+        "fertility_min": 0.4,
+        "fertility_sensitivity": 0.8,
+        "drainage": [
+          "poor",
+          "moderate",
+          "well"
+        ],
+        "texture": [
+          "sand",
+          "sandy_loam",
+          "loam",
+          "silt_loam",
+          "clay_loam",
+          "clay"
+        ],
+        "depth_tolerance": "shallow"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "spring"
+        ],
+        "perennial": false,
+        "ratoon_cycles": 0,
+        "frost_kills_at_c": 0.0
+      },
+      "photoperiod": "day_neutral",
+      "photoperiod_source": "ecocrop",
+      "light_min": 0.5,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.4,
+        "floodplain_affinity": 0.35
+      },
+      "products": [
+        {
+          "part": "stem",
+          "good": "fiber",
+          "yield_t_ha": 1.2,
+          "process": "ret",
+          "edible": "none"
+        },
+        {
+          "part": "fiber",
+          "good": "cordage",
+          "yield_t_ha": 0.9,
+          "process": "spin",
+          "edible": "none",
+          "input_good": "fiber",
+          "value_mult": 2.5
+        },
+        {
+          "part": "seed",
+          "good": "plant_oil",
+          "yield_t_ha": 0.3,
+          "process": "press",
+          "edible": "cooked"
+        }
+      ],
+      "processing_gate": null,
+      "labor_days_ha": 85,
+      "storage": {
+        "shelf_life_days": 1825,
+        "form": "baled_fiber"
+      },
+      "notes": "cordage is the non-substitutable slot: rigging is what couples this crop to the existing 'ships' strategic good."
+    },
+    {
+      "id": "madder",
+      "name": "madder",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "mediterranean",
+        "temperate"
+      ],
+      "value_class": "common",
+      "envelope_source": "estimated",
+      "envelope_ref": "estimated - no Rubia record in EcoCrop; values from standard dye-plant horticultural practice (deep friable calcareous loam, 2-3 year root crop, frost-hardy perennial rootstock)",
+      "temp_c": {
+        "abs_min": 3.0,
+        "opt_min": 15.0,
+        "opt_max": 25.0,
+        "abs_max": 33.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 400,
+        "opt_min": 600,
+        "opt_max": 900,
+        "abs_max": 1300
+      },
+      "cycle_days": {
+        "min": 210,
+        "max": 330
+      },
+      "soil_ph": {
+        "min": 6.0,
+        "max": 7.8
+      },
+      "soil": {
+        "fertility_min": 0.35,
+        "fertility_sensitivity": 0.6,
+        "drainage": [
+          "well"
+        ],
+        "texture": [
+          "sandy_loam",
+          "loam",
+          "silt_loam"
+        ],
+        "depth_tolerance": "deep"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "spring"
+        ],
+        "perennial": true,
+        "ratoon_cycles": 2,
+        "frost_kills_at_c": -12.0
+      },
+      "photoperiod": "day_neutral",
+      "photoperiod_source": "estimated",
+      "light_min": 0.5,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.5,
+        "floodplain_affinity": 0.2
+      },
+      "products": [
+        {
+          "part": "root",
+          "good": "dye_plants",
+          "yield_t_ha": 2.5,
+          "process": "dry",
+          "edible": "none"
+        },
+        {
+          "part": "root",
+          "good": "dyestuff",
+          "yield_t_ha": 0.35,
+          "process": "grind",
+          "edible": "none",
+          "input_good": "dye_plants",
+          "value_mult": 6.0
+        }
+      ],
+      "processing_gate": null,
+      "labor_days_ha": 120,
+      "storage": {
+        "shelf_life_days": 1095,
+        "form": "dry_bulk"
+      },
+      "notes": "ESTIMATED envelope. EcoCrop has no Rubia tinctorum (nor Isatis tinctoria) record - dye plants are systematically under-covered. Deep-dug root crop lifted in year 2-3, which is what ratoon_cycles 2 encodes."
+    },
+    {
+      "id": "indigo",
+      "name": "indigo",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "monsoon"
+      ],
+      "value_class": "luxury",
+      "envelope_source": "ecocrop",
+      "envelope_ref": "Common indigo (Indigofera tinctoria L.)",
+      "temp_c": {
+        "abs_min": 7.0,
+        "opt_min": 22.0,
+        "opt_max": 28.0,
+        "abs_max": 32.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 640,
+        "opt_min": 1300,
+        "opt_max": 1700,
+        "abs_max": 3000
+      },
+      "cycle_days": {
+        "min": 90,
+        "max": 210
+      },
+      "soil_ph": {
+        "min": 4.3,
+        "max": 8.7
+      },
+      "soil": {
+        "fertility_min": 0.22,
+        "fertility_sensitivity": 0.5,
+        "drainage": [
+          "well"
+        ],
+        "texture": [
+          "sand",
+          "sandy_loam",
+          "loam",
+          "silt_loam"
+        ],
+        "depth_tolerance": "shallow"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "spring",
+          "summer"
+        ],
+        "perennial": false,
+        "ratoon_cycles": 0,
+        "frost_kills_at_c": 0.0
+      },
+      "photoperiod": "short_day",
+      "photoperiod_source": "ecocrop",
+      "light_min": 0.5,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.7,
+        "floodplain_affinity": 0.5
+      },
+      "products": [
+        {
+          "part": "leaf",
+          "good": "dye_plants",
+          "yield_t_ha": 6.0,
+          "process": null,
+          "edible": "none"
+        },
+        {
+          "part": "leaf",
+          "good": "dyestuff",
+          "yield_t_ha": 0.12,
+          "process": "ferment",
+          "edible": "none",
+          "value_mult": 30.0
+        }
+      ],
+      "processing_gate": null,
+      "labor_days_ha": 160,
+      "storage": {
+        "shelf_life_days": 1825,
+        "form": "dry_bulk"
+      },
+      "notes": "EcoCrop 'Common indigo' (Indigofera tinctoria). 50:1 mass reduction from leaf to cake is the clearest case in the catalogue of value living in processing, not the plant."
+    },
+    {
+      "id": "tea",
+      "name": "tea",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "monsoon",
+        "highland"
+      ],
+      "value_class": "luxury",
+      "envelope_source": "ecocrop",
+      "envelope_ref": "Tea (Camellia sinensis (L) O.K.)",
+      "temp_c": {
+        "abs_min": 8.0,
+        "opt_min": 20.0,
+        "opt_max": 30.0,
+        "abs_max": 35.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 1000,
+        "opt_min": 1400,
+        "opt_max": 2000,
+        "abs_max": 4500
+      },
+      "cycle_days": {
+        "min": 240,
+        "max": 365
+      },
+      "soil_ph": {
+        "min": 4.0,
+        "max": 6.0
+      },
+      "soil": {
+        "fertility_min": 0.4,
+        "fertility_sensitivity": 0.8,
+        "drainage": [
+          "well",
+          "excessive"
+        ],
+        "texture": [
+          "sand",
+          "sandy_loam",
+          "loam",
+          "silt_loam",
+          "clay_loam",
+          "clay"
+        ],
+        "depth_tolerance": "medium"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "spring"
+        ],
+        "perennial": true,
+        "ratoon_cycles": 40,
+        "frost_kills_at_c": -5.0
+      },
+      "photoperiod": "day_neutral",
+      "photoperiod_source": "ecocrop",
+      "light_min": 0.35,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.3,
+        "floodplain_affinity": 0.05
+      },
+      "products": [
+        {
+          "part": "leaf",
+          "good": "herbs",
+          "yield_t_ha": 1.2,
+          "process": "dry",
+          "edible": "cooked",
+          "value_mult": 4.0
+        }
+      ],
+      "processing_gate": null,
+      "labor_days_ha": 220,
+      "storage": {
+        "shelf_life_days": 730,
+        "form": "dry_bulk"
+      },
+      "notes": "PHMAX 6.0 - the only obligate-acid-soil crop in the catalogue, which is a real and usable placement constraint given we already model soil pH."
+    },
+    {
+      "id": "peppervine",
+      "name": "peppervine",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "monsoon"
+      ],
+      "value_class": "luxury",
+      "envelope_source": "ecocrop",
+      "envelope_ref": "Pepper, black or white (Piper nigrum L.)",
+      "temp_c": {
+        "abs_min": 10.0,
+        "opt_min": 22.0,
+        "opt_max": 35.0,
+        "abs_max": 40.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 2000,
+        "opt_min": 2500,
+        "opt_max": 4000,
+        "abs_max": 5500
+      },
+      "cycle_days": {
+        "min": 180,
+        "max": 270
+      },
+      "soil_ph": {
+        "min": 5.0,
+        "max": 7.5
+      },
+      "soil": {
+        "fertility_min": 0.4,
+        "fertility_sensitivity": 0.8,
+        "drainage": [
+          "well"
+        ],
+        "texture": [
+          "sand",
+          "sandy_loam",
+          "loam",
+          "silt_loam",
+          "clay_loam",
+          "clay"
+        ],
+        "depth_tolerance": "medium"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "spring"
+        ],
+        "perennial": true,
+        "ratoon_cycles": 20,
+        "frost_kills_at_c": 0.0
+      },
+      "photoperiod": "day_neutral",
+      "photoperiod_source": "ecocrop",
+      "light_min": 0.35,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.4,
+        "floodplain_affinity": 0.3
+      },
+      "products": [
+        {
+          "part": "berry",
+          "good": "herbs",
+          "yield_t_ha": 1.5,
+          "process": "dry",
+          "edible": "cooked",
+          "value_mult": 12.0
+        }
+      ],
+      "processing_gate": null,
+      "labor_days_ha": 140,
+      "storage": {
+        "shelf_life_days": 1825,
+        "form": "dry_bulk"
+      },
+      "notes": "EcoCrop 'Pepper, black or white' (Piper nigrum). RMIN 2000 mm/yr is the wettest requirement in the catalogue; LIG '2 4' means it wants shade, so it is an understorey crop and light_min is set from LIGR max=4."
+    },
+    {
+      "id": "orchard_apple",
+      "name": "orchard apple",
+      "origin": "real",
+      "analog": null,
+      "package_tags": [
+        "temperate"
+      ],
+      "value_class": "common",
+      "envelope_source": "ecocrop",
+      "envelope_ref": "Apple (Malus domestica Borkh.)",
+      "temp_c": {
+        "abs_min": 8.0,
+        "opt_min": 14.0,
+        "opt_max": 27.0,
+        "abs_max": 33.0
+      },
+      "precip_mm_yr": {
+        "abs_min": 500,
+        "opt_min": 700,
+        "opt_max": 2500,
+        "abs_max": 3200
+      },
+      "cycle_days": {
+        "min": 180,
+        "max": 320
+      },
+      "soil_ph": {
+        "min": 4.5,
+        "max": 8.0
+      },
+      "soil": {
+        "fertility_min": 0.4,
+        "fertility_sensitivity": 0.8,
+        "drainage": [
+          "well"
+        ],
+        "texture": [
+          "sand",
+          "sandy_loam",
+          "loam",
+          "silt_loam",
+          "clay_loam",
+          "clay"
+        ],
+        "depth_tolerance": "medium"
+      },
+      "seasonality": {
+        "sow_seasons": [
+          "spring"
+        ],
+        "perennial": true,
+        "ratoon_cycles": 40,
+        "frost_kills_at_c": -2.0
+      },
+      "photoperiod": "day_neutral",
+      "photoperiod_source": "ecocrop",
+      "light_min": 0.5,
+      "biome_whitelist": null,
+      "water": {
+        "irrigation_response": 0.3,
+        "floodplain_affinity": 0.15
+      },
+      "products": [
+        {
+          "part": "fruit",
+          "good": "fresh_fruit",
+          "yield_t_ha": 10.0,
+          "process": null,
+          "edible": "raw"
+        },
+        {
+          "part": "fruit",
+          "good": "cider",
+          "yield_t_ha": 6.0,
+          "process": "ferment",
+          "edible": "raw",
+          "value_mult": 2.5
+        },
+        {
+          "part": "fruit",
+          "good": "dried_fruit",
+          "yield_t_ha": 1.5,
+          "process": "dry",
+          "edible": "raw"
+        },
+        {
+          "part": "pomace",
+          "good": "fodder",
+          "yield_t_ha": 1.2,
+          "process": "none",
+          "edible": "none",
+          "byproduct": true
+        }
+      ],
+      "processing_gate": null,
+      "labor_days_ha": 90,
+      "storage": {
+        "shelf_life_days": 150,
+        "form": "cellared"
+      },
+      "notes": "EcoCrop 'Apple' (Malus domestica). EcoCrop LIMITS='I N' flags a chilling requirement it does not quantify; a winter-chill-hours check belongs at the call site."
+    }
+  ]
+}

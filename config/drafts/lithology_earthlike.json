@@ -1,0 +1,271 @@
+{
+  "schemaVersion": "lithology/v1-draft",
+  "_comment": "DRAFT - not wired into any loader. A coarse rock-class catalog for the lithology layer identified as the blocker in docs/FUTURE_WORK_SCOPING.md SS G1d/G1e. 18 classes, chosen as the smallest set that (a) separates the endowment hosts named in climgen/resources.go, (b) separates karst-forming from non-karst rock for subterranean_potential, and (c) separates soil parent materials that actually move fertility/pH. Every class must be ASSIGNABLE from fields the terrain/hydrology/climate pipeline already computes - see config/drafts/LITHOLOGY_NOTES.md for the per-cell derivation. Numbers are ordinal, not measured: 1.0 = neutral, >1 enriched, <1 depleted. Endowment keys match the affinity names in config/resource_abundance_earthlike.json (iron, copper, leadSilver, gold, gem, placer, coal, oilGas, evaporite, clay, stone).",
+  "conventions": {
+    "hardness": "0-1 mechanical resistance to erosion/abrasion. Drives relief retention and quarry difficulty.",
+    "erodibility": "0-1 rate of loss under a WET climate specifically. Carbonates are hard but chemically erodible; shale is soft and erodible; granite is both hard and durable. Kept separate from hardness on purpose.",
+    "excavatability": "0-1 ease of digging a tunnel/chamber BY HAND and having it stand up. High = soft but self-supporting (tuff, loess, chalk). Low = either too hard (granite) or too collapse-prone (loose alluvium). Feeds subterranean_potential alongside karst.",
+    "permeability": "0-1 bulk fluid transmission. Drives aquifers, cave water supply, oil/gas trapping (a seal is LOW permeability).",
+    "karst_propensity": "0-1 intrinsic dissolution-cave potential, BEFORE climate gating. Must be multiplied by water availability and vadose thickness at use time.",
+    "soil_parent": "fertility_delta is an additive nudge in [-0.4,+0.4] applied to climgen soil fertility; ph_tendency is a new diagnostic climgen does not currently have at all.",
+    "endowment_affinity": "Multiplier applied to the corresponding affinity in climgen/resources.go before the argmax. Omitted key = 1.0."
+  },
+  "classes": [
+    {
+      "id": "basalt_province",
+      "name": "Basalt province (flood basalt, hotspot shield, ocean floor)",
+      "family": "igneous_volcanic",
+      "formation": ["hotspot_oceanic", "hotspot_continental", "rift_flank", "mid_ocean_ridge"],
+      "formation_note": "Hotspot chains and rift-margin large igneous provinces. Also the default class for oceanic crust.",
+      "hardness": 0.75, "erodibility": 0.35, "excavatability": 0.25, "permeability": 0.55,
+      "karst_propensity": 0.05,
+      "pseudokarst_propensity": 0.45,
+      "pseudokarst_note": "Lava tubes and fissure caves - real, extensive, and not dissolution. The second-best cave source after limestone.",
+      "soil_parent": { "fertility_delta": 0.30, "ph_tendency": "neutral_alkaline", "clay_yield": 0.5, "note": "Basalt weathers to the most fertile common soil on Earth; the Deccan/Columbia analogue." },
+      "endowment_affinity": { "copper": 1.4, "iron": 1.1, "gem": 1.2, "stone": 1.5, "clay": 0.9, "coal": 0.2, "oilGas": 0.2, "evaporite": 0.3 },
+      "affinity_note": "Native/basaltic copper (Keweenaw analogue); agate and zeolite as the gem mode; excellent durable building stone."
+    },
+    {
+      "id": "arc_andesite",
+      "name": "Volcanic arc andesite and ash",
+      "family": "igneous_volcanic",
+      "formation": ["subduction_arc"],
+      "formation_note": "The inland volcanic line above a trench - terrain already places these as Arc seeds.",
+      "hardness": 0.65, "erodibility": 0.45, "excavatability": 0.35, "permeability": 0.45,
+      "karst_propensity": 0.03,
+      "pseudokarst_propensity": 0.25,
+      "soil_parent": { "fertility_delta": 0.25, "ph_tendency": "neutral", "clay_yield": 0.6, "note": "Andosols on fresh ash - highly fertile, which is why people farm active volcanoes." },
+      "endowment_affinity": { "copper": 1.4, "gold": 1.6, "leadSilver": 1.7, "iron": 0.9, "gem": 0.9, "stone": 1.1, "coal": 0.2, "oilGas": 0.3 },
+      "affinity_note": "Epithermal gold-silver and polymetallic vein systems - the classic arc signature."
+    },
+    {
+      "id": "silicic_tuff",
+      "name": "Silicic tuff and ignimbrite (caldera fill)",
+      "family": "igneous_volcanic",
+      "formation": ["continental_hotspot", "mature_arc_caldera", "rift_silicic"],
+      "formation_note": "Continental hotspot calderas and evolved arc centres; welded ash-flow sheets covering wide low-relief aprons.",
+      "hardness": 0.35, "erodibility": 0.55, "excavatability": 0.95, "permeability": 0.50,
+      "karst_propensity": 0.05,
+      "pseudokarst_propensity": 0.15,
+      "excavatability_note": "The Cappadocia case: soft enough to carve with hand tools, cohesive enough that the chamber stands unsupported. The single best rock for a DUG (rather than found) underground settlement.",
+      "soil_parent": { "fertility_delta": 0.15, "ph_tendency": "neutral", "clay_yield": 0.8 },
+      "endowment_affinity": { "gem": 1.1, "leadSilver": 1.3, "gold": 1.2, "stone": 1.4, "clay": 1.2, "iron": 0.6, "copper": 0.8, "coal": 0.2 },
+      "affinity_note": "Obsidian and opal as the gem mode; bentonite clay; soft dimension stone.",
+      "radiance_host": { "hosts_radiant_veins": true, "grade": "disseminated_low", "rarity": 0.35, "decay_band": "millennia" }
+    },
+    {
+      "id": "granite_batholith",
+      "name": "Granite batholith",
+      "family": "igneous_plutonic",
+      "formation": ["orogen_core", "eroded_arc_root", "craton_intrusion"],
+      "formation_note": "Exposed where an orogen or old arc has been deeply eroded - requires high relief history, not current volcanism.",
+      "hardness": 0.95, "erodibility": 0.10, "excavatability": 0.10, "permeability": 0.10,
+      "karst_propensity": 0.00,
+      "soil_parent": { "fertility_delta": -0.25, "ph_tendency": "acidic", "clay_yield": 0.7, "note": "Coarse sandy acidic soils; kaolin where deeply weathered." },
+      "endowment_affinity": { "gem": 1.8, "stone": 1.8, "gold": 1.1, "leadSilver": 1.1, "clay": 1.2, "iron": 0.7, "copper": 0.8, "coal": 0.1, "oilGas": 0.1, "evaporite": 0.2 },
+      "affinity_note": "Pegmatite gems (beryl, tourmaline, topaz), tin-tungsten greisen, and the premier durable building/monument stone.",
+      "radiance_host": { "hosts_radiant_veins": true, "grade": "disseminated_low", "rarity": 0.45, "decay_band": "millennia", "note": "Granite is the most radioelement-rich common rock (accessory U/Th). The stable, boring, long-lived host - underpins 'elder hold' polities." }
+    },
+    {
+      "id": "porphyry_intrusive",
+      "name": "Porphyry stock (subvolcanic arc intrusion)",
+      "family": "igneous_plutonic",
+      "formation": ["subduction_arc_deep_eroded"],
+      "formation_note": "The shallow pluton beneath a former arc volcano, exposed only where the arc has been unroofed. Requires arc proximity AND high relief/erosion - a strict two-condition class, which is why porphyry deposits are rare and clustered in belts.",
+      "hardness": 0.85, "erodibility": 0.20, "excavatability": 0.12, "permeability": 0.25,
+      "karst_propensity": 0.00,
+      "soil_parent": { "fertility_delta": -0.15, "ph_tendency": "acidic", "clay_yield": 0.9, "note": "Sulfide oxidation gives acid, metal-loaded ground - locally hostile to crops. A nice negative-space effect: the richest copper country farms badly." },
+      "endowment_affinity": { "copper": 2.5, "gold": 1.6, "leadSilver": 1.3, "iron": 0.8, "gem": 0.7, "stone": 1.0, "coal": 0.1, "oilGas": 0.1 },
+      "affinity_note": "THE copper host. Currently climgen infers copper from generic volcanism, which spreads it far too evenly."
+    },
+    {
+      "id": "ophiolite_ultramafic",
+      "name": "Ophiolite / serpentinite (obducted ocean crust)",
+      "family": "igneous_plutonic",
+      "formation": ["collision_suture"],
+      "formation_note": "A narrow ribbon along continental collision sutures - slivers of ocean floor caught in the closing. Naturally a thin belt, not a blob.",
+      "hardness": 0.70, "erodibility": 0.30, "excavatability": 0.20, "permeability": 0.30,
+      "karst_propensity": 0.02,
+      "soil_parent": { "fertility_delta": -0.35, "ph_tendency": "alkaline", "clay_yield": 0.5, "note": "Serpentine barrens: high Mg/Ni, low Ca - genuinely toxic to most crops. The most distinctive soil effect in the catalog and worth having for its own sake." },
+      "endowment_affinity": { "copper": 1.7, "iron": 1.3, "gem": 1.2, "gold": 0.9, "stone": 1.1, "coal": 0.1, "oilGas": 0.1, "clay": 0.6 },
+      "affinity_note": "Cyprus-type massive sulfide copper, chromite, and jade/nephrite as the gem mode."
+    },
+    {
+      "id": "kimberlite_field",
+      "name": "Kimberlite pipe field",
+      "family": "igneous_plutonic",
+      "formation": ["craton_interior"],
+      "formation_note": "Only stable ancient cratonic interiors - diamonds need a thick cold keel. Must be assigned as a sparse POINT PROCESS (a handful of small clusters per world), never as a smooth field, or the world drowns in diamonds.",
+      "hardness": 0.40, "erodibility": 0.50, "excavatability": 0.45, "permeability": 0.35,
+      "karst_propensity": 0.00,
+      "soil_parent": { "fertility_delta": 0.15, "ph_tendency": "alkaline", "clay_yield": 0.8 },
+      "endowment_affinity": { "gem": 2.5, "placer": 1.4, "iron": 0.6, "copper": 0.5, "gold": 0.6, "stone": 0.4, "coal": 0.1 },
+      "affinity_note": "Diamond. Downstream alluvium inherits it as gem-placer - the reason placer should sample upstream lithology."
+    },
+    {
+      "id": "craton_basement",
+      "name": "Cratonic basement (gneiss and greenstone belts)",
+      "family": "metamorphic",
+      "formation": ["craton_interior", "shield"],
+      "formation_note": "Ancient continental interior far from every active boundary, planed to low relief. The default land class for old continental cores.",
+      "hardness": 0.90, "erodibility": 0.12, "excavatability": 0.12, "permeability": 0.08,
+      "karst_propensity": 0.00,
+      "soil_parent": { "fertility_delta": -0.20, "ph_tendency": "acidic", "clay_yield": 0.6, "note": "Thin, leached, ancient. Shield country farms poorly and always has." },
+      "endowment_affinity": { "gold": 2.0, "copper": 1.3, "iron": 1.2, "gem": 1.1, "stone": 1.3, "leadSilver": 1.0, "coal": 0.1, "oilGas": 0.1, "clay": 0.5, "evaporite": 0.2 },
+      "affinity_note": "Orogenic (greenstone-belt) gold - a LOWLAND gold province, which the current mountain-biased gold rule cannot produce at all."
+    },
+    {
+      "id": "banded_iron_formation",
+      "name": "Banded iron formation",
+      "family": "metamorphic",
+      "formation": ["craton_interior"],
+      "formation_note": "Ancient chemical sediment now within cratonic basement. Like kimberlite, a sparse patch process seeded on craton cells - but larger patches (a whole iron range, not a pipe).",
+      "hardness": 0.88, "erodibility": 0.15, "excavatability": 0.15, "permeability": 0.10,
+      "karst_propensity": 0.00,
+      "soil_parent": { "fertility_delta": -0.25, "ph_tendency": "acidic", "clay_yield": 0.5 },
+      "endowment_affinity": { "iron": 2.5, "stone": 1.2, "gem": 0.6, "gold": 0.8, "copper": 0.5, "coal": 0.1, "clay": 0.4 },
+      "affinity_note": "The single largest correction available. Real bulk iron is BIF on old shields, not alpine peaks."
+    },
+    {
+      "id": "orogenic_schist",
+      "name": "Orogenic schist and slate belt",
+      "family": "metamorphic",
+      "formation": ["collision_belt", "arc_backstop"],
+      "formation_note": "Regionally metamorphosed sediment in a mountain belt - the bulk fill of a young orogen.",
+      "hardness": 0.72, "erodibility": 0.28, "excavatability": 0.30, "permeability": 0.15,
+      "karst_propensity": 0.03,
+      "soil_parent": { "fertility_delta": -0.05, "ph_tendency": "neutral_acidic", "clay_yield": 0.9 },
+      "endowment_affinity": { "gold": 1.8, "gem": 1.4, "leadSilver": 1.3, "stone": 1.6, "iron": 0.9, "copper": 1.0, "coal": 0.2, "oilGas": 0.2 },
+      "affinity_note": "Orogenic quartz-vein gold; garnet/corundum; roofing slate, which is a distinct and valuable stone good."
+    },
+    {
+      "id": "marble_belt",
+      "name": "Marble and metacarbonate belt",
+      "family": "metamorphic",
+      "formation": ["collision_belt"],
+      "formation_note": "A carbonate platform caught in a later collision - assign where a mountain belt overprints cells that would otherwise score as limestone_platform. Derivable from ordering: platform first, orogeny second.",
+      "hardness": 0.68, "erodibility": 0.40, "excavatability": 0.35, "permeability": 0.35,
+      "karst_propensity": 0.55,
+      "karst_note": "Marble karsts readily and does it in HIGH RELIEF, which produces deep vertical cave systems rather than shallow flat ones - the strongest subterranean sites in the catalog when combined with orogenic elevation.",
+      "soil_parent": { "fertility_delta": 0.00, "ph_tendency": "alkaline", "clay_yield": 0.5 },
+      "endowment_affinity": { "stone": 2.2, "iron": 1.4, "copper": 1.3, "gem": 1.3, "leadSilver": 1.2, "gold": 0.9, "coal": 0.1, "oilGas": 0.3 },
+      "affinity_note": "Skarn iron/copper at intrusive contacts; ruby/spinel in marble (Mogok analogue); premier sculptural stone."
+    },
+    {
+      "id": "limestone_platform",
+      "name": "Limestone / dolomite platform",
+      "family": "sedimentary_carbonate",
+      "formation": ["passive_margin", "epicontinental_shelf"],
+      "formation_note": "Warm shallow shelf on a tectonically quiet continental margin - far from any active boundary, near the coast, low relief, low latitude. This is a clean derivation and it produces belts in the right places.",
+      "hardness": 0.60, "erodibility": 0.65, "excavatability": 0.50, "permeability": 0.75,
+      "karst_propensity": 0.95,
+      "karst_note": "The canonical cave rock. Note permeability is secondary (conduit, not matrix) - surface streams vanish, which is itself a settlement-relevant fact: karst plateaus are water-poor on top and water-rich below.",
+      "soil_parent": { "fertility_delta": 0.05, "ph_tendency": "alkaline", "clay_yield": 0.3, "note": "Thin, droughty, alkaline rendzina - modest fertility but distinctive pH, which gates crops that climgen currently cannot express." },
+      "endowment_affinity": { "stone": 2.0, "leadSilver": 1.8, "oilGas": 1.5, "evaporite": 1.2, "iron": 0.6, "clay": 0.7, "coal": 0.3, "gold": 0.5, "gem": 0.6 },
+      "affinity_note": "Mississippi-Valley-type lead-zinc: a LOWLAND silver province on flat carbonate country. Plus building limestone and lime for mortar - a structural input the trade layer wants."
+    },
+    {
+      "id": "sandstone_redbed",
+      "name": "Continental sandstone and redbeds",
+      "family": "sedimentary_clastic",
+      "formation": ["rift_basin", "foreland_basin", "interior_basin_arid"],
+      "formation_note": "Coarse clastic fill shed off uplifts into an adjacent basin, under an arid to seasonal climate.",
+      "hardness": 0.50, "erodibility": 0.45, "excavatability": 0.70, "permeability": 0.85,
+      "karst_propensity": 0.08,
+      "pseudokarst_propensity": 0.30,
+      "pseudokarst_note": "Sandstone alcoves and slot systems - shallow shelters, not deep systems. The cliff-dwelling case.",
+      "soil_parent": { "fertility_delta": -0.20, "ph_tendency": "acidic", "clay_yield": 0.3, "note": "Sandy, droughty, nutrient-poor." },
+      "endowment_affinity": { "oilGas": 1.8, "copper": 1.3, "stone": 1.5, "placer": 1.2, "evaporite": 1.1, "clay": 0.8, "iron": 0.9, "coal": 0.6, "gem": 0.6 },
+      "affinity_note": "Redbed (stratabound) copper - a sedimentary copper province with no volcanism anywhere near it, which the current volcanism-keyed copper rule cannot produce. Aquifer sandstone is also the desert-oasis mechanism.",
+      "radiance_host": { "hosts_radiant_veins": true, "grade": "roll_front_or_unconformity", "rarity": 0.12, "decay_band": "centuries", "note": "Richest where sandstone rests directly on craton_basement (unconformity type) - a two-class adjacency rule, so these sites are rare, findable, and worth fighting over." }
+    },
+    {
+      "id": "shale_basin",
+      "name": "Marine shale and mudstone basin",
+      "family": "sedimentary_clastic",
+      "formation": ["passive_margin_deep", "foreland_basin", "rift_sag"],
+      "formation_note": "Fine clastic fill in a subsiding, water-covered or recently water-covered basin.",
+      "hardness": 0.25, "erodibility": 0.80, "excavatability": 0.40, "permeability": 0.05,
+      "karst_propensity": 0.00,
+      "excavatability_note": "Soft to dig but squeezes and slumps - low, not high, subterranean value. Seals aquifers and hydrocarbons.",
+      "soil_parent": { "fertility_delta": 0.10, "ph_tendency": "neutral", "clay_yield": 1.0, "note": "Heavy clay soils: fertile but hard to work with a light plough - a good hook for the agriculture/labour layer." },
+      "endowment_affinity": { "oilGas": 2.0, "clay": 2.0, "coal": 1.2, "iron": 0.9, "stone": 0.5, "gem": 0.4, "gold": 0.4, "copper": 0.6 },
+      "affinity_note": "The hydrocarbon source rock and the pottery clay supply in one class."
+    },
+    {
+      "id": "coal_measures",
+      "name": "Coal measures (cyclothem swamp sequence)",
+      "family": "sedimentary_clastic",
+      "formation": ["foreland_basin_humid", "interior_basin_humid", "deltaic_margin"],
+      "formation_note": "Subsiding basin under a warm, wet, forested regime. climgen already computes precisely this climate gate for coal - lithology adds the missing requirement that a sedimentary basin be there at all.",
+      "hardness": 0.30, "erodibility": 0.70, "excavatability": 0.55, "permeability": 0.30,
+      "karst_propensity": 0.02,
+      "soil_parent": { "fertility_delta": -0.05, "ph_tendency": "acidic", "clay_yield": 0.9, "note": "Acid, sometimes sulfurous ground." },
+      "endowment_affinity": { "coal": 2.5, "clay": 1.6, "iron": 1.3, "oilGas": 1.3, "stone": 1.1, "gem": 0.3, "gold": 0.3, "copper": 0.4 },
+      "affinity_note": "Blackband/bog ironstone sits inside coal measures - coal and iron co-locate, which is exactly why the two industries did. This co-location is a strong emergent geography and is impossible today."
+    },
+    {
+      "id": "evaporite_basin",
+      "name": "Evaporite basin (halite and gypsum)",
+      "family": "sedimentary_evaporite",
+      "formation": ["rift_restricted", "endorheic_basin_arid", "sabkha_margin"],
+      "formation_note": "Restricted or closed basin under aridity - a young rift arm or an endorheic interior. Hydrology already labels terminal sinks and lakes, and climate already gives aridity, so this class is nearly free to assign.",
+      "hardness": 0.20, "erodibility": 0.90, "excavatability": 0.60, "permeability": 0.15,
+      "karst_propensity": 0.75,
+      "karst_note": "Gypsum and salt karst is fast, extensive, and COLLAPSE-PRONE. Good caves, dangerous ground - a natural hazard/instability tag if the settlement layer ever wants one.",
+      "soil_parent": { "fertility_delta": -0.30, "ph_tendency": "alkaline", "clay_yield": 0.6, "note": "Saline; compounds the salinity term climgen soil already computes." },
+      "endowment_affinity": { "evaporite": 2.5, "oilGas": 1.4, "clay": 1.1, "stone": 0.6, "gem": 0.5, "iron": 0.4, "coal": 0.2 },
+      "affinity_note": "Salt is a strategic trade good and a preservation input; salt domes also trap hydrocarbons."
+    },
+    {
+      "id": "alluvium",
+      "name": "Alluvium and basin fill",
+      "family": "sedimentary_clastic",
+      "formation": ["floodplain", "delta", "endorheic_fill", "piedmont_fan"],
+      "formation_note": "Unconsolidated cover over whatever lies beneath. Should be treated as an OVERLAY: keep the underlying class for the deep/cave and radiance questions, use alluvium for soil and placer.",
+      "hardness": 0.05, "erodibility": 0.95, "excavatability": 0.30, "permeability": 0.80,
+      "karst_propensity": 0.00,
+      "excavatability_note": "Digs easily and collapses immediately below the water table - the worst underground ground in the catalog.",
+      "soil_parent": { "fertility_delta": 0.30, "ph_tendency": "neutral", "clay_yield": 0.9 },
+      "endowment_affinity": { "placer": 2.5, "clay": 1.8, "stone": 0.4, "oilGas": 0.8, "gold": 0.5, "iron": 0.6, "gem": 0.5, "coal": 0.3 },
+      "affinity_note": "Placer must inherit from the UPSTREAM source class via the hydrology receiver graph, not from the alluvium itself."
+    },
+    {
+      "id": "loess_regolith",
+      "name": "Loess and windblown regolith",
+      "family": "sedimentary_clastic",
+      "formation": ["periglacial_downwind", "desert_margin_downwind"],
+      "formation_note": "Dust blanket downwind of a large arid or glacial source. climgen already has prevailing winds and aridity, so the downwind trace is computable - it just has never been used for this.",
+      "hardness": 0.08, "erodibility": 0.85, "excavatability": 0.90, "permeability": 0.60,
+      "karst_propensity": 0.05,
+      "excavatability_note": "Loess holds a vertical face - the yaodong cave-house case. Cheap shelter, shallow only.",
+      "soil_parent": { "fertility_delta": 0.35, "ph_tendency": "alkaline", "clay_yield": 0.6, "note": "The most fertile parent material there is; deep, calcareous, easily tilled." },
+      "endowment_affinity": { "clay": 1.4, "stone": 0.2, "placer": 0.6, "iron": 0.3, "copper": 0.3, "gold": 0.3, "gem": 0.3, "coal": 0.2, "oilGas": 0.4 },
+      "affinity_note": "Contributes almost nothing mineral and a great deal agricultural - a deliberate inverse of the shield classes."
+    }
+  ],
+  "overprints": {
+    "_comment": "Not classes. Modifiers applied on top of an assigned class, because they are weathering/cover states rather than rock types, and climgen already computes their drivers.",
+    "laterite_duricrust": {
+      "trigger": "soil.Weathering high AND low relief AND wet-tropical",
+      "effects": { "fertility_delta": -0.25, "ph_tendency": "acidic", "iron": 1.4, "clay": 1.3, "stone": 1.2, "gem": 0.6 },
+      "note": "Deep tropical weathering profile - laterite/bauxite. Also caps relief and makes hard iron-crust building stone."
+    },
+    "glacial_scour": {
+      "trigger": "IceAffinity high or recently high, high latitude/altitude",
+      "effects": { "fertility_delta": -0.15, "clay": 1.2, "placer": 1.3, "stone": 1.2, "karst_propensity_multiplier": 1.2 },
+      "note": "Strips regolith to bare rock and dumps till elsewhere; also excavates and opens existing karst."
+    }
+  },
+  "radiance_hook": {
+    "_comment": "SS G1e wants radiant minerals as the subterranean primary-energy premise. Hosts are the three classes flagged radiance_host above.",
+    "rule": "richness x decay_rate is roughly CONSTANT. A vein is either rich and short-lived or weak and long-lived; nothing is both.",
+    "bands": {
+      "decades": { "grade": "bonanza", "world": "prospecting rushes, ghost towns within a lifetime", "share_of_veins": 0.05 },
+      "centuries": { "grade": "rich", "world": "a full rise-peak-decline arc in recorded history", "share_of_veins": 0.20 },
+      "millennia": { "grade": "disseminated_low", "world": "ancient stable holds - the elder powers", "share_of_veins": 0.70 },
+      "renewing": { "grade": "vent_fed", "world": "the contested prize; worth wars", "share_of_veins": 0.05, "note": "Only at active volcanism - reuses the existing hotspot field, and is the autarkic-vent exception SS G1d already reserves." }
+    },
+    "assignment": "Sample vein sites as a point process on cells whose class is radiance_host, weighted by rarity; draw the decay band from share_of_veins; set grade from the band. Bonanza sites prefer sandstone_redbed-on-craton_basement unconformities (rare, sharp, findable); millennia sites prefer granite_batholith and silicic_tuff (common, diffuse)."
+  }
+}

@@ -1,0 +1,223 @@
+{
+  "schemaVersion": "domesticates/v0-draft",
+  "_comment": "DRAFT PROPOSAL — not wired into any loader. Domesticate catalog per docs/FUTURE_WORK_SCOPING.md Theme G2: biome envelope + yield profile per animal, all normalized 0-1. Envelope: aridTolerance/coldTolerance/heatTolerance (survivability at climate extremes), terrainTolerance (rough/steep ground). heatTolerance is an addition beyond the scoped triple — needed to separate camel/water-buffalo from yak-analog. yields are relative output quality if the animal is kept for that purpose (meat covers eggs for poultry). caravanCapability feeds land_transport animalRequirement entries and desert/steppe route costs; warMountCapability is a hook for later military/polity flavor. bees carry a specialtyYield (honey/wax) since none of the standard yields apply. packageTags reuse the crop package vocabulary: mediterranean | monsoon | steppe | highland | temperate | arid. yak-analog and llama-analog use the names mountain-yak and highland-llama.",
+  "domesticates": [
+    {
+      "name": "cattle",
+      "packageTags": ["temperate", "mediterranean", "steppe"],
+      "aridTolerance": 0.25,
+      "coldTolerance": 0.45,
+      "heatTolerance": 0.45,
+      "terrainTolerance": 0.30,
+      "yields": {
+        "meat": 0.80,
+        "milk": 0.75,
+        "wool": 0.05,
+        "hide": 0.80,
+        "draft": 0.85,
+        "mount": 0.10
+      },
+      "caravanCapability": 0.30,
+      "warMountCapability": 0.05
+    },
+    {
+      "name": "sheep",
+      "packageTags": ["mediterranean", "steppe", "highland", "temperate"],
+      "aridTolerance": 0.55,
+      "coldTolerance": 0.65,
+      "heatTolerance": 0.50,
+      "terrainTolerance": 0.70,
+      "yields": {
+        "meat": 0.55,
+        "milk": 0.45,
+        "wool": 0.95,
+        "hide": 0.50,
+        "draft": 0.00,
+        "mount": 0.00
+      },
+      "caravanCapability": 0.05,
+      "warMountCapability": 0.00
+    },
+    {
+      "name": "goat",
+      "packageTags": ["arid", "mediterranean", "highland", "steppe"],
+      "aridTolerance": 0.75,
+      "coldTolerance": 0.55,
+      "heatTolerance": 0.70,
+      "terrainTolerance": 0.85,
+      "yields": {
+        "meat": 0.50,
+        "milk": 0.55,
+        "wool": 0.35,
+        "hide": 0.50,
+        "draft": 0.05,
+        "mount": 0.00
+      },
+      "caravanCapability": 0.10,
+      "warMountCapability": 0.00
+    },
+    {
+      "name": "pig",
+      "packageTags": ["temperate", "monsoon"],
+      "aridTolerance": 0.10,
+      "coldTolerance": 0.40,
+      "heatTolerance": 0.55,
+      "terrainTolerance": 0.40,
+      "yields": {
+        "meat": 0.90,
+        "milk": 0.00,
+        "wool": 0.00,
+        "hide": 0.40,
+        "draft": 0.00,
+        "mount": 0.00
+      },
+      "caravanCapability": 0.00,
+      "warMountCapability": 0.00
+    },
+    {
+      "name": "horse",
+      "packageTags": ["steppe", "temperate"],
+      "aridTolerance": 0.35,
+      "coldTolerance": 0.50,
+      "heatTolerance": 0.40,
+      "terrainTolerance": 0.45,
+      "yields": {
+        "meat": 0.30,
+        "milk": 0.25,
+        "wool": 0.00,
+        "hide": 0.40,
+        "draft": 0.70,
+        "mount": 0.95
+      },
+      "caravanCapability": 0.50,
+      "warMountCapability": 0.95
+    },
+    {
+      "name": "donkey",
+      "packageTags": ["mediterranean", "arid", "temperate"],
+      "aridTolerance": 0.70,
+      "coldTolerance": 0.30,
+      "heatTolerance": 0.70,
+      "terrainTolerance": 0.70,
+      "yields": {
+        "meat": 0.15,
+        "milk": 0.15,
+        "wool": 0.00,
+        "hide": 0.30,
+        "draft": 0.55,
+        "mount": 0.45
+      },
+      "caravanCapability": 0.80,
+      "warMountCapability": 0.05
+    },
+    {
+      "name": "camel",
+      "packageTags": ["arid", "steppe"],
+      "aridTolerance": 0.98,
+      "coldTolerance": 0.45,
+      "heatTolerance": 0.95,
+      "terrainTolerance": 0.35,
+      "yields": {
+        "meat": 0.40,
+        "milk": 0.50,
+        "wool": 0.25,
+        "hide": 0.45,
+        "draft": 0.35,
+        "mount": 0.60
+      },
+      "caravanCapability": 0.98,
+      "warMountCapability": 0.55
+    },
+    {
+      "name": "water-buffalo",
+      "packageTags": ["monsoon"],
+      "aridTolerance": 0.05,
+      "coldTolerance": 0.20,
+      "heatTolerance": 0.85,
+      "terrainTolerance": 0.30,
+      "yields": {
+        "meat": 0.60,
+        "milk": 0.70,
+        "wool": 0.00,
+        "hide": 0.75,
+        "draft": 0.90,
+        "mount": 0.05
+      },
+      "caravanCapability": 0.10,
+      "warMountCapability": 0.05
+    },
+    {
+      "name": "mountain-yak",
+      "packageTags": ["highland"],
+      "aridTolerance": 0.30,
+      "coldTolerance": 0.98,
+      "heatTolerance": 0.10,
+      "terrainTolerance": 0.90,
+      "yields": {
+        "meat": 0.55,
+        "milk": 0.60,
+        "wool": 0.70,
+        "hide": 0.60,
+        "draft": 0.60,
+        "mount": 0.35
+      },
+      "caravanCapability": 0.75,
+      "warMountCapability": 0.10
+    },
+    {
+      "name": "highland-llama",
+      "packageTags": ["highland"],
+      "aridTolerance": 0.50,
+      "coldTolerance": 0.80,
+      "heatTolerance": 0.25,
+      "terrainTolerance": 0.95,
+      "yields": {
+        "meat": 0.40,
+        "milk": 0.10,
+        "wool": 0.75,
+        "hide": 0.40,
+        "draft": 0.10,
+        "mount": 0.05
+      },
+      "caravanCapability": 0.65,
+      "warMountCapability": 0.00
+    },
+    {
+      "name": "poultry",
+      "packageTags": ["temperate", "mediterranean", "monsoon", "arid"],
+      "aridTolerance": 0.50,
+      "coldTolerance": 0.40,
+      "heatTolerance": 0.65,
+      "terrainTolerance": 0.60,
+      "yields": {
+        "meat": 0.45,
+        "milk": 0.00,
+        "wool": 0.00,
+        "hide": 0.00,
+        "draft": 0.00,
+        "mount": 0.00
+      },
+      "caravanCapability": 0.00,
+      "warMountCapability": 0.00
+    },
+    {
+      "name": "bees",
+      "packageTags": ["temperate", "mediterranean", "monsoon"],
+      "aridTolerance": 0.30,
+      "coldTolerance": 0.35,
+      "heatTolerance": 0.60,
+      "terrainTolerance": 0.80,
+      "yields": {
+        "meat": 0.00,
+        "milk": 0.00,
+        "wool": 0.00,
+        "hide": 0.00,
+        "draft": 0.00,
+        "mount": 0.00
+      },
+      "specialtyYield": 0.85,
+      "caravanCapability": 0.00,
+      "warMountCapability": 0.00
+    }
+  ]
+}

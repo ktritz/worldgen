@@ -1,0 +1,937 @@
+{
+  "schemaVersion": "trade-goods/v1",
+  "_comment": "DRAFT PROPOSAL - not wired into any loader. Expansion fragment for config/trade_goods_earthlike.json, covering the goods that config/drafts/crops_earthlike_v2.json + crops_fantasy_v2.json emit but the economy does not have. Entry shape is exactly climgen.TradeGoodSpec (no invented fields). MERGE RULE: append this 'goods' array to the end of the earthlike catalog's 'goods' array IN THIS ORDER - climgen/trade_goods_polity.go iterates settings.Goods in array order and reads balance.Supply accumulated so far, so an input must appear BEFORE its consumer. All 25 entries here are ordered topologically against the existing catalog (grain/fiber/dye_plants/livestock/timber/salt/herbs/resin all precede this block). 'existingGoodPatches' and 'tuningPatches' are advisory blocks ignored by the Go decoder; they describe edits to entries that already exist in trade_goods_earthlike.json, which this draft does not modify. See TRADE_GOODS_EXPANSION_NOTES.md.",
+
+  "goods": [
+    {
+      "name": "fodder",
+      "category": "raw",
+      "baseValue": 0.14,
+      "bulkiness": 0.98,
+      "perishability": 0.34,
+      "rawCatchmentSensitivity": 0.52,
+      "sourceWeights": {
+        "pasture": 0.55,
+        "crop": 0.45
+      },
+      "productionDrivers": {
+        "settled-core": 0.45,
+        "river": 0.30,
+        "cold": 0.20
+      },
+      "demandDrivers": {
+        "arid": 0.55,
+        "highland": 0.40,
+        "urban": 0.35,
+        "cold": 0.30
+      },
+      "profileProductionAffinity": {
+        "River Confederacy": 1.14,
+        "Halfling": 1.10
+      },
+      "profileDemandAffinity": {
+        "Desert Caravan": 1.22,
+        "Gnoll": 1.12,
+        "Hobgoblin": 1.08
+      }
+    },
+    {
+      "name": "fuel_fiber",
+      "category": "raw",
+      "baseValue": 0.12,
+      "bulkiness": 0.94,
+      "perishability": 0.10,
+      "rawCatchmentSensitivity": 0.48,
+      "sourceWeights": {
+        "crop": 0.58,
+        "fiber": 0.26,
+        "timber": 0.16
+      },
+      "productionDrivers": {
+        "settled-core": 0.40,
+        "hot": 0.35,
+        "river": 0.25
+      },
+      "demandDrivers": {
+        "arid": 0.50,
+        "urban": 0.45,
+        "hot": 0.30
+      },
+      "profileProductionAffinity": {
+        "Halfling": 1.10,
+        "Lizardfolk": 1.08
+      },
+      "profileDemandAffinity": {
+        "Desert Caravan": 1.16
+      }
+    },
+    {
+      "name": "root_crop",
+      "category": "raw",
+      "baseValue": 0.30,
+      "bulkiness": 0.90,
+      "perishability": 0.66,
+      "rawCatchmentSensitivity": 0.64,
+      "sourceWeights": {
+        "crop": 1.0
+      },
+      "productionDrivers": {
+        "wetland": 0.40,
+        "highland": 0.35,
+        "river": 0.30,
+        "cold": 0.20
+      },
+      "demandDrivers": {
+        "highland": 0.50,
+        "urban": 0.35,
+        "cold": 0.30
+      },
+      "profileProductionAffinity": {
+        "Lizardfolk": 1.14,
+        "Halfling": 1.10,
+        "Dwarf": 1.08
+      },
+      "profileDemandAffinity": {
+        "Dwarf": 1.12,
+        "Orc": 1.08
+      }
+    },
+    {
+      "name": "pulses",
+      "category": "raw",
+      "baseValue": 0.46,
+      "bulkiness": 0.60,
+      "perishability": 0.10,
+      "rawCatchmentSensitivity": 0.74,
+      "sourceWeights": {
+        "crop": 1.0
+      },
+      "productionDrivers": {
+        "settled-core": 0.45,
+        "river": 0.30,
+        "arid": 0.25
+      },
+      "demandDrivers": {
+        "urban": 0.50,
+        "warlike": 0.45,
+        "highland": 0.25,
+        "cold": 0.15
+      },
+      "profileProductionAffinity": {
+        "Halfling": 1.14,
+        "River Confederacy": 1.12
+      },
+      "profileDemandAffinity": {
+        "Hobgoblin": 1.16,
+        "Dwarf": 1.10,
+        "Orc": 1.08
+      }
+    },
+    {
+      "name": "nuts",
+      "category": "raw",
+      "baseValue": 0.58,
+      "bulkiness": 0.32,
+      "perishability": 0.08,
+      "rawCatchmentSensitivity": 1.12,
+      "sourceWeights": {
+        "timber": 0.56,
+        "crop": 0.44
+      },
+      "productionDrivers": {
+        "wooded": 0.50,
+        "forest": 0.45,
+        "highland": 0.30
+      },
+      "demandDrivers": {
+        "urban": 0.40,
+        "cold": 0.30,
+        "warlike": 0.30,
+        "luxury": 0.20
+      },
+      "profileProductionAffinity": {
+        "Elf": 1.18,
+        "Halfling": 1.10
+      },
+      "profileDemandAffinity": {
+        "Desert Caravan": 1.14,
+        "Elf": 1.08
+      }
+    },
+    {
+      "name": "fresh_fruit",
+      "category": "raw",
+      "baseValue": 0.36,
+      "bulkiness": 0.62,
+      "perishability": 0.94,
+      "rawCatchmentSensitivity": 0.98,
+      "sourceWeights": {
+        "crop": 0.74,
+        "timber": 0.26
+      },
+      "productionDrivers": {
+        "river": 0.40,
+        "hot": 0.35,
+        "coastal": 0.20,
+        "settled-core": 0.20
+      },
+      "demandDrivers": {
+        "urban": 0.60,
+        "luxury": 0.25,
+        "hot": 0.20
+      },
+      "profileProductionAffinity": {
+        "Elf": 1.16,
+        "Halfling": 1.12,
+        "River Confederacy": 1.10
+      },
+      "profileDemandAffinity": {
+        "Human": 1.06,
+        "Elf": 1.06
+      }
+    },
+    {
+      "name": "silk_cocoon",
+      "category": "raw",
+      "baseValue": 0.64,
+      "bulkiness": 0.26,
+      "perishability": 0.30,
+      "rawCatchmentSensitivity": 1.35,
+      "sourceWeights": {
+        "crop": 0.66,
+        "timber": 0.34
+      },
+      "productionDrivers": {
+        "settled-core": 0.45,
+        "hot": 0.35,
+        "river": 0.25
+      },
+      "demandDrivers": {
+        "urban": 0.35,
+        "mercantile": 0.30,
+        "luxury": 0.25
+      },
+      "profileProductionAffinity": {
+        "Elf": 1.16,
+        "Halfling": 1.10
+      }
+    },
+    {
+      "name": "fungus",
+      "category": "raw",
+      "baseValue": 0.34,
+      "bulkiness": 0.70,
+      "perishability": 0.72,
+      "rawCatchmentSensitivity": 1.20,
+      "sourceWeights": {
+        "timber": 0.42,
+        "clay": 0.32,
+        "crop": 0.26
+      },
+      "productionDrivers": {
+        "highland": 0.50,
+        "mountain": 0.40,
+        "wetland": 0.25
+      },
+      "demandDrivers": {
+        "highland": 0.55,
+        "urban": 0.30,
+        "cold": 0.20
+      },
+      "profileProductionAffinity": {
+        "Dwarf": 1.30,
+        "Gnome": 1.12
+      },
+      "profileDemandAffinity": {
+        "Dwarf": 1.24,
+        "Gnome": 1.08
+      }
+    },
+    {
+      "name": "tallow",
+      "category": "processed",
+      "baseValue": 0.34,
+      "bulkiness": 0.44,
+      "perishability": 0.18,
+      "marketConversionScale": 0.12,
+      "marketContextSensitivity": 1.02,
+      "marketMinNodeKind": "village",
+      "marketInputCapabilityFloor": {
+        "livestock": 0.16
+      },
+      "inputs": {
+        "livestock": 0.20
+      },
+      "productionDrivers": {
+        "arid": 0.40,
+        "frontier": 0.30,
+        "cold": 0.25
+      },
+      "demandDrivers": {
+        "urban": 0.50,
+        "cold": 0.45,
+        "highland": 0.20
+      },
+      "profileProductionAffinity": {
+        "Gnoll": 1.14,
+        "Desert Caravan": 1.12,
+        "Dwarf": 1.08
+      },
+      "profileDemandAffinity": {
+        "Dwarf": 1.14,
+        "Human": 1.06
+      }
+    },
+    {
+      "name": "plant_oil",
+      "category": "processed",
+      "baseValue": 0.54,
+      "bulkiness": 0.42,
+      "perishability": 0.20,
+      "rawCatchmentSensitivity": 0.86,
+      "sourceWeights": {
+        "crop": 0.72,
+        "fiber": 0.28
+      },
+      "productionDrivers": {
+        "settled-core": 0.40,
+        "hot": 0.30,
+        "river": 0.25,
+        "coastal": 0.20
+      },
+      "demandDrivers": {
+        "urban": 0.55,
+        "mercantile": 0.25,
+        "hot": 0.25,
+        "cold": 0.15
+      },
+      "profileProductionAffinity": {
+        "Halfling": 1.12,
+        "Lizardfolk": 1.10
+      },
+      "profileDemandAffinity": {
+        "Human": 1.08,
+        "Merchant League": 1.08
+      }
+    },
+    {
+      "name": "sugar",
+      "category": "processed",
+      "baseValue": 0.70,
+      "bulkiness": 0.40,
+      "perishability": 0.04,
+      "marketConversionScale": 0.44,
+      "marketContextSensitivity": 1.34,
+      "marketDominancePenalty": 0.24,
+      "marketMinNodeKind": "town",
+      "localInputCapabilityFloor": {
+        "fuel_fiber": 0.30
+      },
+      "marketInputCapabilityFloor": {
+        "fuel_fiber": 0.22,
+        "timber": 0.10
+      },
+      "inputs": {
+        "fuel_fiber": 0.14,
+        "timber": 0.06
+      },
+      "productionDrivers": {
+        "hot": 0.60,
+        "wetland": 0.35,
+        "river": 0.30,
+        "delta": 0.25
+      },
+      "demandDrivers": {
+        "urban": 0.55,
+        "mercantile": 0.35,
+        "luxury": 0.35,
+        "cold": 0.15
+      },
+      "profileProductionAffinity": {
+        "Lizardfolk": 1.18,
+        "Merchant League": 1.12
+      },
+      "profileDemandAffinity": {
+        "Merchant League": 1.18,
+        "Human": 1.10,
+        "Dragonborn": 1.08
+      }
+    },
+    {
+      "name": "tobacco",
+      "category": "luxury",
+      "baseValue": 0.76,
+      "bulkiness": 0.26,
+      "perishability": 0.06,
+      "rawCatchmentSensitivity": 1.10,
+      "sourceWeights": {
+        "crop": 0.82,
+        "herbs": 0.18
+      },
+      "productionDrivers": {
+        "hot": 0.50,
+        "river": 0.35,
+        "settled-core": 0.25,
+        "frontier": 0.20
+      },
+      "demandDrivers": {
+        "urban": 0.55,
+        "mercantile": 0.40,
+        "warlike": 0.30,
+        "luxury": 0.25
+      },
+      "profileProductionAffinity": {
+        "Halfling": 1.14,
+        "Human": 1.08
+      },
+      "profileDemandAffinity": {
+        "Merchant League": 1.16,
+        "Orc": 1.12,
+        "Hobgoblin": 1.10
+      }
+    },
+    {
+      "name": "tea",
+      "category": "luxury",
+      "baseValue": 0.82,
+      "bulkiness": 0.16,
+      "perishability": 0.06,
+      "rawCatchmentSensitivity": 1.45,
+      "sourceWeights": {
+        "crop": 0.70,
+        "herbs": 0.30
+      },
+      "productionDrivers": {
+        "highland": 0.65,
+        "hot": 0.45,
+        "wooded": 0.25
+      },
+      "demandDrivers": {
+        "luxury": 0.60,
+        "urban": 0.45,
+        "mercantile": 0.35,
+        "cold": 0.20
+      },
+      "profileProductionAffinity": {
+        "Elf": 1.18,
+        "Gnome": 1.10
+      },
+      "profileDemandAffinity": {
+        "Elf": 1.16,
+        "Merchant League": 1.14,
+        "Human": 1.06
+      }
+    },
+    {
+      "name": "coffee",
+      "category": "luxury",
+      "baseValue": 0.84,
+      "bulkiness": 0.20,
+      "perishability": 0.05,
+      "rawCatchmentSensitivity": 1.55,
+      "sourceWeights": {
+        "crop": 0.66,
+        "herbs": 0.20,
+        "resin": 0.14
+      },
+      "productionDrivers": {
+        "highland": 0.70,
+        "hot": 0.55,
+        "wooded": 0.25
+      },
+      "demandDrivers": {
+        "luxury": 0.60,
+        "urban": 0.50,
+        "mercantile": 0.40,
+        "arid": 0.20
+      },
+      "profileProductionAffinity": {
+        "Gnoll": 1.10,
+        "Elf": 1.10
+      },
+      "profileDemandAffinity": {
+        "Merchant League": 1.20,
+        "Desert Caravan": 1.16,
+        "Human": 1.08
+      }
+    },
+    {
+      "name": "cocoa",
+      "category": "luxury",
+      "baseValue": 0.86,
+      "bulkiness": 0.22,
+      "perishability": 0.08,
+      "rawCatchmentSensitivity": 1.52,
+      "sourceWeights": {
+        "crop": 0.62,
+        "resin": 0.24,
+        "timber": 0.14
+      },
+      "productionDrivers": {
+        "hot": 0.70,
+        "forest": 0.45,
+        "wetland": 0.30,
+        "coastal": 0.20
+      },
+      "demandDrivers": {
+        "luxury": 0.65,
+        "urban": 0.45,
+        "mercantile": 0.35
+      },
+      "profileProductionAffinity": {
+        "Lizardfolk": 1.20,
+        "Elf": 1.10
+      },
+      "profileDemandAffinity": {
+        "Merchant League": 1.20,
+        "Dragonborn": 1.12
+      }
+    },
+    {
+      "name": "spices",
+      "category": "luxury",
+      "baseValue": 0.92,
+      "bulkiness": 0.10,
+      "perishability": 0.02,
+      "rawCatchmentSensitivity": 1.50,
+      "sourceWeights": {
+        "herbs": 0.50,
+        "crop": 0.34,
+        "resin": 0.16
+      },
+      "productionDrivers": {
+        "hot": 0.65,
+        "forest": 0.40,
+        "wetland": 0.30,
+        "coastal": 0.30,
+        "highland": 0.20
+      },
+      "demandDrivers": {
+        "luxury": 0.80,
+        "urban": 0.50,
+        "mercantile": 0.45,
+        "cold": 0.15
+      },
+      "profileProductionAffinity": {
+        "Lizardfolk": 1.22,
+        "Elf": 1.14,
+        "Desert Caravan": 1.10
+      },
+      "profileDemandAffinity": {
+        "Merchant League": 1.24,
+        "Dragonborn": 1.16,
+        "Human": 1.10
+      }
+    },
+    {
+      "name": "opium",
+      "category": "luxury",
+      "baseValue": 0.97,
+      "bulkiness": 0.04,
+      "perishability": 0.02,
+      "rawCatchmentSensitivity": 1.60,
+      "sourceWeights": {
+        "crop": 0.74,
+        "herbs": 0.26
+      },
+      "productionDrivers": {
+        "highland": 0.55,
+        "hot": 0.40,
+        "arid": 0.30,
+        "frontier": 0.25
+      },
+      "demandDrivers": {
+        "luxury": 0.75,
+        "urban": 0.50,
+        "mercantile": 0.45,
+        "warlike": 0.30
+      },
+      "profileProductionAffinity": {
+        "Gnoll": 1.16,
+        "Desert Caravan": 1.14
+      },
+      "profileDemandAffinity": {
+        "Merchant League": 1.22,
+        "Hobgoblin": 1.14,
+        "Dragonborn": 1.12
+      }
+    },
+    {
+      "name": "silk",
+      "category": "luxury",
+      "baseValue": 0.95,
+      "bulkiness": 0.06,
+      "perishability": 0.02,
+      "marketConversionScale": 0.42,
+      "marketContextSensitivity": 1.46,
+      "marketDominancePenalty": 0.30,
+      "marketMinNodeKind": "town",
+      "localInputCapabilityFloor": {
+        "silk_cocoon": 0.34
+      },
+      "marketInputCapabilityFloor": {
+        "silk_cocoon": 0.28
+      },
+      "inputs": {
+        "silk_cocoon": 0.32
+      },
+      "demandDrivers": {
+        "luxury": 0.85,
+        "urban": 0.50,
+        "mercantile": 0.45
+      },
+      "profileProductionAffinity": {
+        "Elf": 1.22,
+        "Halfling": 1.14,
+        "Gnome": 1.10
+      },
+      "profileDemandAffinity": {
+        "Merchant League": 1.24,
+        "Dragonborn": 1.18,
+        "Elf": 1.14
+      }
+    },
+    {
+      "name": "olive_oil",
+      "category": "processed",
+      "baseValue": 0.66,
+      "bulkiness": 0.44,
+      "perishability": 0.14,
+      "marketConversionScale": 0.28,
+      "marketContextSensitivity": 1.20,
+      "marketMinNodeKind": "village",
+      "localInputCapabilityFloor": {
+        "fresh_fruit": 0.34
+      },
+      "marketInputCapabilityFloor": {
+        "fresh_fruit": 0.26
+      },
+      "inputs": {
+        "fresh_fruit": 0.20,
+        "ceramics": 0.05
+      },
+      "productionDrivers": {
+        "hot": 0.50,
+        "coastal": 0.40,
+        "highland": 0.20
+      },
+      "demandDrivers": {
+        "urban": 0.55,
+        "hot": 0.40,
+        "mercantile": 0.30,
+        "luxury": 0.20
+      },
+      "profileProductionAffinity": {
+        "Merchant League": 1.14,
+        "Halfling": 1.10,
+        "Elf": 1.08
+      },
+      "profileDemandAffinity": {
+        "Merchant League": 1.14,
+        "Human": 1.08
+      }
+    },
+    {
+      "name": "dried_fruit",
+      "category": "processed",
+      "baseValue": 0.52,
+      "bulkiness": 0.34,
+      "perishability": 0.10,
+      "marketConversionScale": 0.20,
+      "marketContextSensitivity": 1.08,
+      "marketMinNodeKind": "village",
+      "marketInputCapabilityFloor": {
+        "fresh_fruit": 0.24
+      },
+      "inputs": {
+        "fresh_fruit": 0.28
+      },
+      "productionDrivers": {
+        "arid": 0.55,
+        "hot": 0.45,
+        "coastal": 0.15
+      },
+      "demandDrivers": {
+        "urban": 0.40,
+        "arid": 0.40,
+        "cold": 0.30,
+        "warlike": 0.25
+      },
+      "profileProductionAffinity": {
+        "Desert Caravan": 1.22,
+        "Halfling": 1.10
+      },
+      "profileDemandAffinity": {
+        "Desert Caravan": 1.18,
+        "Dwarf": 1.10,
+        "Hobgoblin": 1.08
+      }
+    },
+    {
+      "name": "cider",
+      "category": "processed",
+      "baseValue": 0.44,
+      "bulkiness": 0.66,
+      "perishability": 0.22,
+      "marketConversionScale": 0.26,
+      "marketContextSensitivity": 1.06,
+      "marketMinNodeKind": "village",
+      "marketInputCapabilityFloor": {
+        "fresh_fruit": 0.28
+      },
+      "inputs": {
+        "fresh_fruit": 0.34
+      },
+      "productionDrivers": {
+        "cold": 0.50,
+        "wooded": 0.30,
+        "river": 0.25
+      },
+      "demandDrivers": {
+        "cold": 0.55,
+        "urban": 0.35,
+        "highland": 0.20
+      },
+      "profileProductionAffinity": {
+        "Halfling": 1.16,
+        "Human": 1.08
+      },
+      "profileDemandAffinity": {
+        "Halfling": 1.12,
+        "Dwarf": 1.10,
+        "Human": 1.08
+      }
+    },
+    {
+      "name": "wine",
+      "category": "luxury",
+      "baseValue": 0.72,
+      "bulkiness": 0.58,
+      "perishability": 0.10,
+      "marketConversionScale": 0.34,
+      "marketContextSensitivity": 1.24,
+      "marketDominancePenalty": 0.22,
+      "marketMinNodeKind": "village",
+      "localInputCapabilityFloor": {
+        "fresh_fruit": 0.36
+      },
+      "marketInputCapabilityFloor": {
+        "fresh_fruit": 0.28,
+        "ceramics": 0.10
+      },
+      "inputs": {
+        "fresh_fruit": 0.30,
+        "ceramics": 0.08
+      },
+      "productionDrivers": {
+        "hot": 0.45,
+        "highland": 0.30,
+        "coastal": 0.30,
+        "river": 0.25
+      },
+      "demandDrivers": {
+        "luxury": 0.65,
+        "urban": 0.50,
+        "mercantile": 0.40,
+        "cold": 0.20
+      },
+      "profileProductionAffinity": {
+        "Elf": 1.20,
+        "Merchant League": 1.12,
+        "Halfling": 1.10
+      },
+      "profileDemandAffinity": {
+        "Elf": 1.18,
+        "Merchant League": 1.16,
+        "Dragonborn": 1.10
+      }
+    },
+    {
+      "name": "ale",
+      "category": "processed",
+      "baseValue": 0.38,
+      "bulkiness": 0.74,
+      "perishability": 0.36,
+      "marketConversionScale": 0.30,
+      "marketContextSensitivity": 1.10,
+      "marketInputReservePriority": 0.40,
+      "marketMinNodeKind": "village",
+      "localInputCapabilityFloor": {
+        "grain": 0.30
+      },
+      "marketInputCapabilityFloor": {
+        "grain": 0.24
+      },
+      "inputs": {
+        "grain": 0.30
+      },
+      "productionDrivers": {
+        "settled-core": 0.45,
+        "urban": 0.35,
+        "cold": 0.30,
+        "river": 0.20
+      },
+      "demandDrivers": {
+        "urban": 0.65,
+        "cold": 0.40,
+        "warlike": 0.35,
+        "highland": 0.20
+      },
+      "profileProductionAffinity": {
+        "Halfling": 1.18,
+        "Dwarf": 1.14,
+        "Human": 1.08
+      },
+      "profileDemandAffinity": {
+        "Dwarf": 1.24,
+        "Orc": 1.16,
+        "Hobgoblin": 1.12,
+        "Halfling": 1.10
+      }
+    },
+    {
+      "name": "cordage",
+      "category": "processed",
+      "baseValue": 0.58,
+      "bulkiness": 0.34,
+      "perishability": 0.05,
+      "marketConversionScale": 0.22,
+      "marketContextSensitivity": 1.26,
+      "marketInputReservePriority": 0.70,
+      "marketMinNodeKind": "town",
+      "localInputCapabilityFloor": {
+        "fiber": 0.30
+      },
+      "marketInputCapabilityFloor": {
+        "fiber": 0.22
+      },
+      "inputs": {
+        "fiber": 0.32
+      },
+      "productionDrivers": {
+        "coastal": 0.55,
+        "river": 0.35,
+        "mercantile": 0.30,
+        "urban": 0.20
+      },
+      "demandDrivers": {
+        "coastal": 0.70,
+        "mercantile": 0.40,
+        "urban": 0.25,
+        "river": 0.20
+      },
+      "profileProductionAffinity": {
+        "Merchant League": 1.20,
+        "Lizardfolk": 1.10
+      },
+      "profileDemandAffinity": {
+        "Merchant League": 1.24,
+        "tag:maritime": 1.26
+      }
+    },
+    {
+      "name": "dyestuff",
+      "category": "processed",
+      "baseValue": 0.76,
+      "bulkiness": 0.14,
+      "perishability": 0.06,
+      "marketConversionScale": 0.30,
+      "marketContextSensitivity": 1.30,
+      "marketDominancePenalty": 0.34,
+      "marketInputReservePriority": 0.75,
+      "marketMinNodeKind": "town",
+      "localInputCapabilityFloor": {
+        "dye_plants": 0.30
+      },
+      "marketInputCapabilityFloor": {
+        "dye_plants": 0.22
+      },
+      "inputs": {
+        "dye_plants": 0.28
+      },
+      "productionDrivers": {
+        "urban": 0.40,
+        "mercantile": 0.35,
+        "wetland": 0.30,
+        "coastal": 0.25
+      },
+      "demandDrivers": {
+        "luxury": 0.55,
+        "urban": 0.45,
+        "mercantile": 0.40
+      },
+      "profileProductionAffinity": {
+        "Lizardfolk": 1.18,
+        "Gnome": 1.14,
+        "Merchant League": 1.12
+      },
+      "profileDemandAffinity": {
+        "Merchant League": 1.18,
+        "Elf": 1.12
+      }
+    }
+  ],
+
+  "existingGoodPatches": [
+    {
+      "name": "ships",
+      "change": "replace input 'fiber': 0.22 with 'cordage': 0.20; move the matching marketInputCapabilityFloor entry from fiber 0.20 to cordage 0.18",
+      "why": "Completes fiber -> cordage -> ships as a real 3-step chain instead of a shipyard spinning its own rope. Replacing rather than adding keeps the gate count at three; inputAccess is a MIN over inputs, so adding cordage alongside fiber would double-gate shipbuilding.",
+      "proposedInputs": {"timber": 0.55, "cordage": 0.20, "resin": 0.18},
+      "proposedMarketInputCapabilityFloor": {"timber": 0.35, "cordage": 0.18, "resin": 0.18}
+    },
+    {
+      "name": "soap",
+      "change": "add 'tallow': 0.07 and 'plant_oil': 0.07 to inputs; do NOT add capability floors for them",
+      "why": "Soap is lye plus a fat; today it takes salt + livestock + herbs, i.e. the fat is implied by livestock. Small need values keep the MIN gate soft (a polity with any tallow or oil clears it, and 0.28*tradeAccess covers importers) while making the olive/oilseed regions genuinely better at soap. NOTE: the schema has no substitutable-input operator, so 'olive_oil OR plant_oil OR tallow' cannot be expressed; olive_oil is deliberately left out of soap so Mediterranean polities are not required to have all three.",
+      "proposedInputs": {"salt": 0.14, "livestock": 0.08, "tallow": 0.07, "plant_oil": 0.07, "herbs": 0.03}
+    },
+    {
+      "name": "fine_clothing",
+      "change": "replace 'dye_plants': 0.20 with 'dyestuff': 0.16, keeping the capability floor on dyestuff",
+      "why": "dye_plants -> dyestuff -> fine_clothing. Concentrated dye cake, not raw woad bundles, is what a tailoring town buys; this is the chokepoint that makes dyestuff worth carrying.",
+      "proposedInputs": {"cloth": 0.42, "dyestuff": 0.16}
+    },
+    {
+      "name": "cloth",
+      "change": "optional - leave 'dye_plants': 0.12 as is",
+      "why": "Everyday cloth is dyed on site with local plants; keeping cloth on dye_plants and fine_clothing on dyestuff is what makes the two tiers non-substitutable. Listed only so the choice is explicit."
+    },
+    {
+      "name": "perfumes",
+      "change": "add 'spices': 0.05 to inputs (no capability floor)",
+      "why": "Clove and cinnamon oil are historically perfumery inputs and this gives the luxury tier one internal link instead of five parallel leaves. Low need so it does not hard-gate perfume on a spice coast."
+    }
+  ],
+
+  "tuningPatches": {
+    "_comment": "Advisory edits to the top-level tuning blocks of trade_goods_earthlike.json. Same key paths, same value conventions; ranges checked against climgen/trade_goods_settings_validate.go.",
+    "demand.goodDemandScale": {
+      "spices": 1.50,
+      "silk": 1.48,
+      "sugar": 1.30,
+      "coffee": 1.28,
+      "ale": 1.22,
+      "fodder": 0.80,
+      "fuel_fiber": 0.72
+    },
+    "demand.localSupplyReliefByGood": {
+      "spices": 0.04,
+      "silk": 0.04,
+      "sugar": 0.10,
+      "ale": 0.30,
+      "fodder": 0.60,
+      "fuel_fiber": 0.62,
+      "fresh_fruit": 0.55
+    },
+    "production.marketInputReservationByInput": {
+      "fresh_fruit": 0.70,
+      "grain": 0.55,
+      "fiber": 0.50,
+      "dye_plants": 0.60,
+      "silk_cocoon": 0.65,
+      "fuel_fiber": 0.35
+    },
+    "_note": "fresh_fruit is contested by four consumers (wine, cider, dried_fruit, olive_oil) and fiber by three (cloth, paper, cordage); without reservation weights the market layer lets one output starve the others."
+  }
+}
