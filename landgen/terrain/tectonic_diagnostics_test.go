@@ -1,6 +1,7 @@
 package terrain
 
 import (
+	"bytes"
 	"encoding/json"
 	"math"
 	"testing"
@@ -40,25 +41,54 @@ func TestGeneratePlanetElevationExportsTectonicDiagnostics(t *testing.T) {
 		"distFromTrench":     {tec.DistFromTrench, tec.TrenchSeeds},
 		"distFromRift":       {tec.DistFromRift, tec.RiftSeeds},
 	}
+	spacing := tec.CellAngularSpacing
+	if spacing <= 0 || spacing > math.Pi {
+		t.Fatalf("CellAngularSpacing = %v, want a positive angular spacing below pi", spacing)
+	}
 	for name, field := range distanceFields {
 		if len(field.values) != numRegions {
 			t.Fatalf("%s length = %d, want %d", name, len(field.values), numRegions)
 		}
 		finite := 0
 		for r, value := range field.values {
-			if value == TectonicDistanceUnreachable {
+			if !TectonicDistanceIsDefined(value) {
 				continue
 			}
-			if value < 0 || math.IsInf(value, 0) || math.IsNaN(value) {
-				t.Fatalf("%s[%d] = %v, want a non-negative hop count or %v", name, r, value, TectonicDistanceUnreachable)
+			// Defined values are great-circle radians: non-negative, bounded by
+			// half a circumference plus graph-path slack, and an exact multiple
+			// of the mesh's neighbor spacing (they are hop counts scaled).
+			if value < 0 || math.IsInf(value, 0) {
+				t.Fatalf("%s[%d] = %v, want a non-negative angular distance or NaN", name, r, value)
 			}
-			if value != math.Trunc(value) {
-				t.Fatalf("%s[%d] = %v, want an integral hop count", name, r, value)
+			hops := value / spacing
+			if math.Abs(hops-math.Round(hops)) > 1e-9 {
+				t.Fatalf("%s[%d] = %v is not an integral number of %v-radian hops", name, r, value, spacing)
 			}
 			finite++
 		}
 		if finite > 0 && field.seeds == 0 {
 			t.Errorf("%s has %d reachable cells but no seeds of that class", name, finite)
+		}
+	}
+
+	// The trap this sentinel exists to avoid: a naive proximity predicate must
+	// not select cells where the field is undefined. On a mostly-ocean world the
+	// continental-domain fields are undefined nearly everywhere, so -1 (or any
+	// value sorting below real distances) would make this select most of the
+	// sphere.
+	nearThreshold := 3 * spacing
+	for name, field := range distanceFields {
+		selected := 0
+		for r, value := range field.values {
+			if value < nearThreshold {
+				if !TectonicDistanceIsDefined(value) {
+					t.Fatalf("%s[%d] = %v satisfies a proximity predicate while undefined", name, r, value)
+				}
+				selected++
+			}
+		}
+		if defined := countReachable(field.values); selected > defined {
+			t.Fatalf("%s: proximity predicate selected %d cells but only %d are defined", name, selected, defined)
 		}
 	}
 
@@ -96,18 +126,18 @@ func TestGeneratePlanetElevationExportsTectonicDiagnostics(t *testing.T) {
 	// versa, which is what makes the sentinel meaningful downstream.
 	for r := 0; r < numRegions; r++ {
 		if tec.PlateIsOcean[r] {
-			if tec.DistFromMountain[r] != TectonicDistanceUnreachable {
+			if TectonicDistanceIsDefined(tec.DistFromMountain[r]) {
 				t.Fatalf("DistFromMountain[%d] = %v on an oceanic cell", r, tec.DistFromMountain[r])
 			}
-			if tec.DistFromRift[r] != TectonicDistanceUnreachable {
+			if TectonicDistanceIsDefined(tec.DistFromRift[r]) {
 				t.Fatalf("DistFromRift[%d] = %v on an oceanic cell", r, tec.DistFromRift[r])
 			}
 			continue
 		}
-		if tec.OceanDistFromCoast[r] != TectonicDistanceUnreachable {
+		if TectonicDistanceIsDefined(tec.OceanDistFromCoast[r]) {
 			t.Fatalf("OceanDistFromCoast[%d] = %v on a continental cell", r, tec.OceanDistFromCoast[r])
 		}
-		if tec.DistFromRidge[r] != TectonicDistanceUnreachable {
+		if TectonicDistanceIsDefined(tec.DistFromRidge[r]) {
 			t.Fatalf("DistFromRidge[%d] = %v on a continental cell", r, tec.DistFromRidge[r])
 		}
 	}
@@ -130,21 +160,53 @@ func TestGeneratePlanetElevationExportsTectonicDiagnostics(t *testing.T) {
 		t.Error("expected at least one coastline seed")
 	}
 
-	// The diagnostics are cached as JSON by review tooling, so they must not
-	// carry the generator's internal +Inf sentinels.
-	if _, err := json.Marshal(tec); err != nil {
-		t.Fatalf("tectonic diagnostics are not JSON-encodable: %v", err)
+	// The NaN sentinel is not JSON-encodable, which is fine only because the
+	// diagnostics carry a json:"-" tag on Tectonics. Guard that: the enclosing
+	// diagnostics struct - what review tooling actually caches - must still
+	// marshal, and it must not have quietly started serializing Tectonics.
+	encoded, err := json.Marshal(diagnostics)
+	if err != nil {
+		t.Fatalf("planet diagnostics are not JSON-encodable: %v", err)
+	}
+	if bytes.Contains(encoded, []byte("distFromCoast")) {
+		t.Fatal("Tectonics is being serialized; NaN distances cannot survive JSON, " +
+			"so a consumer must map undefined cells explicitly first")
 	}
 }
 
 func countReachable(field []float64) int {
 	reachable := 0
 	for _, value := range field {
-		if value != TectonicDistanceUnreachable {
+		if TectonicDistanceIsDefined(value) {
 			reachable++
 		}
 	}
 	return reachable
+}
+
+// A physical feature is roughly twice as many hops away on a mesh with four
+// times the cells, so exporting hop counts would double the reported distance
+// per refinement level. Exporting radians must cancel that exactly.
+func TestTectonicDiagnosticsDistancesAreResolutionStable(t *testing.T) {
+	const coarseCells = 4
+	const fineCells = 16 // one refinement level: 4x cells, 2x hops for the same feature
+
+	build := func(cells int, hops float64) float64 {
+		rPlate := make([]int, cells)
+		buf := make([]float64, cells)
+		for i := range buf {
+			buf[i] = hops
+		}
+		tec := buildTectonicDiagnostics(rPlate, map[int]bool{0: false}, BoundarySeeds{}, tectonicDistanceFields{coast: buf})
+		return tec.DistFromCoast[0]
+	}
+
+	coarse := build(coarseCells, 2)
+	fine := build(fineCells, 4)
+	if math.Abs(coarse-fine) > 1e-12 {
+		t.Fatalf("same feature exports %v radians at %d cells but %v at %d cells; distances are resolution-dependent",
+			coarse, coarseCells, fine, fineCells)
+	}
 }
 
 func TestBuildTectonicDiagnosticsCopiesSourceBuffers(t *testing.T) {
@@ -169,8 +231,20 @@ func TestBuildTectonicDiagnosticsCopiesSourceBuffers(t *testing.T) {
 	if tec.RiftSeeds != 1 {
 		t.Fatalf("RiftSeeds = %d, want 1", tec.RiftSeeds)
 	}
-	if tec.DistFromCoast[2] != TectonicDistanceUnreachable {
-		t.Fatalf("DistFromCoast[2] = %v, want %v", tec.DistFromCoast[2], TectonicDistanceUnreachable)
+	if TectonicDistanceIsDefined(tec.DistFromCoast[2]) {
+		t.Fatalf("DistFromCoast[2] = %v, want the undefined sentinel", tec.DistFromCoast[2])
+	}
+
+	// Hops are exported as physical angular distance, not hop counts.
+	spacing := meanCellAngularSpacing(len(rPlate))
+	if tec.CellAngularSpacing != spacing {
+		t.Fatalf("CellAngularSpacing = %v, want %v", tec.CellAngularSpacing, spacing)
+	}
+	if got, want := tec.DistFromCoast[1], 1*spacing; math.Abs(got-want) > 1e-12 {
+		t.Fatalf("DistFromCoast[1] = %v, want %v (one hop in radians)", got, want)
+	}
+	if got, want := tec.DistFromMountain[1], 3*spacing; math.Abs(got-want) > 1e-12 {
+		t.Fatalf("DistFromMountain[1] = %v, want %v (three hops in radians)", got, want)
 	}
 
 	// Mutating the source buffers afterwards must not reach the snapshot.

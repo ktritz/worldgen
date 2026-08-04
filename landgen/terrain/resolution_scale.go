@@ -11,6 +11,20 @@ const baselinePathCostCells = 10242.0
 // physical features produce identical results at every resolution.
 var baselineCellAngularRadius = 2.0 / math.Sqrt(baselinePathCostCells)
 
+// meanCellAngularSpacing returns the mean center-to-center angular distance, in
+// radians, between neighbouring cells of a geodesic mesh with cellCount cells.
+// Cells tile the unit sphere hexagonally, so a cell of area 4*pi/n has center
+// spacing d satisfying (sqrt(3)/2)*d^2 = 4*pi/n. Unlike
+// meshPathCostResolutionScale this is unclamped: it is a statement about the
+// mesh, not a tuning envelope, and must stay exact at every resolution so that
+// hop counts converted through it are resolution-stable.
+func meanCellAngularSpacing(cellCount int) float64 {
+	if cellCount <= 0 {
+		return 0
+	}
+	return math.Sqrt(8 * math.Pi / (math.Sqrt(3) * float64(cellCount)))
+}
+
 func meshPathCostResolutionScale(cellCount int) float64 {
 	if cellCount <= 0 {
 		return 1

@@ -9,9 +9,12 @@ import (
 	"sort"
 )
 
-// PlaceHotspots creates hotspots and traces their island chains
+// placeHotspots creates hotspots and traces their island chains
 // Uses plate rotations (Euler poles) for realistic curved chain paths
-func PlaceHotspots(
+//
+// Unexported deliberately: it takes plateLayout, an internal type, so no caller
+// outside this package could ever construct an argument for it.
+func placeHotspots(
 	sites []Vector3D,
 	cells []VoronoiCell,
 	layout plateLayout,

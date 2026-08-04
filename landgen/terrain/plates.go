@@ -896,11 +896,14 @@ func pickRandomRegions(numRegions, n int, rng *rand.Rand) []int {
 	return result
 }
 
-// AssignPlateRotations assigns Euler pole rotations to plates for realistic curved motion.
+// assignPlateRotations assigns Euler pole rotations to plates for realistic curved motion.
 // - Oceanic plates rotate toward continental neighbors (creates subduction)
 // - Continental plates have some bias toward each other (creates mountain ranges)
 // - Rotation around Euler poles creates curved velocity fields and realistic hotspot tracks
-func AssignPlateRotations(
+//
+// Unexported deliberately: it takes plateLayout, an internal type, so no caller
+// outside this package could ever construct an argument for it.
+func assignPlateRotations(
 	layout plateLayout,
 	plateIsOcean map[int]bool,
 	plateNeighbors map[int]map[int]bool,

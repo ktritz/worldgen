@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 
 	"worldgen/climgen"
 	"worldgen/landgen/terrain"
@@ -346,6 +347,14 @@ func sanitizeCacheJSONValue(v reflect.Value) reflect.Value {
 		for i := 0; i < v.NumField(); i++ {
 			field := out.Field(i)
 			if !field.CanSet() {
+				continue
+			}
+			// Skip fields excluded from JSON. Walking them is wasted work on
+			// large per-cell arrays, and actively harmful: the float pass below
+			// maps NaN to 0, so a field using NaN to mean "undefined" would cache
+			// as a real zero. For a distance field that reads as "on the
+			// boundary" -- the most misleading value available.
+			if tag, ok := v.Type().Field(i).Tag.Lookup("json"); ok && strings.HasPrefix(tag, "-") {
 				continue
 			}
 			field.Set(sanitizeCacheJSONValue(v.Field(i)))
