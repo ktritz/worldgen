@@ -151,6 +151,77 @@ Route all fixed/linear-scaled iteration counts of neighbor-averaging smoothers t
 | D3 | §0.1 | L4 support | Out of envelope by decision above |
 | D4 | §1.5 | Prefilter minStepCost literals → shared constants | Cosmetic hardening, fold into any trade-path touch |
 
+## 6-seed sweep, 2026-08-04 (`sweeps/level67_linear_footprint`) — two findings
+
+First run after the linear-footprint optimization. **L7 cold-cache seeds now take ~17.5 min
+(1070/1053/1052 s) against ~102 min before — 5.8x.** The whole 6-seed, two-level sweep finished in
+**66 minutes**, versus 5.5 hours for the previous *3*-seed run. Cross-level validation is now
+routine, which is what the optimization was for.
+
+| seed | score L6 | score L7 | ratio | proto Δ | polity Δ | land routes L6→L7 |
+|---|---|---|---|---|---|---|
+| 4 | 0.58 | 4.56 | 7.86 | **+1** | 0 | 73 → 68 |
+| 42 | 2.42 | 2.20 | 0.91 | −1 | −1 | 114 → 123 |
+| 84 | 2.36 | 2.59 | 1.10 | **+1** | **+3** | 69 → 81 |
+| 91 | 0.99 | 2.34 | 2.36 | −1 | −1 | 93 → 127 |
+| 123 | 0.47 | 0.23 | 0.49 | −1 | −1 | 89 → 87 |
+| 255 | 0.87 | 7.73 | 8.89 | **+2** | **+1** | 100 → 119 |
+
+### 1. The systematic civilization bias is gone
+
+Through every previous round, proto-civilization and polity deltas were **never positive** — the
+signature that led to the settlement-support cascade and then the threshold bug class. They now
+scatter in both directions (+1, −1, +1, −1, −1, +2 and 0, −1, +3, −1, −1, +1). The *systematic*
+resolution dependence in the civilization stack is resolved; what remains is seed-level scatter,
+which is a different and much more benign failure mode.
+
+### 2. The composite trade score is the wrong invariance metric
+
+Score ratios span **0.49 to 8.89** while the underlying structure is far tighter — land route counts
+range only 0.93 to 1.37 across the same seeds. A metric that moves 18x while the structure it
+summarises moves ±30% is amplifying small structural differences, not measuring them. Note also the
+scores are small absolute numbers (0.23–7.73), so a couple of corridors forming or not swings the
+ratio by an order of magnitude.
+
+**Consequence: stop judging resolution invariance by `score_ratio`.** This likely means earlier
+rounds were partly chasing metric noise, and the score improvements recorded above (seed 255 at 0.84
+in the 3-seed run, 8.89 here on different code) should be read with that in mind.
+
+### Per-metric reporting (implemented in `compare_review_levels.py`)
+
+The comparison now reports **every** structural metric separately, sorted by divergence, and
+separates two things a composite conflates:
+
+- **bias** — mean ratio away from parity, a real resolution dependence
+- **variance** — worst single-seed deviation, i.e. chaos sensitivity or too few seeds
+
+Adding a column to `review_summary.tsv` automatically adds it to the report, so new diagnostics
+cannot silently go unmonitored. Score ratios are retained but renamed `context_*` with a comment
+saying not to tune against them.
+
+Current state at L6 vs L7, six seeds:
+
+| metric | bias | mean ratio | worst dev | worst seed |
+|---|---|---|---|---|
+| river_inter | **0.833** | 0.167 | 1.000 | 4 |
+| river | **0.525** | 1.525 | 2.000 | 84 |
+| ocean_caravel | **0.333** | 0.667 | 0.667 | 42 |
+| ocean_inter | **0.333** | 0.667 | 0.667 | 42 |
+| coastal_inter | 0.150 | 0.850 | 1.000 | 123 |
+| land | 0.120 | 1.120 | 0.366 | 91 |
+| proto | 0.033 | 1.033 | 0.500 | 255 |
+| coastal_caravel | 0.027 | 0.973 | 0.538 | 255 |
+| polities | 0.017 | 1.017 | 0.600 | all |
+
+**No metric is systematically biased** (no one-sided delta across seeds) — the asymmetry that drove
+the settlement work is gone everywhere, not just in the civilization counts.
+
+**But water-based routing carries real bias and is the clear next target.** River routes average
+1.5x at L7 while *inter-polity* river routes collapse to 0.17x, and both ocean measures sit at
+0.67x. Land, proto, polities and coastal-caravel are all within 12% — those are converged. The
+composite score never showed this because it summed a 3x increase and a 6x decrease into one
+"noisy" number.
+
 ## Deliberate level-5 behaviour changes (the complete list)
 
 The working rule is that a resolution fix must be an exact no-op at the L5 baseline. These changes
@@ -291,19 +362,46 @@ holds per-level absolute cuts, looked up by mesh cell count with **log-cell-coun
 and clamping, resolved once per run. City stays absolute at every level; empty table ⇒ absolute
 fallback.
 
-| level | cells | carrying h / v / t | urban h / v / t |
+**Re-derived 2026-08-04 from six seeds** (4, 42, 84, 91, 123, 255) — the table below supersedes the
+original two-seed fit. Absolute cut points (hamlet / village / town):
+
+| level | cells | carrying | urban |
 |---|---|---|---|
-| L5 | 10242 | **0.3800 / 0.4600 / 0.5500** | **0.3800 / 0.4599 / 0.5500** |
-| L6 | 40962 | 0.3876 / 0.4705 / 0.5507 | 0.3890 / 0.4704 / 0.5496 |
-| L7 | 163842 | 0.3244 / 0.4714 / 0.5558 | 0.3544 / 0.4738 / 0.5500 |
-| L8 | 655362 | 0.2612 / 0.4723 / 0.5609 *(extrapolated)* | 0.3198 / 0.4772 / 0.5504 *(extrapolated)* |
+| L5 | 10242 | **0.3800 / 0.4600 / 0.5500** | **0.3800 / 0.4600 / 0.5500** |
+| L6 | 40962 | 0.3794 / 0.4730 / 0.5521 | 0.3842 / 0.4773 / 0.5520 |
+| L7 | 163842 | 0.3303 / 0.4778 / 0.5564 | 0.3663 / 0.4828 / 0.5528 |
+| L8 | 655362 | 0.2813 / 0.4826 / 0.5608 *(extrapolated)* | 0.3484 / 0.4883 / 0.5536 *(extrapolated)* |
 
-L5 solves back to the original absolute constants exactly — the built-in correctness check.
+L5 solves back to the original absolute constants exactly — the built-in correctness check. The
+derivation was validated by restricting it to seeds 42 and 123, which reproduces the shipped
+two-seed scales to ~1e-4, so the comparison below is apples-to-apples rather than an estimator
+change.
 
-**Surprise: the corrections are not monotone in level.** The hamlet cut *rises* L5→L6
-(0.380 → 0.388) then *falls* sharply at L7 (0.324), while village and town rise at both steps. So
-the distribution change is not a simple monotone sharpening, and any single "coarsening factor"
-would have been wrong.
+**Was six seeds worth it? Only for the hamlet column — and there, decisively.** Out-of-sample mean
+signed fraction error (old table scored on the four seeds it never saw, vs new table under
+leave-one-out):
+
+| level / field | hamlet | village | town |
+|---|---|---|---|
+| L6 carrying | −0.0106 → +0.0001 | +0.0054 → −0.0001 | +0.0022 → −0.0003 |
+| L7 carrying | +0.0181 → +0.0024 | +0.0146 → +0.0009 | +0.0012 → −0.0006 |
+| L7 urban | **+0.0421 → +0.0031** | +0.0090 → +0.0000 | +0.0029 → −0.0000 |
+
+Village and town scales moved by under 0.015 — those rows were already fine. The L7 urban hamlet
+cut was the real defect: the two-seed fit selected **4.2 percentage points too much land** on unseen
+worlds, because seeds 42 and 123 both sit at the dry end of the range and the hamlet cut lands on
+the steepest part of the distribution, where a fit is most leveraged. So the suspected residual
+drift was real and was concentrated in one column, not spread across the table.
+
+**Correction to an earlier claim in this document**: the original note that "the hamlet cut *rises*
+L5→L6 then falls sharply at L7" was a two-seed artifact. With six seeds the L5→L6 hamlet step is
+essentially flat (0.3800 → 0.3794 carrying). The non-monotonicity was noise, not structure. Per-seed
+MAE improves only slightly — a single per-level constant cannot track individual worlds, so MAE is
+floored by seed dispersion. Bias is the part calibration controls, and that is where the gain is.
+
+L8 remains unmeasurable (a single L7 seed still runs ~17 min; L8 quadruples cells on top of a
+footprint depth that itself grows with resolution). The row is extrapolated linearly in log cell
+count, `scale(L8) = 2*scale(L7) − scale(L6)`, documented as such in the code.
 
 **Both properties now hold:**
 - *World variation restored*: per-seed L5 node spread 49–72 → **35–80**, and per-seed hamlet band
