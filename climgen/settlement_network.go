@@ -257,30 +257,54 @@ func DefaultSettlementNetworkSettings() SettlementNetworkSettings {
 // the unscaled thresholds (0.38 / 0.46 / 0.55) select on level-5 meshes.
 //
 // Method: land-cell distributions were measured on reference worlds and the cut
-// point solved per level against the level-5 mean fraction of the *same* seeds,
-// so seed-to-seed habitability differences cancel out of the correction. The
-// measured absolute cut point was then divided by the level-5 threshold it
-// corrects, giving the scale stored here. Level 5 was calibrated on seeds 4, 6,
-// 7, 42, 84, 123 and reproduced the absolute constants exactly
-// (0.3800 / 0.4600 / 0.5500), i.e. a scale of 1.0 — the correctness check on
-// the procedure. Levels 6 and 7 were calibrated on seeds 42 and 123, the two
-// seeds with reference worlds at those resolutions.
+// point solved per level so that the *mean* land fraction it selects across the
+// seed set equals the mean fraction the unscaled level-5 thresholds select on
+// the same seeds at level 5, so seed-to-seed habitability differences cancel out
+// of the correction. The solved absolute cut point was then divided by the
+// level-5 threshold it corrects, giving the scale stored here.
 //
-// The measured absolute cut points these scales reproduce, for reference:
+// Seed set: 4, 42, 84, 91, 123, 255 at levels 5, 6 and 7 — the six seeds of the
+// level67_linear_footprint sweep, plus level-5 runs of the same six. Level 5 is
+// the reference by construction and its row is exactly 1.0; running the same
+// solver against level 5 returns the absolute constants (0.3800 / 0.4600 /
+// 0.5500), which is the correctness check on the procedure.
+//
+// The solved absolute cut points these scales reproduce, for reference:
 //
 //	L5 carrying 0.3800 / 0.4600 / 0.5500   urban 0.3800 / 0.4600 / 0.5500
-//	L6 carrying 0.3876 / 0.4705 / 0.5507   urban 0.3890 / 0.4704 / 0.5496
-//	L7 carrying 0.3244 / 0.4714 / 0.5558   urban 0.3544 / 0.4738 / 0.5500
-//	L8 carrying 0.2612 / 0.4723 / 0.5609   urban 0.3198 / 0.4772 / 0.5504
+//	L6 carrying 0.3794 / 0.4730 / 0.5521   urban 0.3842 / 0.4773 / 0.5520
+//	L7 carrying 0.3303 / 0.4778 / 0.5564   urban 0.3663 / 0.4828 / 0.5528
+//	L8 carrying 0.2813 / 0.4826 / 0.5608   urban 0.3484 / 0.4883 / 0.5536
 //
-// The corrections are not monotone in level: the hamlet cut rises slightly from
-// L5 to L6 and then falls sharply at L7 (the fraction above 0.38 drops as fine
+// The level-5 target fractions, meaned over the six seeds:
+//
+//	carrying hamlet 0.2720 village 0.0801 town 0.0233
+//	urban    hamlet 0.2144 village 0.0502 town 0.0199
+//
+// The corrections are not monotone in level: the hamlet cut is near-flat from L5
+// to L6 and then falls sharply at L7 (the fraction above 0.38 drops as fine
 // cells stop averaging sub-cell variation into the middle of the range), while
 // the village and town cuts rise at both steps.
 //
+// Levels 6 and 7 previously rested on two seeds (42 and 123). Widening to six
+// left the village and town scales essentially unchanged (<0.015 in scale) but
+// moved the hamlet scales materially: L6 carrying 1.0200 -> 0.9983, L7 urban
+// 0.9326 -> 0.9639. Scored on seeds the old fit had never seen, the two-seed
+// table selected too much land at level 7 — mean fraction error +0.042 (urban
+// hamlet) and +0.018 (carrying hamlet). Under leave-one-out over the six seeds
+// the same errors are +0.003 and +0.002. The residual per-seed spread is
+// unchanged, as it must be: a single per-level constant cannot track individual
+// worlds, only remove the systematic offset.
+//
 // The level-8 row is EXTRAPOLATED, not measured — no level-8 reference world
-// exists, so it continues the L6 -> L7 step by one more factor-of-four in cell
-// count. Treat it as provisional and re-derive it once an L8 world is available.
+// exists and generating one is out of reach (a level-7 world already takes over
+// an hour per seed and level 8 quadruples the cell count on top of a footprint
+// depth that grows with resolution). The row continues the measured L6 -> L7
+// step by one more factor-of-four in cell count, i.e. scale(L8) = 2*scale(L7) -
+// scale(L6) per kind and field, which is linear extrapolation in log cell count
+// since the levels are equally spaced there. It is re-derived from the six-seed
+// L6/L7 rows above, so it moved with them. Treat it as provisional and
+// re-derive it once an L8 world is available.
 //
 // The city column is not calibrated: at level 5 the city cut selects well under
 // one cell per world, so a fraction target there is meaningless. It stays at
@@ -289,9 +313,9 @@ func DefaultSettlementNetworkSettings() SettlementNetworkSettings {
 func defaultSettlementKindCalibration() []SettlementKindLevelCalibration {
 	return []SettlementKindLevelCalibration{
 		{Cells: 10242, CarryingScale: [4]float64{1.000000, 1.000000, 1.000000, 1.0}, UrbanScale: [4]float64{1.000000, 1.000000, 1.000000, 1.0}},
-		{Cells: 40962, CarryingScale: [4]float64{1.020000, 1.022826, 1.001273, 1.0}, UrbanScale: [4]float64{1.023684, 1.022609, 0.999273, 1.0}},
-		{Cells: 163842, CarryingScale: [4]float64{0.853684, 1.024783, 1.010545, 1.0}, UrbanScale: [4]float64{0.932632, 1.030000, 1.000000, 1.0}},
-		{Cells: 655362, CarryingScale: [4]float64{0.687368, 1.026739, 1.019818, 1.0}, UrbanScale: [4]float64{0.841579, 1.037391, 1.000727, 1.0}},
+		{Cells: 40962, CarryingScale: [4]float64{0.998307, 1.028207, 1.003761, 1.0}, UrbanScale: [4]float64{1.011027, 1.037552, 1.003651, 1.0}},
+		{Cells: 163842, CarryingScale: [4]float64{0.869222, 1.038639, 1.011677, 1.0}, UrbanScale: [4]float64{0.963909, 1.049515, 1.005103, 1.0}},
+		{Cells: 655362, CarryingScale: [4]float64{0.740138, 1.049070, 1.019593, 1.0}, UrbanScale: [4]float64{0.916790, 1.061478, 1.006556, 1.0}},
 	}
 }
 

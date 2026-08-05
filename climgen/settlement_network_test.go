@@ -508,9 +508,11 @@ func TestResolveSettlementKindThresholdsUsesCalibratedLevelValues(t *testing.T) 
 	}
 }
 
-// The shipped scales must still reproduce the measured absolute cut points the
-// calibration was derived from, so re-expressing the table as ratios did not
-// move any level's classification.
+// The shipped scales must still reproduce the absolute cut points the
+// calibration was solved for, so re-expressing the table as ratios did not move
+// any level's classification. The values below are the six-seed derivation
+// (seeds 4, 42, 84, 91, 123, 255) documented on defaultSettlementKindCalibration;
+// they replace the earlier two-seed (42, 123) numbers.
 func TestSettlementKindCalibrationReproducesMeasuredCutPoints(t *testing.T) {
 	settings := DefaultSettlementNetworkSettings()
 	measured := []struct {
@@ -519,9 +521,9 @@ func TestSettlementKindCalibrationReproducesMeasuredCutPoints(t *testing.T) {
 		urban    [3]float64
 	}{
 		{10242, [3]float64{0.3800, 0.4600, 0.5500}, [3]float64{0.3800, 0.4600, 0.5500}},
-		{40962, [3]float64{0.3876, 0.4705, 0.5507}, [3]float64{0.3890, 0.4704, 0.5496}},
-		{163842, [3]float64{0.3244, 0.4714, 0.5558}, [3]float64{0.3544, 0.4738, 0.5500}},
-		{655362, [3]float64{0.2612, 0.4723, 0.5609}, [3]float64{0.3198, 0.4772, 0.5504}},
+		{40962, [3]float64{0.3794, 0.4730, 0.5521}, [3]float64{0.3842, 0.4773, 0.5520}},
+		{163842, [3]float64{0.3303, 0.4778, 0.5564}, [3]float64{0.3663, 0.4828, 0.5528}},
+		{655362, [3]float64{0.2813, 0.4826, 0.5608}, [3]float64{0.3484, 0.4883, 0.5536}},
 	}
 	for _, want := range measured {
 		resolved := mustResolveSettlementKindThresholds(t, settings, want.cells)
