@@ -106,6 +106,27 @@ def main() -> int:
         f"ocean_caravel_l{args.level_a}",
         f"ocean_caravel_l{args.level_b}",
     ]
+    # Density columns are emitted per seed too, so level_compare.tsv shows the
+    # denominator and the density next to the raw count they explain.
+    DENSITY_COLUMNS = [
+        "nav_length",
+        "terminals_per_nav_length",
+        "river_corridors_per_nav_length",
+        "coast_length",
+        "ports_per_coast_length_caravel",
+        "coastal_corridors_per_coast_length_caravel",
+        "ocean_area",
+        "stopovers_per_ocean_area_caravel",
+        "ocean_corridors_per_ocean_area_caravel",
+    ]
+    present_density = [
+        column
+        for column in DENSITY_COLUMNS
+        if all(column in review_a[seed] and column in review_b[seed] for seed in seeds)
+    ]
+    for column in present_density:
+        fields.extend([f"{column}_l{args.level_a}", f"{column}_l{args.level_b}", f"{column}_ratio"])
+
     rows: list[dict[str, str]] = []
     for seed in seeds:
         score_a = as_float(summary_a[seed]["trade_score"])
@@ -141,6 +162,12 @@ def main() -> int:
                 f"ocean_caravel_l{args.level_b}": review_b[seed]["ocean_caravel"],
             }
         )
+        for column in present_density:
+            left = as_float(review_a[seed][column])
+            right = as_float(review_b[seed][column])
+            rows[-1][f"{column}_l{args.level_a}"] = f"{left:.6g}"
+            rows[-1][f"{column}_l{args.level_b}"] = f"{right:.6g}"
+            rows[-1][f"{column}_ratio"] = ratio(right, left)
 
     score_ratios = [as_float(row["score_ratio"]) for row in rows if row["score_ratio"]]
     volume_ratios = [as_float(row["volume_ratio"]) for row in rows if row["volume_ratio"]]
@@ -156,6 +183,19 @@ def main() -> int:
     # Every metric present in review_summary.tsv is compared. Adding a column
     # there automatically adds it here, so new diagnostics cannot silently go
     # unmonitored.
+    # Counts and densities are compared side by side on purpose. A count is a
+    # small integer (river corridors are 3-14 per world, inter-polity ones 0-2),
+    # so one corridor forming or not moves the L6/L7 ratio 10-30% and the metric
+    # cannot resolve a real fix. It also cannot tell apart the two explanations
+    # for a count increase:
+    #
+    #   denominator grew -> the finer mesh genuinely resolves more river or
+    #       coastline. The count SHOULD rise; the density stays flat. Correct.
+    #   density grew     -> the same physical feature now carries more objects.
+    #       That is the actual resolution dependence to fix.
+    #
+    # The denominators (nav_length, coast_length, ocean_area) are therefore
+    # compared as metrics in their own right, not just used as divisors.
     STRUCTURAL_METRICS = [
         "proto",
         "polities",
@@ -166,6 +206,21 @@ def main() -> int:
         "coastal_inter",
         "ocean_caravel",
         "ocean_inter",
+        # Raw counts newly exposed alongside their densities.
+        "river_terminals",
+        "coastal_ports_caravel",
+        "ocean_stopovers_caravel",
+        # Denominators: physical extents summed over cells.
+        "nav_length",
+        "coast_length",
+        "ocean_area",
+        # Densities: the quantity that should be resolution-invariant.
+        "terminals_per_nav_length",
+        "river_corridors_per_nav_length",
+        "ports_per_coast_length_caravel",
+        "coastal_corridors_per_coast_length_caravel",
+        "stopovers_per_ocean_area_caravel",
+        "ocean_corridors_per_ocean_area_caravel",
     ]
 
     def metric_report(name: str) -> dict | None:
@@ -189,7 +244,9 @@ def main() -> int:
             "worst_dev": round(worst_dev, 3),
             "worst_seed": worst_seed,
             "mean_ratio": round(average([r for _, r in ratios]), 3) if ratios else None,
-            "max_abs_delta": int(max((abs(d) for d in signs), default=0)),
+            # Rounded, not truncated: densities are O(1) floats and int() would
+            # collapse every real change to 0.
+            "max_abs_delta": round(max((abs(d) for d in signs), default=0.0), 4),
             "mean_delta": round(average(signs), 3),
             # A one-sided delta means a systematic resolution bias; scatter in
             # both directions is ordinary seed-level variation.

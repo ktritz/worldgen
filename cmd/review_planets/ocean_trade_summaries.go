@@ -6,12 +6,28 @@ import (
 	"worldgen/climgen"
 )
 
-func printOceanTradeSummary(result *climgen.OceanTradeResult, network *climgen.SettlementNetworkResult, ports *climgen.CoastalPortResult) {
+func printOceanTradeSummary(
+	result *climgen.OceanTradeResult,
+	network *climgen.SettlementNetworkResult,
+	ports *climgen.CoastalPortResult,
+	denominators climgen.MeshDensityDenominators,
+) {
 	if result == nil {
 		return
 	}
 	if len(result.Corridors) == 0 {
-		fmt.Printf("    oceanTrade[%s]: corridors=0 candidatePorts=%d stopovers=%d majorPorts=%d\n", result.Mode.Name, len(result.CandidatePorts), len(result.Stopovers), len(result.MajorPorts))
+		fmt.Printf(
+			"    oceanTrade[%s]: corridors=0 candidatePorts=%d stopovers=%d majorPorts=%d coastLength=%.6f oceanArea=%.6f portsPerCoastLength=%.6f stopoversPerOceanArea=%.6f oceanCorridorsPerOceanArea=%.6f\n",
+			result.Mode.Name,
+			len(result.CandidatePorts),
+			len(result.Stopovers),
+			len(result.MajorPorts),
+			denominators.CoastLength,
+			denominators.OceanArea,
+			climgen.PerExtent(len(result.CandidatePorts), denominators.CoastLength),
+			climgen.PerExtent(len(result.Stopovers), denominators.OceanArea),
+			0.0,
+		)
 		fmt.Printf(
 			"      oceanEndpointDiag: endpoints=%d ports=%d stopovers=%d pairs=%d distancePruned=%d edges=%d meanDegree=%.2f maxDegree=%d meanEdgeCost=%.2f p90EdgeCost=%.2f components=%d largest=%d portComponents=%d multiPortComponents=%d largestPorts=%d secondPorts=%d meanPortsPerComponent=%.2f isolatedPorts=%d\n",
 			result.EndpointDiagnostics.EndpointCount,
@@ -74,7 +90,7 @@ func printOceanTradeSummary(result *climgen.OceanTradeResult, network *climgen.S
 		tierCounts[corridor.Tier]++
 	}
 	fmt.Printf(
-		"    oceanTrade[%s]: corridors=%d candidatePorts=%d stopovers=%d majorPorts=%d inter=%d meanFlow=%.2f meanExposure=%.2f meanAssist=%.2f\n",
+		"    oceanTrade[%s]: corridors=%d candidatePorts=%d stopovers=%d majorPorts=%d inter=%d meanFlow=%.2f meanExposure=%.2f meanAssist=%.2f coastLength=%.6f oceanArea=%.6f portsPerCoastLength=%.6f stopoversPerOceanArea=%.6f oceanCorridorsPerOceanArea=%.6f\n",
 		result.Mode.Name,
 		len(result.Corridors),
 		len(result.CandidatePorts),
@@ -84,6 +100,11 @@ func printOceanTradeSummary(result *climgen.OceanTradeResult, network *climgen.S
 		totalFlow/float64(len(result.Corridors)),
 		totalExposure/float64(len(result.Corridors)),
 		totalAssist/float64(len(result.Corridors)),
+		denominators.CoastLength,
+		denominators.OceanArea,
+		climgen.PerExtent(len(result.CandidatePorts), denominators.CoastLength),
+		climgen.PerExtent(len(result.Stopovers), denominators.OceanArea),
+		climgen.PerExtent(len(result.Corridors), denominators.OceanArea),
 	)
 	fmt.Printf(
 		"      oceanPairDiag: total=%d viable=%d viableRel=%d/%d/%d selectedRel=%d/%d/%d noPath=%d flowBelow=%d portCap=%d civCap=%d\n",

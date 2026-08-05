@@ -337,6 +337,18 @@ func main() {
 							},
 						)
 						networkResult := civilizationReview.Network
+						// Physical denominators for the structural densities reported on the
+						// river/coastal/ocean trade lines. Each is a sum over cells (not a count
+						// of discrete objects), so it barely quantizes with mesh resolution and
+						// separates "the finer mesh resolves more river/coast" from "the finer
+						// mesh puts more objects on the same feature".
+						densityDenominators := climgen.ComputeMeshDensityDenominators(
+							climateCells,
+							elevation,
+							0,
+							riverRouteNavigability(civilizationReview.RiverRoutes),
+						)
+						printMeshDensityDenominators(densityDenominators)
 						printSettlementNetworkSummary(climateSites, climateCells, populationResult, networkResult)
 						if *renderMaps {
 							renderSettlementNetworkMap(sites, elevation, index, networkResult, prefix+"_settlement_network.png", width, height)
@@ -371,7 +383,7 @@ func main() {
 										renderRiverNavigabilityMap(sites, elevation, index, riverRouteResult, prefix+"_river_navigability.png", width, height)
 									}
 									riverTradeResult = civilizationReview.RiverTrade
-									printRiverTradeSummary(riverTradeResult, networkResult)
+									printRiverTradeSummary(riverTradeResult, networkResult, densityDenominators)
 									if *renderMaps {
 										renderRiverTradeMap(sites, elevation, index, riverTradeResult, networkResult, prefix+"_river_trade.png", width, height)
 									}
@@ -410,7 +422,7 @@ func main() {
 										if *climateCoastalTrade {
 											coastalTradeResult := maritimeReview.CoastalTrade
 											coastalTradeForGoods = coastalTradeResult
-											printCoastalTradeSummary(coastalTradeResult, networkResult)
+											printCoastalTradeSummary(coastalTradeResult, networkResult, densityDenominators)
 											if *renderMaps {
 												renderCoastalTradeMap(sites, elevation, index, coastalTradeResult, networkResult, prefix+"_coastal_trade"+suffix+".png", width, height)
 											}
@@ -418,7 +430,7 @@ func main() {
 										if *climateOceanTrade {
 											oceanTradeResult := maritimeReview.OceanTrade
 											oceanTradeForGoods = oceanTradeResult
-											printOceanTradeSummary(oceanTradeResult, networkResult, coastalPortResult)
+											printOceanTradeSummary(oceanTradeResult, networkResult, coastalPortResult, densityDenominators)
 											if *renderMaps {
 												renderOceanTradeMap(sites, elevation, index, oceanTradeResult, networkResult, prefix+"_ocean_trade"+suffix+".png", width, height)
 											}
