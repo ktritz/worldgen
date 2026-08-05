@@ -7,6 +7,33 @@ import (
 	"worldgen/climgen"
 )
 
+// riverRouteNavigability exposes the per-cell navigability field used as the
+// river-extent denominator, or nil when river routes were not built.
+func riverRouteNavigability(result *climgen.RiverRouteResult) []float64 {
+	if result == nil || result.Diagnostics == nil {
+		return nil
+	}
+	return result.Diagnostics.Navigability
+}
+
+// printMeshDensityDenominators reports the physical extents that the structural
+// densities divide by, so a count change can be attributed to the denominator
+// growing (the mesh resolves more river/coast) rather than to the density.
+func printMeshDensityDenominators(denominators climgen.MeshDensityDenominators) {
+	fmt.Printf(
+		"    meshDensity: cells=%d landCells=%d oceanCells=%d coastalCells=%d meanSpacing=%.6f meanCellArea=%.8f navLength=%.6f coastLength=%.6f oceanArea=%.6f\n",
+		denominators.CellCount,
+		denominators.LandCells,
+		denominators.OceanCells,
+		denominators.CoastalCells,
+		denominators.MeanCellSpacing,
+		denominators.MeanCellArea,
+		denominators.NavLength,
+		denominators.CoastLength,
+		denominators.OceanArea,
+	)
+}
+
 func printRiverRouteSummary(result *climgen.RiverRouteResult) {
 	if result == nil || result.Diagnostics == nil || len(result.Diagnostics.Navigability) == 0 {
 		return
@@ -37,7 +64,11 @@ func printRiverRouteSummary(result *climgen.RiverRouteResult) {
 	)
 }
 
-func printRiverTradeSummary(result *climgen.RiverTradeResult, network *climgen.SettlementNetworkResult) {
+func printRiverTradeSummary(
+	result *climgen.RiverTradeResult,
+	network *climgen.SettlementNetworkResult,
+	denominators climgen.MeshDensityDenominators,
+) {
 	if result == nil {
 		return
 	}
@@ -50,7 +81,13 @@ func printRiverTradeSummary(result *climgen.RiverTradeResult, network *climgen.S
 				}
 			}
 		}
-		fmt.Printf("    riverTrade: corridors=0 ports=0 terminals=%d\n", terminals)
+		fmt.Printf(
+			"    riverTrade: corridors=0 ports=0 terminals=%d navLength=%.6f terminalsPerNavLength=%.6f riverCorridorsPerNavLength=%.6f\n",
+			terminals,
+			denominators.NavLength,
+			climgen.PerExtent(terminals, denominators.NavLength),
+			0.0,
+		)
 		return
 	}
 	tierCounts := make(map[climgen.RiverTradeCorridorTier]int)
@@ -76,7 +113,7 @@ func printRiverTradeSummary(result *climgen.RiverTradeResult, network *climgen.S
 		}
 	}
 	fmt.Printf(
-		"    riverTrade: corridors=%d ports=%d terminals=%d inter=%d meanFlow=%.2f meanNav=%.2f meanTransfer=%.2f\n",
+		"    riverTrade: corridors=%d ports=%d terminals=%d inter=%d meanFlow=%.2f meanNav=%.2f meanTransfer=%.2f navLength=%.6f terminalsPerNavLength=%.6f riverCorridorsPerNavLength=%.6f\n",
 		len(result.Corridors),
 		len(result.MajorPorts),
 		terminals,
@@ -84,6 +121,9 @@ func printRiverTradeSummary(result *climgen.RiverTradeResult, network *climgen.S
 		totalFlow/float64(len(result.Corridors)),
 		totalNav/float64(len(result.Corridors)),
 		totalTransfer/float64(len(result.Corridors)),
+		denominators.NavLength,
+		climgen.PerExtent(terminals, denominators.NavLength),
+		climgen.PerExtent(len(result.Corridors), denominators.NavLength),
 	)
 	type tierCount struct {
 		tier  climgen.RiverTradeCorridorTier
