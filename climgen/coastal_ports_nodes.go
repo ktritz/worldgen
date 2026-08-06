@@ -281,6 +281,8 @@ func populateBaseCoastalNodeScores(
 		bestCell := -1
 		bestDeepwater := 0.0
 		bestDeepwaterCell := -1
+		portSamples := make([]float64, 0, 16)
+		deepwaterSamples := make([]float64, 0, 16)
 		type state struct {
 			cell int
 			hops int
@@ -293,11 +295,13 @@ func populateBaseCoastalNodeScores(
 			decay := math.Pow(settings.NodeCatchmentDecay, float64(cur.hops)*stepScale)
 			if isCoastalLand(cur.cell, elevation, seaLevel, adj) {
 				candidate := decay * (diag.PortSuitability[cur.cell] + settings.NodeFeatureWeight*maritimePortFeatureScore(cur.cell, diag, settings))
+				portSamples = append(portSamples, candidate)
 				if candidate > best {
 					best = candidate
 					bestCell = cur.cell
 				}
 				deepwaterCandidate := decay * (diag.DeepwaterSuitability[cur.cell] + settings.NodeFeatureWeight*maritimeDeepwaterFeatureScore(cur.cell, diag, settings))
+				deepwaterSamples = append(deepwaterSamples, deepwaterCandidate)
 				if deepwaterCandidate > bestDeepwater {
 					bestDeepwater = deepwaterCandidate
 					bestDeepwaterCell = cur.cell
@@ -317,15 +321,28 @@ func populateBaseCoastalNodeScores(
 				queue = append(queue, state{cell: neighbor, hops: cur.hops + 1})
 			}
 		}
-		diag.NodePortScore[i] = clamp01(best)
+		// The catchment disc holds ~1/stepScale times as many coastal cells at fine
+		// meshes as at the baseline, so a raw max over it inflates with resolution and
+		// clears the absolute port thresholds more often. Score with the scale-stable
+		// order statistic; keep the raw argmax for *locating* the terminal cell, which
+		// is a positional choice and carries no threshold comparison.
+		portScore := meshScaleStableMaxOfLinearSamples(portSamples, cellCount)
+		deepwaterScore := meshScaleStableMaxOfLinearSamples(deepwaterSamples, cellCount)
+		if bestCell < 0 {
+			portScore = best
+		}
+		if bestDeepwaterCell < 0 {
+			deepwaterScore = bestDeepwater
+		}
+		diag.NodePortScore[i] = clamp01(portScore)
 		if i < len(diag.NodeBasePortScore) {
-			diag.NodeBasePortScore[i] = clamp01(best)
+			diag.NodeBasePortScore[i] = clamp01(portScore)
 		}
 		if i < len(diag.NodeDeepwaterScore) {
-			diag.NodeDeepwaterScore[i] = clamp01(bestDeepwater)
+			diag.NodeDeepwaterScore[i] = clamp01(deepwaterScore)
 		}
 		if i < len(diag.NodeBaseDeepwaterScore) {
-			diag.NodeBaseDeepwaterScore[i] = clamp01(bestDeepwater)
+			diag.NodeBaseDeepwaterScore[i] = clamp01(deepwaterScore)
 		}
 		if i < len(diag.NodeTerminalCell) {
 			diag.NodeTerminalCell[i] = bestCell

@@ -1,6 +1,9 @@
 package climgen
 
-import "math"
+import (
+	"math"
+	"sort"
+)
 
 // Supported mesh resolution envelope: L5 (10242 cells, baseline) through L8 (655362).
 // The upper clamp of 1.0 means coarser meshes (L4 and below) receive no correction and
@@ -60,6 +63,36 @@ func meshResolutionAdjustedDiffusionIterations(baseIterations int, cellCount int
 		return baseIterations
 	}
 	return iterations
+}
+
+// meshScaleStableMaxOfLinearSamples corrects an extreme-value statistic taken over a
+// sample pool whose size grows with mesh resolution. A maximum over n samples is not
+// scale-stable: in expectation it estimates the (1 - 1/(n+1)) quantile of the underlying
+// distribution, so refining the mesh (more samples over the same physical extent)
+// systematically inflates it, and any comparison against an absolute threshold then
+// admits monotonically more candidates at finer meshes.
+//
+// The correction rescales the sample count to its baseline-mesh equivalent and reads
+// that same quantile instead. `samples` must be drawn along a *linear* physical extent
+// (a coastline, a route), so the pool grows as 1/meshPathCostResolutionScale; use
+// meshAreaResolutionScale for area-distributed pools.
+//
+// At the baseline mesh (scale 1) this is an exact no-op for every sample count: the
+// quantile index n^2/(n+1) always ceilings to n, i.e. the maximum.
+func meshScaleStableMaxOfLinearSamples(samples []float64, cellCount int) float64 {
+	if len(samples) == 0 {
+		return 0
+	}
+	sorted := make([]float64, len(samples))
+	copy(sorted, samples)
+	sort.Float64s(sorted)
+	n := float64(len(sorted))
+	baselineEquivalent := n * meshPathCostResolutionScale(cellCount)
+	if baselineEquivalent < 1 {
+		baselineEquivalent = 1
+	}
+	quantile := baselineEquivalent / (baselineEquivalent + 1)
+	return sortedFloatPercentile(sorted, quantile)
 }
 
 func meshScaledTerritoryLinearCells(territoryCells int, meshCellCount int) float64 {
