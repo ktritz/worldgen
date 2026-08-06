@@ -16,13 +16,13 @@ import (
 )
 
 const (
-	reviewTerrainCacheVersion      = "terrain-v10"
+	reviewTerrainCacheVersion      = "terrain-v11"
 	reviewClimateCacheVersion      = "climate-v9"
-	reviewDerivedCacheVersion      = "derived-v11"
+	reviewDerivedCacheVersion      = "derived-v12"
 	reviewTradeGoodsCacheVersion   = "tradegoods-v2"
-	reviewCivilizationCacheVersion = "civilization-v71"
-	reviewMaritimeCacheVersion     = "maritime-v45"
-	reviewEconomyCacheVersion      = "economy-v48"
+	reviewCivilizationCacheVersion = "civilization-v72"
+	reviewMaritimeCacheVersion     = "maritime-v46"
+	reviewEconomyCacheVersion      = "economy-v49"
 )
 
 type reviewCacheStore struct {

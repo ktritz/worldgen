@@ -187,12 +187,53 @@ func hydrologyChannelThreshold(elevation []float64, runoff []float64, accumulati
 		return math.Max(meanRunoff, 1e-6)
 	}
 	sort.Float64s(landAccumulation)
-	// Flow accumulation is computed on the receiver graph, not a raster area
-	// integral. Normalizing by a fixed upper-tail rank keeps channel hierarchy
-	// comparable as the mesh is refined and local catchments split.
-	quantileThreshold := sortedPercentile(landAccumulation, 93.5)
+	quantileThreshold := sortedPercentile(landAccumulation, channelInitiationPercentile(len(elevation)))
 	runoffFloor := math.Max(12*meanRunoff, maxRunoff(runoff))
 	return math.Max(runoffFloor, quantileThreshold)
+}
+
+// channelInitiationBaselineFraction is the fraction of baseline-mesh (L5) land
+// cells that sit on a channel. It is the complement of the fixed P93.5
+// upper-tail rank the threshold used before critical-area scaling existed, so
+// at the baseline mesh the criterion below reproduces the old channel set
+// exactly.
+const channelInitiationBaselineFraction = 0.065
+
+// channelInitiationPercentile returns the upper-tail percentile of the land
+// flow-accumulation distribution that marks channel initiation on a mesh of
+// cellCount cells.
+//
+// Channel initiation is a critical drainage-area criterion: a cell is a channel
+// when its upstream contributing area exceeds a fixed physical area. The set
+// that criterion selects is one-dimensional (a channel network), so the number
+// of cells covering it is channel length divided by cell spacing and therefore
+// grows with the LINEAR refinement ratio. Land cells instead grow with mesh
+// area, so the channel fraction of land must fall with the linear scale:
+//
+//	channelCells(mesh) = channelCells(baseline) / pathScale
+//	landCells(mesh)    = landCells(baseline)    / pathScale^2
+//	fraction(mesh)     = channelInitiationBaselineFraction * pathScale
+//
+// A fixed percentile pins the fraction instead, which makes the channel set —
+// and everything derived from it, up through river navigability — scale with
+// mesh area rather than with channel length.
+//
+// The critical area is located by rank rather than as an absolute accumulation
+// value because accumulation here is a receiver-graph sum of runoff in the
+// caller's own units (mm/yr, cm, or a unit proxy), not a physical area
+// integral; a rank keeps the criterion invariant to runoff units and to how wet
+// the world is, which absolute constants are not. At the baseline mesh
+// pathScale is exactly 1, so this is an exact no-op there.
+func channelInitiationPercentile(cellCount int) float64 {
+	scale := meshPathCostResolutionScale(cellCount)
+	pct := 100 - 100*channelInitiationBaselineFraction*scale
+	if pct <= 0 {
+		return 0
+	}
+	if pct >= 100 {
+		return 100
+	}
+	return pct
 }
 
 func sortedPercentile(sortedValues []float64, pct float64) float64 {
