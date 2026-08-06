@@ -184,29 +184,124 @@ func TestHydrologyChannelCoverageIsStableAcrossRunoffUnits(t *testing.T) {
 	}
 }
 
+// TestHydrologyChannelThresholdFollowsAccumulationHierarchy pins the threshold
+// to the accumulation hierarchy at a FIXED mesh resolution: doubling every
+// accumulation value must double the threshold. Resolution behaviour is a
+// separate axis and is covered by
+// TestHydrologyChannelInitiationScalesWithChannelLength.
 func TestHydrologyChannelThresholdFollowsAccumulationHierarchy(t *testing.T) {
-	coarseElevation := make([]float64, 10000)
-	coarseRunoff := make([]float64, len(coarseElevation))
-	coarseAccumulation := make([]float64, len(coarseElevation))
-	for i := range coarseElevation {
-		coarseElevation[i] = 100
-		coarseRunoff[i] = 1
-		coarseAccumulation[i] = 1 + 99*float64(i)/float64(len(coarseElevation)-1)
+	baseElevation := make([]float64, 10000)
+	baseRunoff := make([]float64, len(baseElevation))
+	baseAccumulation := make([]float64, len(baseElevation))
+	doubledAccumulation := make([]float64, len(baseElevation))
+	for i := range baseElevation {
+		baseElevation[i] = 100
+		baseRunoff[i] = 1
+		baseAccumulation[i] = 1 + 99*float64(i)/float64(len(baseElevation)-1)
+		doubledAccumulation[i] = 2 * baseAccumulation[i]
 	}
 
-	fineElevation := make([]float64, 40000)
-	fineRunoff := make([]float64, len(fineElevation))
-	fineAccumulation := make([]float64, len(fineElevation))
-	for i := range fineElevation {
-		fineElevation[i] = 100
-		fineRunoff[i] = 1
-		fineAccumulation[i] = 2 * (1 + 99*float64(i)/float64(len(fineElevation)-1))
-	}
-
-	coarseThreshold := hydrologyChannelThreshold(coarseElevation, coarseRunoff, coarseAccumulation, len(coarseElevation), 1)
-	fineThreshold := hydrologyChannelThreshold(fineElevation, fineRunoff, fineAccumulation, len(fineElevation), 1)
-	ratio := fineThreshold / coarseThreshold
+	baseThreshold := hydrologyChannelThreshold(baseElevation, baseRunoff, baseAccumulation, len(baseElevation), 1)
+	doubledThreshold := hydrologyChannelThreshold(baseElevation, baseRunoff, doubledAccumulation, len(baseElevation), 1)
+	ratio := doubledThreshold / baseThreshold
 	if ratio < 1.95 || ratio > 2.05 {
 		t.Fatalf("expected channel threshold to follow linear accumulation hierarchy, got ratio %.3f", ratio)
+	}
+}
+
+// buildSyntheticDrainage lays the SAME physical drainage network onto a mesh of
+// meshCells cells, sampled by a width x width grid of land cells.
+//
+// The network is a trunk (column x == 0) fed by eight lateral tributaries whose
+// spacing is a fixed FRACTION of the grid (width/8 rows), i.e. a fixed physical
+// distance: refining the mesh resolves the same channels more finely, it does
+// not invent new ones. Accumulation is the upstream cell count, so a cell's
+// physical contributing area is accumulation / width^2 and is a function of
+// position in the unit square alone — identical at both resolutions.
+func buildSyntheticDrainage(meshCells, width int) (elevation, runoff, accumulation []float64, landCount int) {
+	elevation = make([]float64, meshCells)
+	runoff = make([]float64, meshCells)
+	accumulation = make([]float64, meshCells)
+	rowSpacing := width / 8
+	landCount = width * width
+	for y := 0; y < width; y++ {
+		for x := 0; x < width; x++ {
+			idx := y*width + x
+			elevation[idx] = 100
+			runoff[idx] = 1
+			switch {
+			case x == 0:
+				// Trunk: every tributary strip at or upstream of this row.
+				strips := y/rowSpacing + 1
+				accumulation[idx] = float64(strips * width * rowSpacing)
+			case y%rowSpacing == 0:
+				// Tributary: its own strip plus every strip further from the trunk.
+				accumulation[idx] = float64((width - x) * rowSpacing)
+			default:
+				// Hillslope: only the cells above it inside its own strip.
+				accumulation[idx] = float64(rowSpacing - y%rowSpacing)
+			}
+		}
+	}
+	return elevation, runoff, accumulation, landCount
+}
+
+func countChannelCells(elevation, accumulation []float64, threshold float64) int {
+	count := 0
+	for i, elev := range elevation {
+		if elev > 0 && accumulation[i] >= threshold {
+			count++
+		}
+	}
+	return count
+}
+
+// TestHydrologyChannelInitiationScalesWithChannelLength is the regression test
+// for river extent scaling with mesh AREA. The same physical channel network is
+// sampled at L5 (10242 cells) and L6 (40962 cells): land cells quadruple, but
+// the channel network is one-dimensional, so the number of cells on it must
+// only double. A fixed upper-tail percentile pins the channel FRACTION and
+// therefore quadruples the channel set; a critical drainage area does not.
+func TestHydrologyChannelInitiationScalesWithChannelLength(t *testing.T) {
+	const (
+		baselineMeshCells = 10242
+		refinedMeshCells  = 40962
+	)
+
+	coarseElevation, coarseRunoff, coarseAccumulation, coarseLand := buildSyntheticDrainage(baselineMeshCells, 64)
+	fineElevation, fineRunoff, fineAccumulation, fineLand := buildSyntheticDrainage(refinedMeshCells, 128)
+
+	if got := float64(fineLand) / float64(coarseLand); math.Abs(got-4) > 1e-9 {
+		t.Fatalf("fixture land cells must scale with mesh area, got %.3f", got)
+	}
+
+	coarseThreshold := hydrologyChannelThreshold(coarseElevation, coarseRunoff, coarseAccumulation, coarseLand, 1)
+	fineThreshold := hydrologyChannelThreshold(fineElevation, fineRunoff, fineAccumulation, fineLand, 1)
+
+	coarseChannels := countChannelCells(coarseElevation, coarseAccumulation, coarseThreshold)
+	fineChannels := countChannelCells(fineElevation, fineAccumulation, fineThreshold)
+	if coarseChannels == 0 {
+		t.Fatalf("expected a non-empty baseline channel set")
+	}
+
+	// Baseline behaviour is unchanged: the L5 channel set is still the P93.5
+	// upper tail of land accumulation.
+	coarseFraction := float64(coarseChannels) / float64(coarseLand)
+	if coarseFraction < 0.055 || coarseFraction > 0.075 {
+		t.Fatalf("baseline channel fraction = %.4f, want ~0.065", coarseFraction)
+	}
+
+	countRatio := float64(fineChannels) / float64(coarseChannels)
+	if countRatio < 1.8 || countRatio > 2.2 {
+		t.Fatalf("channel cell count ratio L6/L5 = %.3f (coarse=%d fine=%d), want ~2.0 (linear), not ~4.0 (area)",
+			countRatio, coarseChannels, fineChannels)
+	}
+
+	// The same channel count is also the same physical contributing area: the
+	// upstream cell count that marks a channel must quadruple when cells become
+	// four times smaller.
+	thresholdRatio := fineThreshold / coarseThreshold
+	if thresholdRatio < 3.6 || thresholdRatio > 4.4 {
+		t.Fatalf("channel accumulation threshold ratio L6/L5 = %.3f, want ~4.0 (a fixed physical area)", thresholdRatio)
 	}
 }
