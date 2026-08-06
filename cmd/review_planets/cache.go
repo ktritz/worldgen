@@ -21,8 +21,8 @@ const (
 	reviewDerivedCacheVersion      = "derived-v12"
 	reviewTradeGoodsCacheVersion   = "tradegoods-v2"
 	reviewCivilizationCacheVersion = "civilization-v72"
-	reviewMaritimeCacheVersion     = "maritime-v46"
-	reviewEconomyCacheVersion      = "economy-v49"
+	reviewMaritimeCacheVersion     = "maritime-v47"
+	reviewEconomyCacheVersion      = "economy-v50"
 )
 
 type reviewCacheStore struct {
