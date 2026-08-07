@@ -21,7 +21,7 @@ const (
 	reviewDerivedCacheVersion      = "derived-v12"
 	reviewTradeGoodsCacheVersion   = "tradegoods-v2"
 	reviewCivilizationCacheVersion = "civilization-v72"
-	reviewMaritimeCacheVersion     = "maritime-v47"
+	reviewMaritimeCacheVersion     = "maritime-v48"
 	reviewEconomyCacheVersion      = "economy-v50"
 )
 
