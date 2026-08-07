@@ -17,11 +17,11 @@ import (
 
 const (
 	reviewTerrainCacheVersion      = "terrain-v11"
-	reviewClimateCacheVersion      = "climate-v11"
+	reviewClimateCacheVersion      = "climate-v12"
 	reviewDerivedCacheVersion      = "derived-v12"
 	reviewTradeGoodsCacheVersion   = "tradegoods-v2"
 	reviewCivilizationCacheVersion = "civilization-v72"
-	reviewMaritimeCacheVersion     = "maritime-v48"
+	reviewMaritimeCacheVersion     = "maritime-v49"
 	reviewEconomyCacheVersion      = "economy-v50"
 )
 

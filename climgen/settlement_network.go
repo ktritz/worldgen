@@ -886,6 +886,13 @@ func settlementSupportDiscArea(supportedCells, discCells int) float64 {
 	// previous count*scale^2 conversion for every cell including the twelve
 	// pentagons, and is inert at finer meshes where the factor is well below 1
 	// (0.37 at L6, 0.11 at L7).
+	//
+	// The self-seed is deliberately scaled along with the neighbours: this
+	// reports a supported *physical area*, and a lone supported cell at L7
+	// really does cover a sixteenth of the area a lone L5 cell covers. A
+	// constant supported fraction of the window therefore maps to a constant
+	// area at every resolution, which is what
+	// TestSettlementNodePhysicalSupportAreaHoldsPartialNeighborhood pins down.
 	perCell := settlementSupportDiscBaselineCells / float64(discCells+1)
 	if perCell > 1 {
 		perCell = 1
