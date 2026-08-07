@@ -179,7 +179,7 @@ func BuildCoastalTradeNetwork(
 	}
 
 	civByNode := civilizationByNode(network, proto)
-	candidatePorts := civilizedMaritimeCandidatePorts(candidateCoastalPorts(network, ports, settings), civByNode)
+	candidatePorts := civilizedMaritimeCandidatePorts(candidateCoastalPorts(sites, network, ports, settings), civByNode)
 	out.CandidatePorts = append(out.CandidatePorts, candidatePorts...)
 	stopovers, stopoverDiagnostics := BuildMaritimeStopoverNodesWithDiagnostics(sites, cells, network, ports, elevation, seaLevel)
 	out.Stopovers = stopovers
@@ -304,7 +304,7 @@ type coastalTradeCandidate struct {
 	flow float64
 }
 
-func candidateCoastalPorts(network *SettlementNetworkResult, ports *CoastalPortResult, settings CoastalTradeSettings) []int {
+func candidateCoastalPorts(sites []Vector3D, network *SettlementNetworkResult, ports *CoastalPortResult, settings CoastalTradeSettings) []int {
 	if network == nil || ports == nil || ports.Diagnostics == nil {
 		return nil
 	}
@@ -331,14 +331,37 @@ func candidateCoastalPorts(network *SettlementNetworkResult, ports *CoastalPortR
 	sort.Slice(out, func(i, j int) bool {
 		return ports.Diagnostics.NodePortScore[out[i]] > ports.Diagnostics.NodePortScore[out[j]]
 	})
-	return dedupeCoastalCandidatePortsByTerminal(out, ports.Diagnostics)
+	return dedupeCoastalCandidatePortsByTerminal(sites, out, ports.Diagnostics)
 }
 
-func dedupeCoastalCandidatePortsByTerminal(candidates []int, diag *CoastalPortDiagnostics) []int {
+// coastalPortMergeRadiusBaselineFraction sets the terminal merge radius as a
+// fraction of the baseline (L5) mean cell spacing. Half a spacing separates no
+// pair of distinct baseline cells, which keeps L5 selection unchanged.
+const coastalPortMergeRadiusBaselineFraction = 0.5
+
+// dedupeCoastalCandidatePortsByTerminal keeps the highest-scoring candidate in
+// each stretch of coast. Merging by terminal *cell identity* made the merge
+// radius one mesh cell — about 112 km at L5 but 28 km at L7 — while the
+// catchment that picks the terminal is physically scaled, so a finer mesh
+// offered more distinct terminal cells, collided less often, and kept ports a
+// coarse mesh merged. Candidate counts diverged about 1.37x per level as a
+// result, an artifact created by the dedupe rather than by the port scoring.
+//
+// Merging within a fixed angular radius instead holds the physical spacing
+// constant. The radius is half the L5 mean cell spacing: adjacent cell centres
+// on the baseline mesh sit about one full spacing apart, comfortably outside
+// half of it even allowing for the spread in Voronoi cell size, so no pair of
+// distinct L5 terminals merges and the baseline is an exact no-op. At finer
+// meshes the same physical radius absorbs the extra terminals that refinement
+// exposes.
+func dedupeCoastalCandidatePortsByTerminal(sites []Vector3D, candidates []int, diag *CoastalPortDiagnostics) []int {
 	if len(candidates) == 0 || diag == nil {
 		return candidates
 	}
+	mergeRadius := coastalPortMergeRadiusBaselineFraction * MeanCellAngularSpacing(int(baselinePathCostCells))
+	minCosine := math.Cos(mergeRadius)
 	seenTerminal := make(map[int]struct{}, len(candidates))
+	kept := make([]int, 0, len(candidates))
 	out := make([]int, 0, len(candidates))
 	for _, nodeIdx := range candidates {
 		terminal := -1
@@ -352,10 +375,26 @@ func dedupeCoastalCandidatePortsByTerminal(candidates []int, diag *CoastalPortDi
 		if _, ok := seenTerminal[terminal]; ok {
 			continue
 		}
+		if terminal < len(sites) && withinAngularRadiusOfAny(sites, kept, terminal, minCosine) {
+			continue
+		}
 		seenTerminal[terminal] = struct{}{}
+		kept = append(kept, terminal)
 		out = append(out, nodeIdx)
 	}
 	return out
+}
+
+func withinAngularRadiusOfAny(sites []Vector3D, kept []int, terminal int, minCosine float64) bool {
+	for _, other := range kept {
+		if other >= len(sites) {
+			continue
+		}
+		if sites[terminal].Dot(sites[other]) >= minCosine {
+			return true
+		}
+	}
+	return false
 }
 
 func civilizedMaritimeCandidatePorts(candidates []int, civByNode []int) []int {

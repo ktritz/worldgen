@@ -81,7 +81,7 @@ func TestCandidateCoastalPortsIncludesStrongDistrictTerminal(t *testing.T) {
 		},
 	}
 
-	candidates := candidateCoastalPorts(network, ports, DefaultCoastalTradeSettings())
+	candidates := candidateCoastalPorts(nil, network, ports, DefaultCoastalTradeSettings())
 	if len(candidates) != 1 || candidates[0] != 0 {
 		t.Fatalf("expected only strong district coastal terminal to qualify, got %v", candidates)
 	}
@@ -104,7 +104,7 @@ func TestCandidateCoastalPortsIncludesStrongRiverEstuaryTerminal(t *testing.T) {
 		},
 	}
 
-	candidates := candidateCoastalPorts(network, ports, DefaultCoastalTradeSettings())
+	candidates := candidateCoastalPorts(nil, network, ports, DefaultCoastalTradeSettings())
 	if len(candidates) != 1 || candidates[0] != 0 {
 		t.Fatalf("expected strong river estuary terminal to qualify, got %v", candidates)
 	}
@@ -126,7 +126,7 @@ func TestCandidateCoastalPortsDedupesSharedTerminal(t *testing.T) {
 		},
 	}
 
-	candidates := candidateCoastalPorts(network, ports, DefaultCoastalTradeSettings())
+	candidates := candidateCoastalPorts(nil, network, ports, DefaultCoastalTradeSettings())
 	if len(candidates) != 2 || candidates[0] != 0 || candidates[1] != 2 {
 		t.Fatalf("expected highest scoring node per terminal, got %v", candidates)
 	}
