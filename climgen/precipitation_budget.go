@@ -61,6 +61,15 @@ func computePrecipitationBudget(
 	avgCellSizeKm := estimateClimateCellSizeKm(n)
 	maxIterations := scaledPrecipIterations(avgCellSizeKm)
 	rainfallFractionPerCell := settings.RainfallFraction * avgCellSizeKm
+	// Condensation below is the moisture a column loses while crossing *one
+	// cell*: rainfallFractionPerCell is a per-km rate multiplied by the cell
+	// width, and every other transfer in the budget is now a per-physical-step
+	// fraction too. That makes the depletion profile along a streamline
+	// mesh-invariant, but it leaves the per-cell amount proportional to the cell
+	// width, so reporting it directly as a precipitation depth makes every world
+	// drier as the mesh refines. Divide back out to recover an intensity, i.e.
+	// the condensation per baseline (L5) step. Exact no-op at the baseline.
+	precipIntensityPerStep := 1.0 / precipitationPhysicalStepScale(n)
 	transportSteps := resolutionAdjustedPrecipSteps(precipInlandTransportSteps, n)
 	fetchSteps := resolutionAdjustedPrecipSteps(precipFetchMaxSteps, n)
 	footprintSteps := resolutionAdjustedPrecipSteps(precipInlandTransportSteps+4, n)
@@ -264,6 +273,7 @@ func computePrecipitationBudget(
 					landInterior[i],
 					localPrecipitationStorage(settings.LandSurfaceStorage, i),
 					settings.LandRecyclingScale*localPrecipitationScale(settings.LandRecyclingLocalScale, i),
+					n,
 				)
 			}
 			if isOcean[i] {
@@ -295,6 +305,7 @@ func computePrecipitationBudget(
 					rainfallFractionPerCell,
 					temperature,
 					i,
+					n,
 				)
 				condensed := condDiag.Condensed
 				marineCondensed, landCondensed, frontalCondensed := splitCondensationReservoirsWithFrontal(
@@ -449,6 +460,7 @@ func computePrecipitationBudget(
 			landInterior[i],
 			localPrecipitationStorage(settings.LandSurfaceStorage, i),
 			settings.LandRecyclingScale*localPrecipitationScale(settings.LandRecyclingLocalScale, i),
+			n,
 		)
 		tempC := 12.0
 		if i >= 0 && i < len(temperature) {
@@ -475,6 +487,7 @@ func computePrecipitationBudget(
 			rainfallFractionPerCell,
 			temperature,
 			i,
+			n,
 		)
 		condensedTotal := condDiag.Condensed
 		result.Debug.MarineIncoming[i] = incomingMarine
@@ -505,10 +518,10 @@ func computePrecipitationBudget(
 			convective,
 			frontalRetentionScale,
 		)
-		result.MarinePrecipitation[i] = marineCondensed
-		result.LandPrecipitation[i] = landCondensed
-		result.FrontalPrecipitation[i] = frontalCondensed
-		result.Precipitation[i] = marineCondensed + landCondensed + frontalCondensed
+		result.MarinePrecipitation[i] = marineCondensed * precipIntensityPerStep
+		result.LandPrecipitation[i] = landCondensed * precipIntensityPerStep
+		result.FrontalPrecipitation[i] = frontalCondensed * precipIntensityPerStep
+		result.Precipitation[i] = result.MarinePrecipitation[i] + result.LandPrecipitation[i] + result.FrontalPrecipitation[i]
 		result.Debug.RetainedHumidity[i] = math.Max(0, incoming-condensedTotal)
 		if settings.PrecipitationScale > 0 {
 			result.MarinePrecipitation[i] *= settings.PrecipitationScale

@@ -23,6 +23,11 @@ func localPrecipitationStorage(storage []float64, idx int) float64 {
 	return Clamp(storage[idx], 0, 1)
 }
 
+// computeLandRecyclingSource returns the surface-recycled moisture added for one
+// land-budget iteration. One iteration advects moisture one cell, so the
+// recycling fraction is a per-step quantity and is converted to a
+// per-physical-step fraction (exact no-op at the L5 baseline); otherwise a finer
+// mesh recycles more times over the same physical distance.
 func computeLandRecyclingSource(
 	localHumidity float64,
 	temperature []float64,
@@ -30,6 +35,7 @@ func computeLandRecyclingSource(
 	landInterior float64,
 	surfaceStorage float64,
 	recycleScale float64,
+	cellCount int,
 ) float64 {
 	if idx < 0 || idx >= len(temperature) {
 		return 0
@@ -38,8 +44,10 @@ func computeLandRecyclingSource(
 	evapPotential := smoothRamp(-2.0, 26.0, tempC)
 	warmSeasonBoost := 0.55 + 0.45*smoothRamp(8.0, 30.0, tempC)
 	recycleBias := 0.25 + 0.75*Clamp(landInterior, 0, 1)
-	humidityFlux := localHumidity * precipLandRecyclingFraction * recycleScale * evapPotential * warmSeasonBoost * recycleBias
-	storageFlux := Clamp(surfaceStorage, 0, 1) * precipLandRecyclingFraction * 0.30 * evapPotential * (0.30 + 0.70*warmSeasonBoost) * recycleBias
+	humidityFraction := precipitationPerStepFraction(precipLandRecyclingFraction, cellCount)
+	storageFraction := precipitationPerStepFraction(precipLandRecyclingFraction*0.30, cellCount)
+	humidityFlux := localHumidity * humidityFraction * recycleScale * evapPotential * warmSeasonBoost * recycleBias
+	storageFlux := Clamp(surfaceStorage, 0, 1) * storageFraction * evapPotential * (0.30 + 0.70*warmSeasonBoost) * recycleBias
 	return humidityFlux + storageFlux
 }
 

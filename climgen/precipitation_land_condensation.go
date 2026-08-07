@@ -30,6 +30,7 @@ func computeLandCondensation(
 	rainfallFractionPerCell float64,
 	temperature []float64,
 	idx int,
+	cellCount int,
 ) float64 {
 	return computeLandCondensationDiagnostic(
 		q,
@@ -45,6 +46,7 @@ func computeLandCondensation(
 		rainfallFractionPerCell,
 		temperature,
 		idx,
+		cellCount,
 	).Condensed
 }
 
@@ -62,6 +64,7 @@ func computeLandCondensationDiagnostic(
 	rainfallFractionPerCell float64,
 	temperature []float64,
 	idx int,
+	cellCount int,
 ) landCondensationDiagnostic {
 	if q <= 0 {
 		return landCondensationDiagnostic{}
@@ -118,7 +121,17 @@ func computeLandCondensationDiagnostic(
 		1.0,
 	)
 	baseCondensation := activeHumidity * rainfallFractionPerCell * backgroundFraction
-	supersatCondensation := supersat * (precipLandSupersatFraction * (0.72 + 0.28*coldCondenseEfficiency) * supersatSupport)
+	// baseCondensation is already per physical distance through
+	// rainfallFractionPerCell. The supersaturation drain is a fraction removed
+	// per iteration, i.e. per cell traversed, so it needs the same treatment:
+	// convert it to a per-physical-step fraction (exact no-op at the L5
+	// baseline) or a finer mesh drains supersaturation more times over the same
+	// physical distance.
+	supersatFraction := precipitationPerStepFraction(
+		precipLandSupersatFraction*(0.72+0.28*coldCondenseEfficiency)*supersatSupport,
+		cellCount,
+	)
+	supersatCondensation := supersat * supersatFraction
 	condensed := baseCondensation + supersatCondensation
 	scale := Clamp(condensationScale, 0.35, 2.2)
 	condensed *= scale

@@ -304,6 +304,7 @@ func computeMarineSweepTransport(
 			rainfallFractionPerCell,
 			temperature,
 			i,
+			len(vertices),
 		)
 		retained := computeLandRetainedHumidity(
 			q,

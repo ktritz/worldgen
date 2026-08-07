@@ -133,8 +133,8 @@ func TestLandRetainedHumidityRespondsToBlockingAndInterior(t *testing.T) {
 func TestLandCondensationIsLessEfficientInVeryColdAir(t *testing.T) {
 	warmCapacity := 0.70
 	coldCapacity := 0.20
-	warm := computeLandCondensation(warmCapacity*1.15, warmCapacity, 0.70, 0.30, 0.90, 0.90, 0.15, 0.10, 0.90, 1.0, 0.07, []float64{281.15}, 0)
-	cold := computeLandCondensation(coldCapacity*1.15, coldCapacity, 0.70, 0.30, 0.90, 0.90, 0.15, 0.10, 0.90, 1.0, 0.07, []float64{258.15}, 0)
+	warm := computeLandCondensation(warmCapacity*1.15, warmCapacity, 0.70, 0.30, 0.90, 0.90, 0.15, 0.10, 0.90, 1.0, 0.07, []float64{281.15}, 0, precipTestBaselineCells)
+	cold := computeLandCondensation(coldCapacity*1.15, coldCapacity, 0.70, 0.30, 0.90, 0.90, 0.15, 0.10, 0.90, 1.0, 0.07, []float64{258.15}, 0, precipTestBaselineCells)
 
 	if cold >= warm {
 		t.Fatalf("expected very cold maritime air to condense less than warm maritime air: cold=%.3f warm=%.3f", cold, warm)
@@ -143,8 +143,8 @@ func TestLandCondensationIsLessEfficientInVeryColdAir(t *testing.T) {
 
 func TestLandCondensationShiftsSomeMaritimeRainInland(t *testing.T) {
 	capacity := 0.70
-	coast := computeLandCondensation(capacity*1.30, capacity, 0.05, 0.20, 0.90, 0.90, 0.05, 0.05, 0.95, 1.0, 0.07, []float64{282.15}, 0)
-	inland := computeLandCondensation(capacity*1.30, capacity, 0.05, 0.20, 0.90, 0.90, 0.55, 0.20, 0.95, 1.0, 0.07, []float64{282.15}, 0)
+	coast := computeLandCondensation(capacity*1.30, capacity, 0.05, 0.20, 0.90, 0.90, 0.05, 0.05, 0.95, 1.0, 0.07, []float64{282.15}, 0, precipTestBaselineCells)
+	inland := computeLandCondensation(capacity*1.30, capacity, 0.05, 0.20, 0.90, 0.90, 0.55, 0.20, 0.95, 1.0, 0.07, []float64{282.15}, 0, precipTestBaselineCells)
 
 	if inland <= coast {
 		t.Fatalf("expected frontal inland cell to condense more than first-landfall coast under weak uplift: coast=%.3f inland=%.3f", coast, inland)
@@ -153,8 +153,8 @@ func TestLandCondensationShiftsSomeMaritimeRainInland(t *testing.T) {
 
 func TestLandCondensationDampsUnsupportedSupersaturation(t *testing.T) {
 	capacity := 0.80
-	unsupported := computeLandCondensationDiagnostic(capacity*1.55, capacity, 0.02, 0.10, 0.00, 0.00, 0.45, 0.75, 0.55, 1.0, 0.07, []float64{301.15}, 0)
-	supported := computeLandCondensationDiagnostic(capacity*1.55, capacity, 0.20, 0.55, 0.90, 0.85, 0.15, 0.20, 0.85, 1.0, 0.07, []float64{301.15}, 0)
+	unsupported := computeLandCondensationDiagnostic(capacity*1.55, capacity, 0.02, 0.10, 0.00, 0.00, 0.45, 0.75, 0.55, 1.0, 0.07, []float64{301.15}, 0, precipTestBaselineCells)
+	supported := computeLandCondensationDiagnostic(capacity*1.55, capacity, 0.20, 0.55, 0.90, 0.85, 0.15, 0.20, 0.85, 1.0, 0.07, []float64{301.15}, 0, precipTestBaselineCells)
 
 	if unsupported.SupersatSupport >= supported.SupersatSupport {
 		t.Fatalf("expected unsupported tropical supersaturation to have lower support: unsupported=%.3f supported=%.3f", unsupported.SupersatSupport, supported.SupersatSupport)
@@ -166,8 +166,8 @@ func TestLandCondensationDampsUnsupportedSupersaturation(t *testing.T) {
 
 func TestLandCondensationSupportsWarmOnshoreTropicalCoast(t *testing.T) {
 	capacity := 1.20
-	coolOffshore := computeLandCondensationDiagnostic(capacity*1.05, capacity, 0.02, 0.20, 0.90, 0.05, 0.00, 0.00, 0.90, 1.0, 0.07, []float64{285.15}, 0)
-	warmOnshore := computeLandCondensationDiagnostic(capacity*1.05, capacity, 0.02, 0.65, 0.95, 0.95, 0.00, 0.00, 0.90, 1.0, 0.07, []float64{301.15}, 0)
+	coolOffshore := computeLandCondensationDiagnostic(capacity*1.05, capacity, 0.02, 0.20, 0.90, 0.05, 0.00, 0.00, 0.90, 1.0, 0.07, []float64{285.15}, 0, precipTestBaselineCells)
+	warmOnshore := computeLandCondensationDiagnostic(capacity*1.05, capacity, 0.02, 0.65, 0.95, 0.95, 0.00, 0.00, 0.90, 1.0, 0.07, []float64{301.15}, 0, precipTestBaselineCells)
 
 	if warmOnshore.TropicalCoastSupport <= coolOffshore.TropicalCoastSupport {
 		t.Fatalf("expected warm onshore tropical coast support to exceed cool offshore support: cool=%.3f warm=%.3f", coolOffshore.TropicalCoastSupport, warmOnshore.TropicalCoastSupport)
