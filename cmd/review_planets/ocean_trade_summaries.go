@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"worldgen/climgen"
 )
@@ -242,7 +243,52 @@ func printOceanCandidatePortDetails(result *climgen.OceanTradeResult, network *c
 	}
 }
 
+func printOceanCandidateScoreDistribution(dist climgen.OceanCandidateScoreDistribution) {
+	if dist.EligibleNodes == 0 {
+		return
+	}
+	scoreParts := make([]string, 0, len(dist.ScoreThresholds))
+	for i, threshold := range dist.ScoreThresholds {
+		count, civilized, both := 0, 0, 0
+		if i < len(dist.ScoreCounts) {
+			count = dist.ScoreCounts[i]
+		}
+		if i < len(dist.ScoreCivilized) {
+			civilized = dist.ScoreCivilized[i]
+		}
+		if i < len(dist.ScorePassBoth) {
+			both = dist.ScorePassBoth[i]
+		}
+		scoreParts = append(scoreParts, fmt.Sprintf("%.2f:%d/%d/%d", threshold, count, civilized, both))
+	}
+	physParts := make([]string, 0, len(dist.PhysicalThreshold))
+	for i, threshold := range dist.PhysicalThreshold {
+		count := 0
+		if i < len(dist.PhysicalCounts) {
+			count = dist.PhysicalCounts[i]
+		}
+		physParts = append(physParts, fmt.Sprintf("%.2f:%d", threshold, count))
+	}
+	fmt.Printf(
+		"      oceanPortDist: eligible=%d civilized=%d scoreP50=%.3f scoreP75=%.3f scoreP90=%.3f scoreP95=%.3f scoreMax=%.3f physP50=%.3f physP75=%.3f physP90=%.3f physMax=%.3f scoreAtLeast[all/civ/both]=%s physAtLeast=%s\n",
+		dist.EligibleNodes,
+		dist.CivilizedNodes,
+		dist.ScoreP50,
+		dist.ScoreP75,
+		dist.ScoreP90,
+		dist.ScoreP95,
+		dist.ScoreMax,
+		dist.PhysicalP50,
+		dist.PhysicalP75,
+		dist.PhysicalP90,
+		dist.PhysicalMax,
+		strings.Join(scoreParts, ","),
+		strings.Join(physParts, ","),
+	)
+}
+
 func printOceanCandidatePortDiagnostics(diag climgen.OceanCandidatePortDiagnostics) {
+	printOceanCandidateScoreDistribution(diag.ScoreDistribution)
 	if diag.RawCandidateCount == 0 && diag.CivilizedCandidateCount == 0 {
 		return
 	}

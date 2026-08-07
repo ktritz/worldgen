@@ -223,6 +223,37 @@ def main() -> int:
         "ocean_corridors_per_ocean_area_caravel",
     ]
 
+    # A ratio over near-zero counts carries no information: 1 corridor vs 0 reads
+    # as an infinite or zero ratio and looks catastrophic, when the honest answer
+    # is that the quantity is too small to compare. Ocean corridors sat at 0-3 per
+    # world and their "0.0 mean ratio" was very nearly misread as a regression.
+    # Metrics whose typical magnitude is below this are reported but marked
+    # underpowered, and excluded from the bias/noise verdicts.
+    MIN_MAGNITUDE_FOR_RATIO = 5.0
+
+    # A density's own magnitude says nothing about its statistical power -- ports
+    # per radian of coastline is ~0.1 however many ports there are. Power comes
+    # from the number of discrete events underlying the ratio, so a density
+    # inherits the floor test from the count it is derived from.
+    DENSITY_BACKING_COUNT = {
+        "terminals_per_nav_length": "river_terminals",
+        "river_corridors_per_nav_length": "river",
+        "ports_per_coast_length_caravel": "coastal_ports_caravel",
+        "coastal_corridors_per_coast_length_caravel": "coastal_caravel",
+        "stopovers_per_ocean_area_caravel": "ocean_stopovers_caravel",
+        "ocean_corridors_per_ocean_area_caravel": "ocean_caravel",
+    }
+
+    def typical_magnitude_of(name: str) -> float:
+        """Mean absolute magnitude of a metric across both levels."""
+        vals = []
+        for seed in seeds:
+            if name in review_a[seed]:
+                vals.append(abs(as_float(review_a[seed][name])))
+            if name in review_b[seed]:
+                vals.append(abs(as_float(review_b[seed][name])))
+        return average(vals) if vals else 0.0
+
     def metric_report(name: str) -> dict | None:
         """Per-seed ratio and delta for one metric, worst case first."""
         pairs = []
@@ -239,8 +270,19 @@ def main() -> int:
             if abs(r - 1.0) > worst_dev:
                 worst_seed, worst_dev = s, abs(r - 1.0)
         signs = [d for _, d in deltas]
+        # Typical magnitude across both levels. Ratios below the floor are
+        # reported but not trusted for a verdict.
+        magnitudes = [abs(v) for _, a, b in pairs for v in (a, b)]
+        typical = average(magnitudes) if magnitudes else 0.0
+        # For a density, judge power by the count it is derived from.
+        backing = DENSITY_BACKING_COUNT.get(name)
+        power_basis = typical_magnitude_of(backing) if backing else typical
+        underpowered = power_basis < MIN_MAGNITUDE_FOR_RATIO
         return {
             "metric": name,
+            "typical_magnitude": round(typical, 3),
+            "power_basis": round(power_basis, 3),
+            "underpowered": underpowered,
             "worst_dev": round(worst_dev, 3),
             "worst_seed": worst_seed,
             "mean_ratio": round(average([r for _, r in ratios]), 3) if ratios else None,
@@ -272,9 +314,14 @@ def main() -> int:
 
     for m in metrics:
         m["bias"] = round(bias_of(m), 3)
-    biased = [m["metric"] for m in metrics if bias_of(m) > BIAS_TOLERANCE]
-    noisy = [m["metric"] for m in metrics if m["worst_dev"] > VARIANCE_TOLERANCE]
-    systematic = [m["metric"] for m in metrics if m["all_same_sign"] and m["max_abs_delta"] > 0]
+    # Underpowered metrics are excluded from every verdict: a ratio built on
+    # counts of 0-3 says nothing, and letting it into the flags buries the
+    # metrics that can actually carry a conclusion.
+    judged = [m for m in metrics if not m["underpowered"]]
+    biased = [m["metric"] for m in judged if bias_of(m) > BIAS_TOLERANCE]
+    noisy = [m["metric"] for m in judged if m["worst_dev"] > VARIANCE_TOLERANCE]
+    systematic = [m["metric"] for m in judged if m["all_same_sign"] and m["max_abs_delta"] > 0]
+    underpowered = [m["metric"] for m in metrics if m["underpowered"]]
 
     aggregate = {
         "levels": [args.level_a, args.level_b],
@@ -287,6 +334,10 @@ def main() -> int:
         # Noisy: one seed diverges hard but the mean is fine -> chaos sensitivity
         # or too few seeds. Investigate, but not the same class of problem.
         "noisy_metrics": noisy,
+        # Reported for visibility but excluded from the verdicts above: their
+        # counts are too small for a ratio to mean anything.
+        "underpowered_metrics": underpowered,
+        "min_magnitude_for_ratio": MIN_MAGNITUDE_FOR_RATIO,
         "bias_tolerance": BIAS_TOLERANCE,
         "variance_tolerance": VARIANCE_TOLERANCE,
         # Metrics whose delta never changes sign across seeds -- the signature of

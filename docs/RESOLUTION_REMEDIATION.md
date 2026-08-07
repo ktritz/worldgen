@@ -222,6 +222,85 @@ the settlement work is gone everywhere, not just in the civilization counts.
 composite score never showed this because it summed a 3x increase and a 6x decrease into one
 "noisy" number.
 
+## Water routing, 2026-08-05/06 — current state
+
+Land, settlements, proto-civs and polities converged to within ~12%. Water routing was the largest
+remaining divergence. Four rounds produced one solid fix, one correct *non*-fix, one partial fix and
+one incomplete one. Recorded so none of it is re-derived.
+
+### Rivers — root cause fixed at source, residual documented
+
+`hydrologyChannelThreshold` used a fixed P93.5 of land flow accumulation. **A fixed percentile pins
+the FRACTION of land cells that count as channel** — always 6.5% — and land cells scale with area,
+so the channel network scaled with area rather than length. Its comment claimed the rank "keeps
+channel hierarchy comparable as the mesh is refined", which is true of the *hierarchy* and false of
+the *extent*; that is why it survived the original audit.
+
+Replaced with a critical drainage-area criterion (the standard channel-initiation rule), with the
+constant derived as the complement of the old percentile so level 5 is reproduced exactly.
+
+| | before | after | target |
+|---|---|---|---|
+| navigability cell-sum ratio | 3.60 | **2.51** | 2.0 |
+| navLength ratio | 1.80 | **1.25** | 1.0 |
+
+**Residual, precisely located**: `navigability` blends `channelNav` through a *soft* smoothstep and
+gates at `MinNavigability`. Cells below the critical drainage area still clear that gate on partial
+channel credit plus wet runoff, and that sub-threshold population is 2-D hillslope. A critical-area
+threshold makes `channelStrength` stable *at* the cut; it cannot make the ramp below the cut
+one-dimensional. Constants were deliberately not retuned to close the gap.
+
+**Two earlier river attempts failed and should not be repeated.** Both targeted river *terminal*
+selection, which is downstream of the defect: an area-scaled qualifying gate overcorrected
+(terminals 57→32 where they should hold), and a linear-scaled one left terminals at 1.30 versus the
+unfixed 1.26. The field was already wrong before any terminal was chosen. Also note river ports are
+computed *downstream* of corridors, not upstream — the "corridors are quadratic in ports"
+hypothesis is false.
+
+### Coastal ports — score inflation fixed, count divergence NOT
+
+`populateBaseCoastalNodeScores` took a max over catchment coastal cells whose sample count grows
+~2× per level (linear — coastline is a 1-D feature). A max over n samples estimates the
+(1 − 1/(n+1)) quantile, so it rises with n by construction, then meets absolute thresholds.
+Replaced with `meshScaleStableMaxOfLinearSamples`, provably an exact no-op at level 5 for every
+sample count.
+
+**But the count barely moved**: `coastal_ports_caravel` 1.38 → 1.366, `ports_per_coast_length`
+1.38 → 1.327. Removing ~10% of score inflation removed almost none of the ~38% count divergence, so
+a second mechanism dominates. Prime suspect is audit **F5**: port dedupe keyed on *terminal cell
+identity*, so ports that merge at coarse meshes stay separate at fine ones — a count effect wholly
+independent of scores. **Not yet attempted.**
+
+### Ocean stopovers — measured, and deliberately NOT fixed
+
+Candidate *region area* is already invariant (0.081 sr at L6 vs 0.082 at L7), the spacing test is
+physical, and selection is score-limited at both levels rather than packing-limited. The extra
+stopovers are predominantly island-kind (6 → 13–22) while roadsteads stay flat. **A mesh with
+112 km cells cannot host a waypoint on a 60 km island.** That is under-resolved geography — an
+irreducible resolution floor to document, not a defect. Do not chase it.
+
+`MaxStopovers = 56` is a genuine latent scale bug (a fixed cap over a pool growing with cell count)
+but is not currently binding — max selected is 30 at L7.
+
+### Ocean trade is inert at every resolution — a content problem, not a resolution one
+
+The port fix converged levels 6 and 7 *downward* onto the baseline, which exposed that the baseline
+was nearly empty all along. Seed 42: level 5 has 1 candidate port and 0 corridors — exactly what
+levels 6 and 7 now produce, where level 6 previously showed 3 and 3. **The fine meshes had been
+manufacturing ocean trade the baseline never had.**
+
+Across six seeds at level 6: candidate ports 0/1/0/0/2/0 against major ports 0/6/2/2/1/2, and
+corridors 0/0/0/0/1/0. Seed 42 having **6 major ports but 1 candidate** shows the candidate gate is
+far stricter than the major-port gate. A corridor needs two candidates, so the ocean layer is
+effectively switched off. This is single-resolution tuning, not cross-resolution work.
+
+### Metric guard added
+
+Ratios over near-zero counts carry no information and nearly caused the port result to be misread as
+a regression. `compare_review_levels.py` now flags metrics as `underpowered` and excludes them from
+every verdict. Densities inherit their power test from the count they derive from, since a density's
+own magnitude (ports per radian ≈ 0.1) says nothing about how many events underlie it.
+
 ## Deliberate level-5 behaviour changes (the complete list)
 
 The working rule is that a resolution fix must be an exact no-op at the L5 baseline. These changes

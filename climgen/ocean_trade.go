@@ -64,6 +64,7 @@ type OceanCandidatePortDiagnostics struct {
 	P10DeepwaterScore           float64
 	MedianDeepwaterScore        float64
 	P90DeepwaterScore           float64
+	ScoreDistribution           OceanCandidateScoreDistribution
 }
 
 type OceanTradeResult struct {
@@ -115,7 +116,7 @@ func BuildOceanTradeNetwork(
 	rawCandidatePorts := candidateOceanPorts(network, ports, settings)
 	civilizedCandidatePorts := civilizedMaritimeCandidatePorts(rawCandidatePorts, civByNode)
 	candidatePorts, civCapRejected := capOceanCandidatePortsByCivilization(civilizedCandidatePorts, civByNode, settings.MaxCandidatePortsPerCiv)
-	out.CandidateDiagnostics = oceanCandidatePortDiagnostics(rawCandidatePorts, civilizedCandidatePorts, candidatePorts, civCapRejected, network, ports, civByNode)
+	out.CandidateDiagnostics = oceanCandidatePortDiagnostics(rawCandidatePorts, civilizedCandidatePorts, candidatePorts, civCapRejected, network, ports, civByNode, settings)
 	out.CandidatePorts = append(out.CandidatePorts, candidatePorts...)
 	baseStopovers, stopoverDiagnostics := BuildMaritimeStopoverNodesWithDiagnostics(sites, cells, network, ports, elevation, seaLevel)
 	stopovers, stopoverDiagnostics := selectOceanStopovers(baseStopovers, sites, cells, ports, settings, stopoverDiagnostics)
@@ -310,7 +311,7 @@ func oceanCandidatePhysicalDeepwaterScore(diag *CoastalPortDiagnostics, nodeIdx 
 	return 0
 }
 
-func oceanCandidatePortDiagnostics(raw, civilized, final []int, civCapRejected int, network *SettlementNetworkResult, ports *CoastalPortResult, civByNode []int) OceanCandidatePortDiagnostics {
+func oceanCandidatePortDiagnostics(raw, civilized, final []int, civCapRejected int, network *SettlementNetworkResult, ports *CoastalPortResult, civByNode []int, settings OceanTradeSettings) OceanCandidatePortDiagnostics {
 	diag := OceanCandidatePortDiagnostics{
 		RawCandidateCount:       len(raw),
 		CivilizedCandidateCount: len(civilized),
@@ -321,6 +322,7 @@ func oceanCandidatePortDiagnostics(raw, civilized, final []int, civCapRejected i
 	if network == nil || ports == nil || ports.Diagnostics == nil {
 		return diag
 	}
+	diag.ScoreDistribution = oceanCandidateScoreDistribution(network, ports, civByNode, settings.CandidatePhysicalDeepwaterFloor)
 	major := make(map[int]struct{}, len(ports.MajorDeepwaterPorts))
 	for _, nodeIdx := range ports.MajorDeepwaterPorts {
 		major[nodeIdx] = struct{}{}

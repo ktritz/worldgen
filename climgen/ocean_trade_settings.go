@@ -44,14 +44,14 @@ func DefaultOceanTradeSettings() OceanTradeSettings {
 	}
 	return OceanTradeSettings{
 		SchemaVersion:                   OceanTradeSchemaVersion,
-		CandidatePortThreshold:          0.56,
-		CandidateSecondaryPortFloor:     0.48,
-		CandidatePhysicalDeepwaterFloor: 0.24,
+		CandidatePortThreshold:          0.48,
+		CandidateSecondaryPortFloor:     0.44,
+		CandidatePhysicalDeepwaterFloor: 0.16,
 		MinOpenOceanCapability:          0.35,
 		MaxStopovers:                    56,
 		StopoverScoreFloor:              0.36,
 		StopoverSpacingHops:             4,
-		MaxCandidatePortsPerCiv:         1,
+		MaxCandidatePortsPerCiv:         2,
 		MaxPartnersPerPort:              3,
 		MaxPartnersPerCivilization:      3,
 		BaseLegCost:                     8.0,
