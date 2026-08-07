@@ -294,6 +294,25 @@ corridors 0/0/0/0/1/0. Seed 42 having **6 major ports but 1 candidate** shows th
 far stricter than the major-port gate. A corridor needs two candidates, so the ocean layer is
 effectively switched off. This is single-resolution tuning, not cross-resolution work.
 
+### Polity-count outlier investigated, deliberately NOT fixed
+
+Seed 42 drops from 4 proto-civs and 4 polities at level 6 to 1 and 1 at level 7, which is what
+starves its ocean layer (all candidate ports land in a single civilization, so nine are
+cap-rejected). Traced with the eligibility tallies: region *count* is similar (19 vs 22), but at
+level 7 the anchor mass concentrates into one component — a single accepted region with anchor
+strength 13.50 and area support 59.96, where level 6 spreads ~19.5 anchor strength across four
+regions of ~4.88 each. A marginal settlement link forming or not reassigns anchors between
+components.
+
+**Not systematic, so not fixed.** Across six seeds the proto deltas are 0/−3/0/0/−1/+1 and the
+polity deltas +1/−3/0/+1/0/+1: mean polity delta **0.0**, five of six seeds within ±1, and scatter
+in both directions. Excluding seed 42 the mean proto delta is also 0. This is one world on a
+partitioning knife-edge, not a scaling error — and `proto`/`polities` are exactly the metrics the
+underpowered guard excludes from verdicts (typical magnitude ~3). Chasing it would repeat the
+river mistake of optimizing against a number too noisy to carry a conclusion.
+
+Worth revisiting only if a larger seed set shows the deltas acquiring a consistent sign.
+
 ### Metric guard added
 
 Ratios over near-zero counts carry no information and nearly caused the port result to be misread as
