@@ -81,8 +81,15 @@ func computeOceanAtmosphericMoisture(
 				continue
 			}
 			incoming := advectedSpecificHumidity(i, vertices, adj, wind, moisture)
-			q := incoming + oceanSource[i]
-			condensed := computeOceanCondensation(q, moistureCap[i], rainfallFractionPerCell)
+			// Evaporation enters the column per unit distance travelled, so the
+			// per-step injection has to shrink with the cell width the same way
+			// the retention factor below does. Injecting the full source every
+			// step while retention is raised to stepScale makes the steady
+			// state source/(1-retention^dx), which grows like 1/dx — about 4x
+			// too much marine moisture at L7. Scaling the injection recovers
+			// the mesh-independent limit source/ln(1/retention). Exact at L5.
+			q := incoming + oceanSource[i]*stepScale
+			condensed := computeOceanCondensation(q, moistureCap[i], rainfallFractionPerCell, len(vertices))
 			warmMarine := 0.0
 			if i < len(moistureCap) {
 				// warm-ocean depletion is driven by SST/air temperature proxy through moisture capacity source scaling;

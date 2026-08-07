@@ -123,11 +123,12 @@ func computeLandCondensationDiagnostic(
 	baseCondensation := activeHumidity * rainfallFractionPerCell * backgroundFraction
 	// baseCondensation is already per physical distance through
 	// rainfallFractionPerCell. The supersaturation drain is a fraction removed
-	// per iteration, i.e. per cell traversed, so it needs the same treatment:
-	// convert it to a per-physical-step fraction (exact no-op at the L5
-	// baseline) or a finer mesh drains supersaturation more times over the same
-	// physical distance.
-	supersatFraction := precipitationPerStepFraction(
+	// per iteration, i.e. per cell traversed, so it needs the same treatment or
+	// a finer mesh drains supersaturation more times over the same physical
+	// distance. It takes the *rate* form rather than the profile form because
+	// the caller divides this condensate by the step size to report an
+	// intensity — see precipitationPerStepRate.
+	supersatFraction := precipitationPerStepRate(
 		precipLandSupersatFraction*(0.72+0.28*coldCondenseEfficiency)*supersatSupport,
 		cellCount,
 	)

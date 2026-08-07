@@ -38,6 +38,36 @@ func precipitationPerStepFraction(baseFraction float64, cellCount int) float64 {
 	return 1.0 - math.Pow(1.0-frac, scale)
 }
 
+// precipitationPerStepRate converts a per-cell removal fraction into a rate per
+// physical step, for drains whose removed amount is reported as a precipitation
+// *intensity* rather than only shaping a depletion profile.
+//
+// precipitationPerStepFraction is the right conversion for a profile: it holds
+// the surviving fraction over a fixed physical distance constant. It is the
+// wrong one for an intensity, because the caller divides the per-cell amount by
+// the step size to recover a depth, and (1-(1-f)^dx)/dx is not f — it climbs
+// toward ln(1/(1-f)) as cells shrink (a 46% overstatement at L7 for f = 0.68).
+// That inflated exactly the cells carrying supersaturation, i.e. orographic and
+// convergence maxima, so the precipitation median was mesh-invariant while P90
+// and above kept rising with refinement.
+//
+// A rate is linear in the step instead, which is the convention the background
+// condensation term already uses (a per-km fraction multiplied by the cell
+// width), so both channels now discretize the same way and both report an
+// exactly mesh-invariant intensity. Exact no-op at the L5 baseline, where the
+// step scale is 1.
+func precipitationPerStepRate(baseFraction float64, cellCount int) float64 {
+	frac := Clamp(baseFraction, 0, 1)
+	if frac <= 0 {
+		return 0
+	}
+	scale := precipitationPhysicalStepScale(cellCount)
+	if scale == 1 {
+		return frac
+	}
+	return Clamp(frac*scale, 0, 1)
+}
+
 func computeUpwindLandTravel(
 	i int,
 	vertices []Vector3D,

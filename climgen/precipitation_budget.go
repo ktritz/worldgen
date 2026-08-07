@@ -7,6 +7,7 @@ const (
 	precipMinIterations                = 18
 	precipMaxIterations                = 96
 	precipOceanCondensationFraction    = 0.08
+	precipOceanSupersatFraction        = 0.45
 	precipLandSupersatFraction         = 0.68
 	precipOrographicCondenseFraction   = 0.15
 	precipConvergenceCondenseFraction  = 0.20
@@ -599,13 +600,19 @@ func advectedSpecificHumidityField(
 	return out
 }
 
-func computeOceanCondensation(q, capacity, rainfallFractionPerCell float64) float64 {
+func computeOceanCondensation(q, capacity, rainfallFractionPerCell float64, cellCount int) float64 {
 	if q <= 0 {
 		return 0
 	}
 	supersat := math.Max(0, q-capacity)
 	background := q * rainfallFractionPerCell * precipOceanCondensationFraction
-	condensed := background + supersat*0.45
+	// The land budget converts its supersaturation drain to a per-physical-step
+	// quantity; this one was left as a bare per-cell fraction, so a finer mesh
+	// drained marine supersaturation four times as often over the same fetch.
+	// It takes the profile form rather than the rate form because this
+	// condensate only depletes the marine column feeding the coast — it is
+	// never reported as a precipitation depth.
+	condensed := background + supersat*precipitationPerStepFraction(precipOceanSupersatFraction, cellCount)
 	if condensed > q {
 		return q
 	}
