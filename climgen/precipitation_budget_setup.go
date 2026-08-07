@@ -58,6 +58,12 @@ func computeLandMoistureSource(
 	if temperature == nil {
 		return source
 	}
+	// The land budget adds this source once per relaxation iteration, and one
+	// iteration advects moisture one cell. A fixed per-iteration increment is
+	// therefore a per-step quantity, so a finer mesh injects it more times over
+	// the same physical distance. Convert to a per-physical-step increment
+	// (exact no-op at the L5 baseline).
+	sourceFraction := precipitationPerStepFraction(precipLandSourceFraction, len(vertices))
 	for i, v := range vertices {
 		if elevation[i] < seaLevel {
 			continue
@@ -68,7 +74,7 @@ func computeLandMoistureSource(
 		tempC := temperature[i] - 273.15
 		warmth := 0.55 + 0.45*smoothRamp(6.0, 30.0, tempC)
 		scale := settings.LandSourceScale * localPrecipitationScale(settings.LandSourceLocalScale, i)
-		source[i] = scale * precipLandSourceFraction * (0.18 + 0.82*tropicalConvergence) * capacity * warmth
+		source[i] = scale * sourceFraction * (0.18 + 0.82*tropicalConvergence) * capacity * warmth
 	}
 	return source
 }
