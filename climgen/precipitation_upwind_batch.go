@@ -405,4 +405,3 @@ func upwindFootprintBaselineCoeffs() []float64 {
 	}
 	return coeffs
 }
-
