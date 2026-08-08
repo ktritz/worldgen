@@ -568,7 +568,7 @@ func advectedSpecificHumidity(
 		vertices,
 		adj,
 		wind,
-		resolutionAdjustedPrecipSteps(3, len(vertices)),
+		precipIterationFootprintSteps,
 		precipUpwindFootprintMinAlignment,
 		nil,
 	)
@@ -598,7 +598,9 @@ func advectedSpecificHumidityField(
 	cache *upwindTransitionCache,
 ) []float64 {
 	p := cache.get(precipUpwindFootprintMinAlignment)
-	coeffs := upwindFootprintCoeffs(resolutionAdjustedPrecipSteps(3, len(vertices)), len(vertices))
+	// Mesh-relative depth: this footprint runs once per relaxation iteration, so
+	// the iteration is the transport step. See precipIterationFootprintSteps.
+	coeffs := upwindFootprintBaselineCoeffs()
 	mean, ok := batchUpwindFootprintMean(p, coeffs, specificHumidity, nil)
 	out := make([]float64, len(vertices))
 	for i := range vertices {
