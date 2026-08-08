@@ -405,7 +405,9 @@ func applyMarineLandDiffusion(
 		return
 	}
 	current := append([]float64(nil), marineIncoming...)
-	for iter := 0; iter < marineLandDiffusionIterations; iter++ {
+	// Diffusive smoother: iterations scale with the cell count to hold a fixed
+	// physical radius (CLAUDE.md rule 2). Exact no-op at the baseline.
+	for iter := 0; iter < meshResolutionAdjustedDiffusionIterations(marineLandDiffusionIterations, len(elevation)); iter++ {
 		next := append([]float64(nil), current...)
 		for i := range current {
 			if i >= len(elevation) || elevation[i] < seaLevel {

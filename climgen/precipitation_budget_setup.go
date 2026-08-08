@@ -7,8 +7,19 @@ func estimateClimateCellSizeKm(n int) float64 {
 	return earthRadiusKm * math.Sqrt(4*math.Pi/float64(n))
 }
 
-func scaledPrecipIterations(avgCellSizeKm float64) int {
-	maxIterations := int(precipMinIterations * precipBaseCellSizeKm / avgCellSizeKm)
+// scaledPrecipIterations sizes the land-budget sweep. One iteration advects one
+// cell, so this is a physical transport reach, not a convergence tolerance --
+// instrumentation shows the budget is fully consumed at the baseline rather than
+// converging early, so a short budget truncates the field.
+//
+// The previous form derived the count from a cell-size ratio and then floored it
+// at precipMinIterations, and the floor swallowed the scaling: L6 got 18
+// iterations where it needed 36 and L7 got 22 where it needed 72, collapsing
+// inland reach from 4018 km at L5 to 2009 km at L6 and 1228 km at L7. That
+// starved continental interiors, which is most of why the precipitation P10
+// halved with refinement.
+func scaledPrecipIterations(cellCount int) int {
+	maxIterations := meshResolutionAdjustedSteps(precipMinIterations, cellCount)
 	if maxIterations < precipMinIterations {
 		maxIterations = precipMinIterations
 	}

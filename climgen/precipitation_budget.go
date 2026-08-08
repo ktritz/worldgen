@@ -60,7 +60,7 @@ func computePrecipitationBudget(
 	landMask := landMaskAtOrAbove(elevation, seaLevel, n)
 
 	avgCellSizeKm := estimateClimateCellSizeKm(n)
-	maxIterations := scaledPrecipIterations(avgCellSizeKm)
+	maxIterations := scaledPrecipIterations(n)
 	rainfallFractionPerCell := settings.RainfallFraction * avgCellSizeKm
 	// Condensation below is the moisture a column loses while crossing *one
 	// cell*: rainfallFractionPerCell is a per-km rate multiplied by the cell
@@ -71,6 +71,9 @@ func computePrecipitationBudget(
 	// drier as the mesh refines. Divide back out to recover an intensity, i.e.
 	// the condensation per baseline (L5) step. Exact no-op at the baseline.
 	precipIntensityPerStep := 1.0 / precipitationPhysicalStepScale(n)
+	// Additive marine sources are injected once per traversed cell, so they
+	// scale with the physical step like every other transfer in the budget.
+	sourceStepScale := precipitationPhysicalStepScale(n)
 	transportSteps := resolutionAdjustedPrecipSteps(precipInlandTransportSteps, n)
 	fetchSteps := resolutionAdjustedPrecipSteps(precipFetchMaxSteps, n)
 	footprintSteps := resolutionAdjustedPrecipSteps(precipInlandTransportSteps+4, n)
@@ -241,7 +244,12 @@ func computePrecipitationBudget(
 				), n)
 				marineQ -= marineToFrontal
 				frontalQ += marineToFrontal
-				frontalQ += marineFrontalUpwind.stormSource(
+				// Injected once per traversed cell, so it needs the same
+				// per-physical-step treatment as the marineToFrontal transfer
+				// just above. Left unscaled it added a fixed fraction of the
+				// marine field every iteration, and a finer mesh takes more
+				// iterations over the same distance.
+				frontalQ += sourceStepScale * marineFrontalUpwind.stormSource(
 					i,
 					marineTransported,
 					elevation,
@@ -255,7 +263,7 @@ func computePrecipitationBudget(
 				marineToLand := marineQ * precipitationPerStepFraction(marineToLandMixFraction(effectiveFetch[i], effectiveOnshore[i], landTravel[i], landInterior[i]), n)
 				marineQ -= marineToLand
 				landQ += marineToLand
-				landQ += marineTropicalUpwind.source(
+				landQ += sourceStepScale * marineTropicalUpwind.source(
 					i,
 					marineTransported,
 					elevation,
@@ -426,7 +434,7 @@ func computePrecipitationBudget(
 		), n)
 		incomingMarine -= marineToFrontal
 		incomingFrontal += marineToFrontal
-		incomingFrontal += marineFrontalUpwind.stormSource(
+		incomingFrontal += sourceStepScale * marineFrontalUpwind.stormSource(
 			i,
 			marineTransported,
 			elevation,
@@ -441,7 +449,7 @@ func computePrecipitationBudget(
 		marineToLand := incomingMarine * precipitationPerStepFraction(marineToLandMixFraction(effectiveFetch[i], effectiveOnshore[i], landTravel[i], landInterior[i]), n)
 		incomingMarine -= marineToLand
 		incomingLand += marineToLand
-		tropicalSource := marineTropicalUpwind.source(
+		tropicalSource := sourceStepScale * marineTropicalUpwind.source(
 			i,
 			marineTransported,
 			elevation,
