@@ -74,7 +74,7 @@ func ClassifyWildlife(
 			continue
 		}
 		runoff := hydrologyValue(hydro, i, func(h *HydrologyBiomeInputs) []float64 { return h.Runoff })
-		channel := hydrologyValue(hydro, i, func(h *HydrologyBiomeInputs) []float64 { return h.ChannelStrength })
+		channel := hydrologyChannelCorridorStrength(hydro, i)
 		soilFertility := 0.5
 		if soils != nil && soils.Diagnostics != nil && i < len(soils.Diagnostics.Fertility) {
 			soilFertility = soils.Diagnostics.Fertility[i]

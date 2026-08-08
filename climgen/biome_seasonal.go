@@ -41,6 +41,11 @@ type HydrologyBiomeInputs struct {
 	LakeClassSupport         []float64
 	RiparianChannelSupport   []float64
 	DepositionalClassSupport []float64
+	// ChannelCorridorStrength is ChannelStrength widened to a constant physical
+	// corridor. Consumers that ask "is this cell part of a river landscape"
+	// cover area and must read this; consumers that follow the watercourse
+	// itself keep reading the ChannelStrength centerline.
+	ChannelCorridorStrength []float64
 }
 
 // SummarizeBiomeClimate derives seasonal climate summaries used by the biome
@@ -265,7 +270,7 @@ func computeBiomeAffinities(diag *BiomeDiagnostics, elevation []float64, seaLeve
 				wetlandRunoff = smoothstep01(18, 110, hydro.Runoff[i])
 			}
 			if i < len(hydro.ChannelStrength) {
-				wetlandChannel = smoothstep01(0.9, 2.6, hydro.ChannelStrength[i])
+				wetlandChannel = smoothstep01(0.9, 2.6, hydrologyChannelCorridorStrength(hydro, i))
 			}
 			wetlandClass = hydrologyClassFactor(hydro, i)
 		}

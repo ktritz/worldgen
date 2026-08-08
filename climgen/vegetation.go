@@ -184,7 +184,7 @@ func ClassifyVegetation(
 				waterlogRunoff = smoothstep01(18, 110, hydro.Runoff[i])
 			}
 			if i < len(hydro.ChannelStrength) {
-				waterlogChannel = smoothstep01(0.9, 2.6, hydro.ChannelStrength[i])
+				waterlogChannel = smoothstep01(0.9, 2.6, hydrologyChannelCorridorStrength(hydro, i))
 			}
 			waterlogClass = hydrologyClassFactor(hydro, i)
 		}
