@@ -235,14 +235,24 @@ func computePrecipitationBudget(
 			frontalQ := incomingFrontal
 			if !isOcean[i] {
 				frontalSourceScale := localOptionalPrecipitationScale(settings.FrontalSourceLocalScale, i)
-				marineToFrontal := marineQ * precipitationPerStepFraction(computeFrontalMarineCaptureFraction(
+				frontalCapture := computeFrontalMarineCaptureFraction(
 					effectiveFetch[i],
 					effectiveOnshore[i],
 					landTravel[i],
 					landInterior[i],
 					frontalSourceScale,
-				), n)
-				marineQ -= marineToFrontal
+				)
+				marineToFrontal := marineQ * precipitationPerStepFraction(frontalCapture, n)
+				// marineQ is re-initialised from marineTransported at the top of every
+				// iteration and its remainder is discarded, so it is a within-step
+				// column rather than a state variable. The transfer handed to the
+				// persistent reservoir is per physical step, but depleting this
+				// column by that same per-step amount leaves an O(step) residual:
+				// less is subtracted per pass at finer meshes, so the column that
+				// goes on to condense is systematically larger. Deplete by the
+				// baseline fraction instead. Exact no-op at L5, where
+				// precipitationPerStepFraction returns the fraction unchanged.
+				marineQ -= marineQ * frontalCapture
 				frontalQ += marineToFrontal
 				// Injected once per traversed cell, so it needs the same
 				// per-physical-step treatment as the marineToFrontal transfer
@@ -260,8 +270,9 @@ func computePrecipitationBudget(
 					settings.FrontalSourceLocalScale,
 					settings.FrontalTransportLocalScale,
 				)
-				marineToLand := marineQ * precipitationPerStepFraction(marineToLandMixFraction(effectiveFetch[i], effectiveOnshore[i], landTravel[i], landInterior[i]), n)
-				marineQ -= marineToLand
+				landMix := marineToLandMixFraction(effectiveFetch[i], effectiveOnshore[i], landTravel[i], landInterior[i])
+				marineToLand := marineQ * precipitationPerStepFraction(landMix, n)
+				marineQ -= marineQ * landMix
 				landQ += marineToLand
 				landQ += sourceStepScale * marineTropicalUpwind.source(
 					i,
@@ -425,14 +436,15 @@ func computePrecipitationBudget(
 		result.Debug.TropicalSourceScale[i] = localOptionalPrecipitationScale(settings.TropicalSourceLocalScale, i)
 		result.Debug.CondensationScale[i] = localPrecipitationScale(settings.CondensationLocalScale, i)
 		result.Debug.LandRetentionScale[i] = localPrecipitationScale(settings.LandRetentionLocalScale, i)
-		marineToFrontal := incomingMarine * precipitationPerStepFraction(computeFrontalMarineCaptureFraction(
+		frontalCapture := computeFrontalMarineCaptureFraction(
 			effectiveFetch[i],
 			effectiveOnshore[i],
 			landTravel[i],
 			landInterior[i],
 			frontalSourceScale,
-		), n)
-		incomingMarine -= marineToFrontal
+		)
+		marineToFrontal := incomingMarine * precipitationPerStepFraction(frontalCapture, n)
+		incomingMarine -= incomingMarine * frontalCapture
 		incomingFrontal += marineToFrontal
 		incomingFrontal += sourceStepScale * marineFrontalUpwind.stormSource(
 			i,
@@ -446,8 +458,9 @@ func computePrecipitationBudget(
 			settings.FrontalTransportLocalScale,
 		)
 		result.Debug.FrontalSource[i] = incomingFrontal
-		marineToLand := incomingMarine * precipitationPerStepFraction(marineToLandMixFraction(effectiveFetch[i], effectiveOnshore[i], landTravel[i], landInterior[i]), n)
-		incomingMarine -= marineToLand
+		landMix := marineToLandMixFraction(effectiveFetch[i], effectiveOnshore[i], landTravel[i], landInterior[i])
+		marineToLand := incomingMarine * precipitationPerStepFraction(landMix, n)
+		incomingMarine -= incomingMarine * landMix
 		incomingLand += marineToLand
 		tropicalSource := sourceStepScale * marineTropicalUpwind.source(
 			i,

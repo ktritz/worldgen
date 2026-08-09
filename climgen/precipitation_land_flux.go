@@ -44,8 +44,11 @@ func computeLandRecyclingSource(
 	evapPotential := smoothRamp(-2.0, 26.0, tempC)
 	warmSeasonBoost := 0.55 + 0.45*smoothRamp(8.0, 30.0, tempC)
 	recycleBias := 0.25 + 0.75*Clamp(landInterior, 0, 1)
-	humidityFraction := precipitationPerStepFraction(precipLandRecyclingFraction, cellCount)
-	storageFraction := precipitationPerStepFraction(precipLandRecyclingFraction*0.30, cellCount)
+	// Recycling is a rate feeding a reservoir, not a survival profile, so it
+	// takes the linear per-step form; the profile form overshoots 3.2% at L6 and
+	// 6.5% at L7. Exact no-op at L5.
+	humidityFraction := precipitationPerStepRate(precipLandRecyclingFraction, cellCount)
+	storageFraction := precipitationPerStepRate(precipLandRecyclingFraction*0.30, cellCount)
 	humidityFlux := localHumidity * humidityFraction * recycleScale * evapPotential * warmSeasonBoost * recycleBias
 	storageFlux := Clamp(surfaceStorage, 0, 1) * storageFraction * evapPotential * (0.30 + 0.70*warmSeasonBoost) * recycleBias
 	return humidityFlux + storageFlux
