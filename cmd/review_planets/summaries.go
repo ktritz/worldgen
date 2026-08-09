@@ -762,3 +762,103 @@ func printSettlementPreferenceSummary(results []*climgen.SettlementPreferenceRes
 		)
 	}
 }
+
+// printPrecipitationStrataSummary reports annual precipitation split by
+// continentality, absolute latitude and elevation.
+//
+// Global percentiles hide compensating errors between strata: a measured
+// coastal band running +58% against an interior running -30% nets out to a
+// tame-looking -17% global median, and a whole biome class can swap for another
+// with nothing visible in the aggregate at all. Every cross-level comparison
+// that reads only global aggregates shares that blind spot, so the strata are
+// reported alongside them.
+func printPrecipitationStrataSummary(
+	sites []climgen.Vector3D,
+	cells []climgen.VoronoiCell,
+	elevation []float64,
+	seaLevel float64,
+	biomes *climgen.BiomeResult,
+) {
+	if biomes == nil || biomes.Diagnostics == nil || len(elevation) == 0 {
+		return
+	}
+	precip := biomes.Diagnostics.AnnualPrecipCm
+	if len(precip) == 0 {
+		return
+	}
+	adj := climgen.BuildFlatAdjacency(cells)
+	interior := climgen.ComputeSurfaceInteriorFraction(elevation, seaLevel, adj, 1800.0, true)
+
+	type stratum struct {
+		name string
+		vals []float64
+	}
+	strata := []stratum{
+		{name: "cont:coastal"}, {name: "cont:middle"}, {name: "cont:interior"},
+		{name: "lat:00-30"}, {name: "lat:30-60"}, {name: "lat:60-90"},
+		{name: "elev:0-500"}, {name: "elev:500-1500"}, {name: "elev:1500+"},
+	}
+	add := func(i int, v float64) { strata[i].vals = append(strata[i].vals, v) }
+	for i := range elevation {
+		if elevation[i] < seaLevel || i >= len(precip) {
+			continue
+		}
+		v := precip[i]
+		switch f := interiorAt(interior, i); {
+		case f < 0.2:
+			add(0, v)
+		case f < 0.6:
+			add(1, v)
+		default:
+			add(2, v)
+		}
+		absLat := math.Abs(latitudeDegOf(sites, i))
+		switch {
+		case absLat < 30:
+			add(3, v)
+		case absLat < 60:
+			add(4, v)
+		default:
+			add(5, v)
+		}
+		switch e := elevation[i]; {
+		case e < 500:
+			add(6, v)
+		case e < 1500:
+			add(7, v)
+		default:
+			add(8, v)
+		}
+	}
+	for _, s := range strata {
+		if len(s.vals) == 0 {
+			continue
+		}
+		sort.Float64s(s.vals)
+		q := func(p float64) float64 {
+			idx := int(p * float64(len(s.vals)-1))
+			return s.vals[idx]
+		}
+		mean := 0.0
+		for _, v := range s.vals {
+			mean += v
+		}
+		mean /= float64(len(s.vals))
+		fmt.Printf("      precipStrata[%s]: n=%d p10=%.1f p50=%.1f p90=%.1f mean=%.1f\n",
+			s.name, len(s.vals), q(0.10), q(0.50), q(0.90), mean)
+	}
+}
+
+func interiorAt(interior []float64, i int) float64 {
+	if i < 0 || i >= len(interior) {
+		return 0
+	}
+	return interior[i]
+}
+
+func latitudeDegOf(sites []climgen.Vector3D, i int) float64 {
+	if i < 0 || i >= len(sites) {
+		return 0
+	}
+	return math.Asin(math.Max(-1, math.Min(1, sites[i].Z))) * 180.0 / math.Pi
+}

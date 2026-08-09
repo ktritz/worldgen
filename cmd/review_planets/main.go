@@ -230,6 +230,7 @@ func main() {
 			}
 			record.Arid, record.Forest, record.Wetland = collectBiomeMetrics(biomeResult)
 			printBiomeSummary(biomeResult)
+			printPrecipitationStrataSummary(sites, cells, elevation, 0.0, biomeResult)
 			if *climateVegetation {
 				record.Woody = collectVegetationMetrics(vegetationResult)
 				printVegetationSummary(vegetationResult)
