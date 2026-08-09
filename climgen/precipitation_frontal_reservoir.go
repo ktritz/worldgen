@@ -245,7 +245,10 @@ func applyFrontalLandDiffusion(
 		return
 	}
 	current := append([]float64(nil), frontal...)
-	for iter := 0; iter < frontalLandDiffusionIterations; iter++ {
+	// Neighbour averaging spreads sigma ~ cellSize*sqrt(iters), so holding a
+	// fixed physical smoothing radius needs iterations proportional to the cell
+	// count (CLAUDE.md rule 2). Exact no-op at the baseline.
+	for iter := 0; iter < meshResolutionAdjustedDiffusionIterations(frontalLandDiffusionIterations, len(elevation)); iter++ {
 		next := append([]float64(nil), current...)
 		for i := range current {
 			if i >= len(elevation) || elevation[i] < seaLevel {
@@ -316,7 +319,9 @@ func applyFrontalStormTransport(
 	}
 	landMask := landMaskAtOrAbove(elevation, seaLevel, len(vertices))
 	current := append([]float64(nil), frontal...)
-	for iter := 0; iter < frontalStormTransportIterations; iter++ {
+	// Directional one-cell-per-pass propagation: advective, so this scales
+	// with 1/stepScale rather than with the cell count.
+	for iter := 0; iter < meshResolutionAdjustedSteps(frontalStormTransportIterations, len(vertices)); iter++ {
 		// current is read-only within the sweep (writes land in next), so the
 		// whole upwind reduction batches once per iteration.
 		upwind := computeFrontalUpwindBatch(current, vertices, landMask, cache)

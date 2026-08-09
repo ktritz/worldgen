@@ -127,7 +127,7 @@ func classifyResources(
 			continue
 		}
 		runoff := hydrologyValue(hydro, i, func(h *HydrologyBiomeInputs) []float64 { return h.Runoff })
-		channel := hydrologyValue(hydro, i, func(h *HydrologyBiomeInputs) []float64 { return h.ChannelStrength })
+		channel := hydrologyChannelCorridorStrength(hydro, i)
 		className := hydrologyClassName(hydro, i)
 		classWet := hydrologyClassFactor(hydro, i)
 		classDepositional := hydrologyDepositionalClassFactor(hydro, i)

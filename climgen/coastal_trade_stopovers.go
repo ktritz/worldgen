@@ -110,6 +110,7 @@ func BuildMaritimeStopoverNodesWithDiagnostics(
 		}
 		return candidates[i].CellIndex < candidates[j].CellIndex
 	})
+	candidates = thinMaritimeStopoverCandidatesToBaselineDensity(candidates, sites, len(cells))
 	selected := make([]MaritimeStopoverNode, 0, len(candidates))
 	minSpacingHops := meshResolutionAdjustedSteps(2, len(cells))
 	minSpacingDeg := maritimeStopoverSpacingDegrees(sites, cells, minSpacingHops)
@@ -390,4 +391,45 @@ func graphHopDistance(cells []VoronoiCell, start, goal, maxHops int) int {
 		}
 	}
 	return maxHops + 1
+}
+
+// thinMaritimeStopoverCandidatesToBaselineDensity caps the stopover candidate
+// pool at one candidate per baseline cell spacing.
+//
+// The selection below is a greedy score-ordered disk packing against a
+// physically invariant minimum spacing, which sounds resolution-independent but
+// is not: how *densely* a greedy packing fills space depends on how many
+// candidates it has to choose from. The candidate pool is detected per cell, so
+// it grows with the mesh — 265 candidates at L6 against 1089 at L7 on one
+// measured seed — and the extra candidates let the packing approach saturation.
+// Selected stopovers rose 119 -> 149 and their mean spacing fell from 6.68 to
+// 5.78 degrees against an unchanged 4.33 degree floor, inflating stopover
+// density about 57% at L7.
+//
+// At the baseline the mesh itself supplies the missing constraint, since one
+// cell can hold at most one candidate. Finer meshes have to reimpose that
+// spacing explicitly to pack the same way. Skipped entirely at the baseline, so
+// L5 selection is byte-identical.
+func thinMaritimeStopoverCandidatesToBaselineDensity(candidates []MaritimeStopoverNode, sites []Vector3D, cellCount int) []MaritimeStopoverNode {
+	if len(candidates) == 0 || len(sites) == 0 {
+		return candidates
+	}
+	if meshPathCostResolutionScale(cellCount) >= 1 {
+		return candidates
+	}
+	minCosine := math.Cos(MeanCellAngularSpacing(int(baselinePathCostCells)))
+	kept := make([]int, 0, len(candidates))
+	out := make([]MaritimeStopoverNode, 0, len(candidates))
+	for _, cand := range candidates {
+		if cand.CellIndex < 0 || cand.CellIndex >= len(sites) {
+			out = append(out, cand)
+			continue
+		}
+		if withinAngularRadiusOfAny(sites, kept, cand.CellIndex, minCosine) {
+			continue
+		}
+		kept = append(kept, cand.CellIndex)
+		out = append(out, cand)
+	}
+	return out
 }

@@ -47,11 +47,33 @@ func ResolutionAdjustedHydrologyBiomeInputs(
 		for i, channel := range hydro.ChannelStrength {
 			riparianChannel[i] = smoothstep01(0.7, 2.2, channel)
 		}
-		// Channel strength is already normalized to stable channel coverage.
-		// Spreading this field again over-expands riparian vegetation at high
-		// resolution; downstream callers use this explicit support in preference
-		// to the spread channel-strength fallback.
-		out.RiparianChannelSupport = riparianChannel
+		// Channel initiation deliberately selects a *linear* feature: the
+		// threshold is channelInitiationPercentile(n) = 100 - 6.5*pathScale, so
+		// channel cells are 6.5% of land at L5, 3.25% at L6, 1.6% at L7. That
+		// halving is correct for a river network, whose cell count grows with
+		// the square root of the mesh, and consumers that follow the watercourse
+		// want exactly it.
+		//
+		// Consumers that cover *area* do not: reading the bare centerline made
+		// the riparian land fraction halve every level (4.3% / 2.2% / 1.1%
+		// measured), which propagated through settlement water and access
+		// scores into carrying capacity, halving the above-town fraction per
+		// level and starving anchors until proto-civilizations failed to
+		// nucleate at all on some L7 seeds.
+		//
+		// Widening to a constant physical corridor fixes the area without
+		// touching the centerline. The spread is a max, not a sum, so the
+		// overlapping footprints of adjacent channel cells along a watercourse
+		// collapse to the corridor rather than accumulating — the earlier
+		// concern about over-expanding at high resolution applies to summed
+		// spreads. The radius is one step short of the physical one-hop radius,
+		// which is zero at L5 and so leaves the baseline byte-identical, while
+		// the 1/(1+d*stepScale) falloff makes the effective corridor width
+		// 1.00 / 1.17 / 1.27 baseline cells across L5-L7 instead of 1.00 / 0.50
+		// / 0.25.
+		corridorRadius := radius - 1
+		out.RiparianChannelSupport = spreadPhysicalMaxSignal(cells, elevation, seaLevel, riparianChannel, corridorRadius)
+		out.ChannelCorridorStrength = spreadPhysicalMaxSignal(cells, elevation, seaLevel, hydro.ChannelStrength, corridorRadius)
 	}
 	return out
 }

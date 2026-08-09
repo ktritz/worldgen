@@ -372,3 +372,36 @@ func batchUpwindFootprintMaskShare(p *upwindTransition, coeffs []float64, mask [
 	}
 	return out
 }
+
+// precipIterationFootprintSteps is the footprint depth used by the advection
+// operator *inside* the land-budget relaxation loop, in mesh cells rather than
+// physical distance.
+//
+// Footprints applied once to a static field (ocean fetch, tropical and frontal
+// upwind support) describe a fixed physical catchment and must scale with the
+// mesh. The advection footprint is different: the relaxation iteration is itself
+// the transport step, and the loop runs meshResolutionAdjustedSteps(18, n)
+// times. Giving that footprint a physical depth as well made its per-iteration
+// displacement nearly resolution-independent (409/357/332 km at L5/L6/L7) while
+// the iteration count grew as 1/stepScale, so total transport ran 7361 km at L5
+// against 23894 km at L7 -- a 3.2x over-advection that flushed moisture downwind
+// and starved continental interiors, which received 35% less precipitation at L7
+// than at L5.
+//
+// Every rule in the resolution table assumes an advective operator moves one
+// cell per pass. Fixing the depth in cells restores that.
+const precipIterationFootprintSteps = 3
+
+// upwindFootprintBaselineCoeffs returns the footprint kernel in mesh-cell units,
+// for the two call sites that run inside the relaxation loop. At the baseline
+// this is exactly what upwindFootprintCoeffs already produces, so L5 output is
+// unchanged.
+func upwindFootprintBaselineCoeffs() []float64 {
+	coeffs := make([]float64, precipIterationFootprintSteps)
+	running := 1.0
+	for depth := 0; depth < precipIterationFootprintSteps; depth++ {
+		running *= math.Pow(precipUpwindFootprintDecay, float64(depth))
+		coeffs[depth] = running
+	}
+	return coeffs
+}

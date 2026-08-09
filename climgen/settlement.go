@@ -89,13 +89,17 @@ func ClassifySettlementSuitability(
 		out.Diagnostics.ClimateScore[i] = clamp01(0.35*warmth + 0.25*growing + 0.20*dryness + 0.20*precip)
 
 		runoff := hydrologyValue(hydro, i, func(h *HydrologyBiomeInputs) []float64 { return h.Runoff })
-		channel := hydrologyValue(hydro, i, func(h *HydrologyBiomeInputs) []float64 { return h.ChannelStrength })
 		waterlogging := 0.0
 		if vegetation != nil && vegetation.Diagnostics != nil && i < len(vegetation.Diagnostics.Waterlogging) {
 			waterlogging = vegetation.Diagnostics.Waterlogging[i]
 		}
 		waterResourceScore := settlementWaterResourceScore(waterResources, i)
-		riverBonus := clamp01(0.55*smoothstep01(0.50, 2.20, channel) + 0.45*smoothstep01(10, 95, runoff))
+		// Settlement sites occupy a river *landscape*, not the watercourse cell,
+		// so this reads the widened corridor. The bare centerline halved the
+		// river-adjacent land fraction every mesh level, which compressed the
+		// top of the carrying-capacity distribution.
+		corridor := hydrologyChannelCorridorStrength(hydro, i)
+		riverBonus := clamp01(0.55*smoothstep01(0.50, 2.20, corridor) + 0.45*smoothstep01(10, 95, runoff))
 		out.Diagnostics.RiverBonus[i] = riverBonus
 		out.Diagnostics.WaterScore[i] = clamp01(
 			0.28*peak01(runoff, 6, 28, 95) +

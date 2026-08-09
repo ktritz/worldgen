@@ -91,7 +91,7 @@ func ClassifySoils(
 			continue
 		}
 		runoff := hydrologyValue(hydro, i, func(h *HydrologyBiomeInputs) []float64 { return h.Runoff })
-		channel := hydrologyValue(hydro, i, func(h *HydrologyBiomeInputs) []float64 { return h.ChannelStrength })
+		channel := hydrologyChannelCorridorStrength(hydro, i)
 		classFactor := hydrologyClassFactor(hydro, i)
 		riparianChannel := hydrologyRiparianChannelSupport(hydro, i)
 		alluvial := clamp01(0.45*smoothstep01(20, 120, runoff) + 0.20*smoothstep01(0.8, 2.5, channel) + 0.15*riparianChannel + 0.20*classFactor)
@@ -244,6 +244,23 @@ func hydrologyClassFactor(hydro *HydrologyBiomeInputs, idx int) float64 {
 		support = math.Max(support, directHydrologyClassFactor(hydro.CellClass[idx]))
 	}
 	return support
+}
+
+// hydrologyChannelCorridorStrength returns channel strength widened to a
+// constant physical corridor, for consumers that cover area rather than
+// following the watercourse. Falls back to the raw centerline when the corridor
+// field is absent (unconverted inputs and hand-built test fixtures).
+func hydrologyChannelCorridorStrength(hydro *HydrologyBiomeInputs, idx int) float64 {
+	if hydro == nil || idx < 0 {
+		return 0
+	}
+	if idx < len(hydro.ChannelCorridorStrength) {
+		return hydro.ChannelCorridorStrength[idx]
+	}
+	if idx < len(hydro.ChannelStrength) {
+		return hydro.ChannelStrength[idx]
+	}
+	return 0
 }
 
 func hydrologyRiparianChannelSupport(hydro *HydrologyBiomeInputs, idx int) float64 {

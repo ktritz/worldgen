@@ -17,7 +17,7 @@ func tradeGoodFishPotential(inputs TradeGoodInputs, idx int) float64 {
 		lake = safeSliceValue(inputs.Water.Diagnostics.LakeAccess, idx)
 	}
 	runoff := hydrologyValue(inputs.Hydro, idx, func(h *HydrologyBiomeInputs) []float64 { return h.Runoff })
-	channel := hydrologyValue(inputs.Hydro, idx, func(h *HydrologyBiomeInputs) []float64 { return h.ChannelStrength })
+	channel := hydrologyChannelCorridorStrength(inputs.Hydro, idx)
 	wetland := 0.0
 	riparian := 0.0
 	if inputs.Vegetation != nil && inputs.Vegetation.Diagnostics != nil {
@@ -88,7 +88,7 @@ func tradeGoodIronOrePotential(inputs TradeGoodInputs, idx int, hardRock float64
 	}
 
 	runoff := hydrologyValue(inputs.Hydro, idx, func(h *HydrologyBiomeInputs) []float64 { return h.Runoff })
-	channel := hydrologyValue(inputs.Hydro, idx, func(h *HydrologyBiomeInputs) []float64 { return h.ChannelStrength })
+	channel := hydrologyChannelCorridorStrength(inputs.Hydro, idx)
 	basinWet := hydrologyClassFactor(inputs.Hydro, idx)
 	bogIron := clamp01(
 		0.30*wetland +
@@ -122,7 +122,7 @@ func tradeGoodClayPotential(inputs TradeGoodInputs, idx int, base float64) float
 	}
 
 	runoff := hydrologyValue(inputs.Hydro, idx, func(h *HydrologyBiomeInputs) []float64 { return h.Runoff })
-	channel := hydrologyValue(inputs.Hydro, idx, func(h *HydrologyBiomeInputs) []float64 { return h.ChannelStrength })
+	channel := hydrologyChannelCorridorStrength(inputs.Hydro, idx)
 	depositionalClass := hydrologyClassFactor(inputs.Hydro, idx)
 	depositionalSignal := clamp01(
 		0.30*alluvial +
@@ -151,7 +151,7 @@ func tradeGoodCopperOrePotential(inputs TradeGoodInputs, idx int, base float64, 
 	}
 
 	runoff := hydrologyValue(inputs.Hydro, idx, func(h *HydrologyBiomeInputs) []float64 { return h.Runoff })
-	channel := hydrologyValue(inputs.Hydro, idx, func(h *HydrologyBiomeInputs) []float64 { return h.ChannelStrength })
+	channel := hydrologyChannelCorridorStrength(inputs.Hydro, idx)
 	placerReach := preciousPlacerClassFactor(inputs.Hydro, idx)
 	placerSignal := clamp01(
 		0.32*alluvial +
@@ -178,7 +178,7 @@ func tradeGoodPreciousOrePotential(inputs TradeGoodInputs, idx int, base float64
 	}
 
 	runoff := hydrologyValue(inputs.Hydro, idx, func(h *HydrologyBiomeInputs) []float64 { return h.Runoff })
-	channel := hydrologyValue(inputs.Hydro, idx, func(h *HydrologyBiomeInputs) []float64 { return h.ChannelStrength })
+	channel := hydrologyChannelCorridorStrength(inputs.Hydro, idx)
 	placerReach := preciousPlacerClassFactor(inputs.Hydro, idx)
 	placerSignal := clamp01(
 		0.34*alluvial +

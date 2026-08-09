@@ -199,7 +199,7 @@ func derivePortEstuaryAccess(i int, hydro *HydrologyBiomeInputs, soils *SoilResu
 		return 0
 	}
 	runoff := hydrologyValue(hydro, i, func(h *HydrologyBiomeInputs) []float64 { return h.Runoff })
-	channel := hydrologyValue(hydro, i, func(h *HydrologyBiomeInputs) []float64 { return h.ChannelStrength })
+	channel := hydrologyChannelCorridorStrength(hydro, i)
 	alluvial := 0.0
 	if soils != nil && soils.Diagnostics != nil && i < len(soils.Diagnostics.Alluvial) {
 		alluvial = soils.Diagnostics.Alluvial[i]
@@ -221,7 +221,7 @@ func derivePortRiverTransfer(i int, hydro *HydrologyBiomeInputs, riverRoutes *Ri
 		return clamp01(coastal * (0.56*riverRoutes.Diagnostics.Navigability[i] + 0.44*riverRoutes.Diagnostics.TransferSupport[i]))
 	}
 	runoff := hydrologyValue(hydro, i, func(h *HydrologyBiomeInputs) []float64 { return h.Runoff })
-	channel := hydrologyValue(hydro, i, func(h *HydrologyBiomeInputs) []float64 { return h.ChannelStrength })
+	channel := hydrologyChannelCorridorStrength(hydro, i)
 	return clamp01(coastal * (0.52*smoothstep01(8, 105, runoff) + 0.48*smoothstep01(0.8, 2.2, channel)))
 }
 
